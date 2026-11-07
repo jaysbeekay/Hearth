@@ -19,7 +19,7 @@ Open `http://localhost:3000` — you'll be sent to `/setup` to create the first 
 | `DATABASE_URL` | SQLite path — defaults to `file:./data/app.db`, i.e. `/app/data/app.db` inside the container |
 | `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
 
-Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications via ntfy (Web Push to members' own browsers needs no setup), `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
 
 ## Deploy
 
@@ -81,7 +81,7 @@ security notes.
 - Attach documents (PDF/images/Word) to contracts or products — uploading a document
   auto-fills fields like provider, dates, and cost via AI/heuristic extraction
 - Configurable reminder thresholds per contract/product (e.g. 30/14/7/1 days before expiry)
-- Reminders via email (SMTP) and/or push notifications ([ntfy](https://ntfy.sh))
+- Reminders via email (SMTP), push notifications ([ntfy](https://ntfy.sh)), and/or Web Push to each member's own browsers and phones
 - Reminder health status per record — enabled, next reminder date, thresholds, delivery
   channel/status, last sent, last failure — plus a one-off "Send test reminder" action
 - Auto-filled fields from a scanned document require an explicit confirmation before
@@ -233,7 +233,7 @@ NextAuth v5 (credentials + JWT sessions), Tailwind CSS v4, Zod, node-cron.
 
 ## Running locally
 
-Requires Node.js 22+.
+Requires Node.js 22.19+ (the Docker image uses Node 26).
 
 ```bash
 npm install
@@ -329,6 +329,9 @@ services:
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
@@ -759,20 +762,95 @@ so as defense in depth you can route that outbound traffic through a local
 agent firewall that inspects it for injection and credential/data
 exfiltration attempts before it leaves the network.
 
-Set `AI_EGRESS_PROXY_URL` to the base URL of a running instance of an
-agent-firewall proxy — e.g.
-[Pipelock](https://github.com/luckyPipewrench/pipelock), an open-source
-option built for exactly this — and every provider call (Anthropic, Gemini,
-OpenAI, OpenRouter, and Ollama alike) is sent through its `/fetch?url=...`
-mediation endpoint instead of directly to the provider. Leave it unset to
-call providers directly, as before; this is entirely optional and off by
-default.
+Set `AI_EGRESS_PROXY_URL` to an HTTP forward proxy, e.g.
+[Pipelock](https://github.com/pipelab-org/pipelock), an open-source agent
+firewall, and every provider call (Anthropic, Gemini, OpenAI, OpenRouter and
+Ollama, for extraction and the Assistant) goes out through it. Nothing else
+Hearth sends uses it. Leave it unset to call providers directly; this is off
+by default.
 
-`docker-compose.yml` has a commented-out `pipelock` service showing this
-wired up as a sidecar. Note that whatever you point `AI_EGRESS_PROXY_URL` at
-sees the full request it mediates, including your provider API key, the same
-way any reverse proxy sees the traffic passing through it — only point this
-at a proxy you run and trust.
+How much the proxy sees depends on TLS interception:
+
+- **Without it**, an https call is an opaque tunnel. The proxy sees only the
+  hostname, so it can allow or block providers but can't read prompts or
+  documents. Plain-http Ollama is always readable.
+- **With it**, the proxy decrypts and scans request and response bodies, for
+  example blocking a request that carries a cloud access key. Hearth must
+  trust the proxy's CA: set `AI_EGRESS_PROXY_CA_CERT` to its certificate.
+  Hearth trusts that CA for AI provider calls only.
+
+The proxy sees everything it mediates, including your provider API keys.
+Only point this at a proxy you run and trust.
+
+### Pipelock with Docker Compose
+
+`docker-compose.yml` has a commented-out `pipelock` service, pinned to a
+tested release (3.7.1). From the directory holding `docker-compose.yml`:
+
+```bash
+IMG=ghcr.io/luckypipewrench/pipelock:3.7.1
+mkdir -p pipelock
+docker run --rm "$IMG" generate config --preset balanced > pipelock/pipelock.yaml
+# Only for body scanning: create a CA in ./pipelock
+docker run --rm -u "$(id -u)" -e PIPELOCK_HOME=/config -v "$PWD/pipelock:/config" "$IMG" tls init
+chmod 644 pipelock/ca.pem   # Hearth reads the certificate; the key stays 600
+```
+
+Then edit `pipelock/pipelock.yaml`:
+
+- `forward_proxy.enabled: true`. This is required: Hearth uses Pipelock as a
+  forward proxy, not its `/fetch` endpoint, which only accepts GET.
+- For body scanning: `tls_interception.enabled: true`,
+  `ca_cert: /config/ca.pem`, `ca_key: /config/ca-key.pem`. Then mount
+  `./pipelock/ca.pem` into Hearth and set
+  `AI_EGRESS_PROXY_CA_CERT=/app/pipelock-ca.pem` (the line is in the compose
+  file). Hearth reads the CA once at startup, so restart Hearth after
+  regenerating or rotating it.
+- If Ollama runs on your network, add its address to `ssrf.ip_allowlist`
+  (e.g. `- 192.168.1.20/32`). Pipelock blocks private addresses by default,
+  which would break Ollama.
+
+Uncomment the service, set `AI_EGRESS_PROXY_URL=http://pipelock:8888`, and
+run `docker compose up -d`. Blocks and warnings show in
+`docker compose logs pipelock`.
+
+What to expect with the `balanced` preset:
+
+- Your provider key reaching its own provider is allowed. A known secret
+  pattern in a request body, such as an AWS access key, is blocked with a
+  403, and Hearth treats it like a failed provider call.
+- Base64 document uploads log high-entropy warnings but aren't blocked.
+  Body scanning adds a few seconds per document.
+- The `strict` preset only lets through hosts in `api_allowlist`. Its
+  default list has `*.anthropic.com` and `*.openai.com`, so add
+  `generativelanguage.googleapis.com`, `openrouter.ai` and your Ollama host
+  if you use them.
+
+Pipelock's own documentation lists its limits: no body scanning without TLS
+interception, encoded or split data can get past `balanced`, and very large
+responses are only partly inspected. Treat it as one more layer, not a
+guarantee. See
+[`docs/security/prompt-injection.md`](docs/security/prompt-injection.md).
+
+### Pipelock in front of the MCP server
+
+The MCP server (`/api/mcp`) returns household record text, which can carry
+injected instructions, to an external agent. Whoever runs that agent can put
+Pipelock's MCP proxy between the agent and Hearth so responses are scanned
+before the model sees them. Run it on the agent's side; nothing changes in
+Hearth. For an MCP client that launches stdio servers:
+
+```bash
+# headers.txt holds one line, "Authorization: Bearer <your MCP_TOKEN>", mode 600
+pipelock mcp proxy --config pipelock.yaml --header-file headers.txt \
+  --upstream https://hearth.example.com/api/mcp
+```
+
+Use that command as the server's `command`/`args` in the client's MCP config.
+`pipelock mcp proxy --listen 0.0.0.0:8889 --upstream ...` serves an HTTP
+endpoint instead. The proxy changes nothing about what the MCP server
+offers: ordinary tokens stay read-only, and tokens granted
+`MCP_IMPORT_LABELS` can still only propose records for a member to approve.
 
 ## Barcode scanning for products
 
@@ -938,6 +1016,7 @@ for the full list with defaults. Notable ones:
 | `SQLITE_JOURNAL_MODE` | Optional. `DELETE` (default) or `WAL`. WAL lets pages keep loading while a large write commits. Only turn it on when `./data` is on a local disk: on a NAS share (NFS/SMB) or a Windows folder under WSL2 (`/mnt/c`) it can corrupt the database or stop the app starting. Under WAL the database also keeps `app.db-wal` and `app.db-shm` files; see the backup notes above. Setting `DELETE` again switches an existing database back on the next start. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
+| `VAPID_SUBJECT` | Optional. The contact (`mailto:…` or `https://…`) Web Push services see on every push. Defaults to `APP_URL` when that's https, otherwise the first admin's email address. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
@@ -974,6 +1053,36 @@ each configured channel for the soonest threshold that's been crossed and not
 already notified — so adding a contract or product that's already past
 several thresholds only sends one catch-up reminder per channel, not one per
 threshold.
+
+Web Push goes to every device any member has turned it on for, read-only
+members included. That's the same household-wide model as ntfy, and the same
+records every member can already open in the app; the sent log is per record
+and channel, not per device. Removing a device, or a member signing out on
+it, stops the sends after that one, not a send already running: a device can
+still get the notification that was being sent when it was removed.
+Signing out drops the device's row on the server and then unsubscribes the
+browser; if the server delete fails, the unsubscribe still happens and the
+row goes on the next send, when the push service reports the device gone.
+A browser shows a Reminder's content only while it last saw the member it's
+for signed in there, as of their last page load or return to the tab, and
+that session hasn't run out. Otherwise it shows an "Open Hearth to see it"
+notice with none of the Reminder's content. It drops its subscription once
+it's clear the session is over: the sign-in page confirmed nobody is signed
+in, someone else signed in, or the session ran out more than a week ago.
+Opening Hearth after a session ends lands on the sign-in page, which drops
+the subscription as soon as it can reach the server (unless someone has
+signed in again in another tab meanwhile), so push has to be turned on again
+after signing back in. Changing or resetting a password turns push off on
+all of that member's devices, though a push the push service had already queued
+(Hearth asks them to keep one for up to a day) can still arrive and show on
+a browser that hasn't loaded Hearth since. A session ended on the server by
+a role change isn't seen until that browser next loads Hearth either.
+
+Rolling back to a release from before Web Push: delete the push rows from the
+sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
+since older builds don't know that channel and fail reading those rows.
+Leave the `push_subscriptions` table and its `_prisma_migrations` row in
+place: older builds ignore both, and dropping either breaks upgrading again.
 
 ## Security notes
 

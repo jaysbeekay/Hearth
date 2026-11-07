@@ -374,7 +374,7 @@ describe("Reminder health reports the channels the scheduler sends on", () => {
     await db.prisma.user.updateMany({ data: { emailReminders: false } });
 
     const h = await health(vehicle);
-    expect(h.channels).toEqual({ email: false, ntfy: false, webhook: true });
+    expect(h.channels).toEqual({ email: false, ntfy: false, webhook: true, push: false });
     // Not "On the next check" for an email that never goes: the next one is the 14-day Reminder.
     expect(h.nextReminder).toEqual({ kind: "on", date: day(addDays(rego, -14)), by: ["WEBHOOK"] });
   });
@@ -383,7 +383,7 @@ describe("Reminder health reports the channels the scheduler sends on", () => {
     const vehicle = await setUp();
 
     const h = await health(vehicle);
-    expect(h.channels).toEqual({ email: true, ntfy: false, webhook: true });
+    expect(h.channels).toEqual({ email: true, ntfy: false, webhook: true, push: false });
     // Only email is catching up on the 30-day Reminder; webhook already sent
     // it, so the summary mustn't say webhook sends this one too (#516 review).
     expect(h.nextReminder).toEqual({ kind: "next-check", by: ["EMAIL"] });
@@ -395,7 +395,7 @@ describe("Reminder health reports the channels the scheduler sends on", () => {
     vi.mocked(getEnabledWebhookEndpoints).mockResolvedValueOnce([]);
 
     const h = await health(vehicle);
-    expect(h.channels).toEqual({ email: false, ntfy: false, webhook: false });
+    expect(h.channels).toEqual({ email: false, ntfy: false, webhook: false, push: false });
     expect(h.deliveryReady).toBe(false);
   });
 });

@@ -4,14 +4,11 @@ import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
 import { bannerClass } from "@/lib/ui";
+import { channelSummary } from "@/lib/notifications/reminderSummary";
 
-function channelSummary(channels: HouseholdReminderHealth["channels"]) {
-  const active = [
-    channels.email && "Email",
-    channels.ntfy && "ntfy",
-    channels.webhook && "Webhook",
-  ].filter(Boolean);
-  return active.length > 0 ? active.join(" + ") : "None configured";
+function pushSummary({ total, failing }: HouseholdReminderHealth["pushDevices"]) {
+  const devices = `${total} ${total === 1 ? "device" : "devices"}`;
+  return failing > 0 ? `${devices}, ${failing} failing` : devices;
 }
 
 // Household-wide rollup of the per-record ReminderHealthCard signals (#292)
@@ -43,6 +40,14 @@ export function HouseholdReminderHealthCard({
           <dt className="text-xs text-muted">Delivery channel</dt>
           <dd className="text-sm font-medium">{channelSummary(health.channels)}</dd>
         </div>
+        {health.pushDevices.total > 0 && (
+          <div className="min-w-0">
+            <dt className="text-xs text-muted">Push</dt>
+            <dd className={`text-sm font-medium ${health.pushDevices.failing > 0 ? "text-danger" : ""}`}>
+              {pushSummary(health.pushDevices)}
+            </dd>
+          </div>
+        )}
         <div className="min-w-0">
           <dt className="text-xs text-muted">Status</dt>
           <dd className="flex items-center gap-1.5 text-sm font-medium">

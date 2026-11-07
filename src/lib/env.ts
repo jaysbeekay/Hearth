@@ -40,12 +40,19 @@ export const env = {
     topic: optional("NTFY_TOPIC"),
     token: optional("NTFY_TOKEN"),
   },
+  // #375 — the contact Web Push services see on our VAPID token
+  // ("mailto:…" or "https://…"). Defaults to APP_URL when that's https.
+  vapidSubject: optional("VAPID_SUBJECT"),
   ollama: {
     baseUrl: optional("OLLAMA_BASE_URL"),
     model: optional("OLLAMA_MODEL"),
   },
   aiEgressProxy: {
     url: optional("AI_EGRESS_PROXY_URL"),
+    // Path to the proxy's CA certificate (PEM), needed when the proxy
+    // intercepts TLS to scan request/response bodies. Trusted for provider
+    // calls only.
+    caCertFile: optional("AI_EGRESS_PROXY_CA_CERT"),
   },
   emailIngest: {
     host: optional("EMAIL_INGEST_HOST"),

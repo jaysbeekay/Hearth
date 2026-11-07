@@ -18,7 +18,40 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   this release are worked through by a new daily `DOCUMENT_TEXT_BACKFILL`
   job, 25 at a time, which queues its own next batch until none are left.
   Server-only; the standalone shell has no text extraction.
-
+- **Manage your push devices (#375, part 2).** Settings → My account lists
+  your other devices with push on, each with when it last got a Reminder
+  (or why its last push failed) and a Remove button for a lost or old one;
+  a removed device stays removed even if it's still signed in. Signing out
+  removes that browser's push subscription, and so does reaching the
+  sign-in page after a session ends any other way (password change,
+  expiry), so the next person to use it doesn't get your Reminders. If the
+  sign-in page can't reach the server to confirm the session is over, it
+  keeps trying while it's open. Whatever happens there, a browser only shows
+  a Reminder's content while it last saw the member it's for signed in
+  there; otherwise it shows a plain "Open Hearth to see it" notice, and
+  drops its subscription once it's clear the session is over (signed out,
+  someone else signed in, or the session ran out over a week ago).
+  Changing or resetting your password turns push off on all your devices,
+  though a push already queued at the push service can still arrive.
+  Members only ever see and remove their own devices, and Settings gets
+  only a hash of each device's push endpoint. Email stays a per-account
+  choice and ntfy stays household-wide.
+- **Web Push reminders (#375, part 1).** Settings → My account has a
+  "Notify this device" button: Reminders then arrive as notifications on
+  that browser, with no SMTP, ntfy or other account. Push is a fourth
+  Reminder channel with the same date-keyed sent log; tapping a
+  notification opens the record. VAPID keys are generated on first use and
+  kept in app settings (private key encrypted with `ENCRYPTION_KEY` when
+  that's set); `VAPID_SUBJECT` optionally sets the contact push services
+  see, otherwise `APP_URL` when it's https, otherwise the first admin's
+  email. A device the push service reports gone, or that has failed for 30
+  days, is dropped, and Reminder delivery health
+  shows how many devices have push on and how many are failing. Per-user
+  channel preferences and the guided setup screen follow in later parts.
+  Server-only for now; the iOS and Android shell is unchanged. Push goes to
+  every member's devices, read-only members included, like ntfy. Rolling
+  back below this release needs the `PUSH` rows deleted from
+  `notification_logs` first (README → Notifications).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
@@ -342,6 +375,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **AI egress proxy works with Pipelock again (#559).** Setting
+  `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
+  provider calls were sent to Pipelock's `/fetch` endpoint, which only
+  accepts GET and returns page text, so every POST came back 405. Provider
+  calls now use the proxy as a standard HTTP forward proxy, which carries
+  the method, headers and body unchanged. The Ollama text fallback in the
+  per-domain extractors used to bypass the proxy and now goes through it
+  too. New optional `AI_EGRESS_PROXY_CA_CERT` points at the proxy's CA so
+  it can intercept TLS and scan request bodies; it is trusted for provider
+  calls only. Gemini extraction now sends its key in the `x-goog-api-key`
+  header instead of the URL. Server-only; the iOS and Android shell makes
+  no AI calls.
 - **A permanent delete no longer removes a record restored a moment earlier
   (#534).** Deleting permanently from Recently deleted, and Trash
   retention's expiry purge, now only delete a record that's still in Trash,

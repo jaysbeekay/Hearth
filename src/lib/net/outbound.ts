@@ -33,8 +33,9 @@ import net from "node:net";
 // Known limitation, deliberately not claimed as fixed: addresses are checked
 // and then fetch() resolves the name again, so a host that flips between a
 // permitted and a metadata address between the two lookups isn't caught.
-// Closing that needs a connection-pinning agent; undici isn't a direct
-// dependency here.
+// Closing that needs a connection-pinning agent (an undici Agent whose
+// connect.lookup checks the resolved address). That hasn't been built yet;
+// it is not blocked on anything.
 
 export class UnsafeOutboundUrlError extends Error {}
 
