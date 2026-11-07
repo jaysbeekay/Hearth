@@ -195,6 +195,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Search shows one result per Document, not one per version.** A
+  re-uploaded file and the version it replaced usually match the same words,
+  and used to show as two identical rows. Search now shows the latest
+  version, the way the record's page does (walking past versions in Trash).
+  When only an older version matches, it's shown, with "Older version" at
+  the start of its subtitle.
+
 - **A form's validation error shows under the field it's about (#406).**
   When saving fails on one field (an end date before the start date, a
   missing title, a bad amount), the message now appears under that field,
