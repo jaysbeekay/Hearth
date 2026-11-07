@@ -68,7 +68,7 @@ export default async function VehicleDetailPage({
         snoozedBy: { select: { name: true } },
         items: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
         },
       },
     }),

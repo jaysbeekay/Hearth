@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { formatPropertyAddress } from "@/lib/utils";
+import { formatDate, formatPropertyAddress } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
+import { TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
+import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS } from "@/lib/documents/kinds";
+import type { DocumentKind } from "@/lib/documents/documentQueries";
 import { searchDocumentsFts, hitOwnerIds, hitDocIds, sortByHitRank } from "@/lib/documents/documentSearch";
 import {
   contractFilterWheres,
@@ -49,6 +53,12 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
   return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
+// #398 — a Document hit names the record it's attached to, its date, then
+// that record's parent ("Logbook service · 12 Mar 2024 · Corolla").
+function ownerSubtitle(...parts: (string | null | undefined)[]): string {
+  return parts.filter(Boolean).join(" · ");
+}
+
 // #395 — under Missing key details each row says which part is missing
 // ("No end date"), from the same rule that selected it.
 function missingSubtitle(parts: string[]): string | undefined {
@@ -92,6 +102,8 @@ export async function GET(request: NextRequest) {
   const filters = parseSearchFilters(request.nextUrl.searchParams);
   const filter = hasListFilters(filters);
   const vehicleFilterOnly = !filters.review && !filters.noDocument && !filters.important;
+  // Inventory items only have Missing key details; any other filter leaves them out.
+  const inventoryFilterOk = !filter || (filters.missingDetails && !filters.due && vehicleFilterOnly);
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
@@ -120,7 +132,24 @@ export async function GET(request: NextRequest) {
   // hits' docIds through that kind's own Prisma delegate (applying the same
   // owner-liveness filters as before) and re-sorts back into FTS rank order,
   // since that resolution step can drop hits and doesn't preserve rank.
-  const ftsHits = textOk ? await searchDocumentsFts(q, { limit: 60 }) : [];
+  //
+  // #398 review — only the kinds whose results can show: the module is on,
+  // and the list filters don't leave that kind out (below), so other
+  // Documents can't fill the ranked hits and push out ones that would show.
+  const searchKinds: DocumentKind[] = [
+    "INBOX",
+    ...OWNED_DOCUMENT_KINDS.filter((kind) => {
+      const moduleKey = DOCUMENT_KIND_MODULE[kind];
+      if (moduleKey !== null && !enabledModules.has(moduleKey)) return false;
+      if (kind === "VEHICLE_ITEM") return vehicleFilterOnly;
+      if (kind === "INVENTORY_ITEM") return inventoryFilterOk;
+      return true;
+    }),
+  ];
+  const [ftsHits, { dateFormat }] = textOk
+    ? await Promise.all([searchDocumentsFts(q, { limit: 60, kinds: searchKinds }), getUserPreferences()])
+    : [[], { dateFormat: null }];
+  const day = (d: Date | null | undefined) => (d ? formatDate(d, dateFormat) : null);
 
   queries.push(
     prisma.contract
@@ -254,6 +283,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.contract.title,
                 href: `/contracts/${r.contract.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -276,6 +306,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.product.description,
                 href: `/products/${r.product.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -346,7 +377,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
+              vehicleItem: { select: { title: true, date: true, vehicleId: true, vehicle: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -355,9 +386,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.vehicleItem.vehicle.label,
+                subtitle: ownerSubtitle(r.vehicleItem.title, day(r.vehicleItem.date), r.vehicleItem.vehicle.label),
                 href: `/vehicles/${r.vehicleItem.vehicleId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -410,7 +442,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              tripSegment: { select: { tripId: true, trip: { select: { title: true } } } },
+              tripSegment: { select: { title: true, startDate: true, tripId: true, trip: { select: { title: true } } } },
             },
           })
           .then((rows) =>
@@ -419,9 +451,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.tripSegment.trip.title,
+                subtitle: ownerSubtitle(r.tripSegment.title, day(r.tripSegment.startDate), r.tripSegment.trip.title),
                 href: `/travel/${r.tripSegment.tripId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -498,7 +531,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              homeItem: { select: { id: true, propertyId: true, title: true } },
+              homeItem: { select: { id: true, propertyId: true, title: true, date: true, property: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -507,9 +540,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.homeItem.title,
+                subtitle: ownerSubtitle(r.homeItem.title, day(r.homeItem.date), r.homeItem.property.label),
                 href: `/home/${r.homeItem.propertyId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -526,7 +560,7 @@ export async function GET(request: NextRequest) {
               id: true,
               filename: true,
               rentalStatement: {
-                select: { id: true, propertyId: true, property: { select: { label: true } } },
+                select: { id: true, propertyId: true, statementDate: true, periodStart: true, property: { select: { label: true } } },
               },
             },
           })
@@ -536,17 +570,20 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.rentalStatement.property.label,
+                subtitle: ownerSubtitle(
+                  "Rental statement",
+                  day(r.rentalStatement.statementDate ?? r.rentalStatement.periodStart),
+                  r.rentalStatement.property.label,
+                ),
                 href: `/home/${r.rentalStatement.propertyId}/rental`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
     }
   }
 
-  // Inventory items only have Missing key details; any other filter leaves them out.
-  const inventoryFilterOk = !filter || (filters.missingDetails && !filters.due && vehicleFilterOnly);
   if (enabledModules.has("INVENTORY") && (textOk || filter) && inventoryFilterOk) {
     queries.push(
       prisma.inventoryItem
@@ -591,6 +628,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.inventoryItem.label,
                 href: `/inventory/${r.inventoryItem.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -630,7 +668,7 @@ export async function GET(request: NextRequest) {
               id: true,
               filename: true,
               trade: {
-                select: { id: true, holding: { select: { id: true, portfolioId: true, ticker: true } } },
+                select: { id: true, type: true, date: true, holding: { select: { id: true, portfolioId: true, ticker: true } } },
               },
             },
           })
@@ -640,9 +678,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.trade.holding.ticker,
+                subtitle: ownerSubtitle(TRADE_TYPE_LABELS[r.trade.type] ?? "Trade", day(r.trade.date), r.trade.holding.ticker),
                 href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -681,6 +720,9 @@ export async function GET(request: NextRequest) {
   for (const r of results) {
     (groups[r.group] ??= []).push(r);
   }
+  // #398 review — each kind's block is ranked; across kinds, rank too, not
+  // Contract Documents first whatever matched best.
+  if (groups.Documents) groups.Documents = sortByHitRank(groups.Documents, ftsHits);
 
   return NextResponse.json({ groups }, { headers: { "Cache-Control": "no-store" } });
 }
