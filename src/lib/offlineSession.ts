@@ -11,6 +11,7 @@ import {
   clearOfflineOwner,
   isUserDataCache,
   isValidSessionMarker,
+  OfflineStorageTimeoutError,
   SESSION_CACHE,
   SESSION_MARKER_PATH,
   setOfflineOwner,
@@ -95,12 +96,19 @@ async function putMarker(value: SessionMarker | SignedOutMarker): Promise<void> 
  */
 async function withMarkerLock(work: () => Promise<void>): Promise<void> {
   const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
-  // Bounded, so a tab whose cache call hangs can't hold up every other
-  // tab's marker writes. The lock covers read-then-write only: the cache
-  // deletes in clearRuntimeCaches don't take it, and at worst leave no
-  // marker, which only holds a Reminder's content back.
-  if (locks) await locks.request("hearth-session-marker", { signal: AbortSignal.timeout(STEP_TIMEOUT_MS) }, work);
-  else await work();
+  if (!locks) return work();
+  // Bounded both ways: waiting for the lock, and holding it, so a tab whose
+  // cache call hangs releases it instead of holding up every other tab's
+  // marker writes. Rejects on either timeout; callers treat that as not
+  // done. The lock covers read-then-write only: the cache deletes in
+  // clearRuntimeCaches don't take it, and at worst leave no marker, which
+  // only holds a Reminder's content back.
+  const held = () => withTimeout(work(), STEP_TIMEOUT_MS);
+  if (typeof AbortSignal.timeout === "function") {
+    await locks.request("hearth-session-marker", { signal: AbortSignal.timeout(STEP_TIMEOUT_MS) }, held);
+  } else {
+    await locks.request("hearth-session-marker", held);
+  }
 }
 
 async function writeSessionMarker(marker: SessionMarker): Promise<void> {
@@ -117,15 +125,17 @@ async function writeSessionMarker(marker: SessionMarker): Promise<void> {
 /**
  * #375 — on the sign-in page, once the server has confirmed nobody is signed
  * in: tells the service worker this browser's push subscription was left
- * behind (pushGate.ts). Skipped if a member has signed in since, in another
- * tab, and written their own marker; false then, so the caller leaves push
- * alone too.
+ * behind (pushGate.ts). Without `force`, a member's marker that hasn't
+ * expired is left in place and this returns false: either someone signed
+ * in since, in another tab, or it's the last member's, left by a clear that
+ * timed out. The caller asks the server again to tell which, and passes
+ * `force` for the second. Rejects when the marker lock timed out.
  */
-export async function markSignedOut(): Promise<boolean> {
+export async function markSignedOut(force = false): Promise<boolean> {
   if (typeof window === "undefined" || !hasCacheStorage()) return true;
   let written = false;
   await withMarkerLock(async () => {
-    if (isValidSessionMarker(await readStoredMarker(), Date.now())) return;
+    if (!force && isValidSessionMarker(await readStoredMarker(), Date.now())) return;
     await putMarker({ signedOut: true });
     written = true;
   });
@@ -157,6 +167,9 @@ let signingOut = false;
 let lastOwner: OfflineOwner | null = null;
 let lastMarker: SessionMarker | null = null;
 let markerWritten: string | null = null;
+// Set when markOfflineSession gave up waiting for a claim, so that claim
+// writes the marker again once it's done.
+let markerWroteBeforeClaim = false;
 let resolveFirstClaim: () => void = () => {};
 const firstClaim = new Promise<void>((resolve) => {
   resolveFirstClaim = resolve;
@@ -200,7 +213,8 @@ export function claimOfflineData(owner: OfflineOwner): Promise<void> {
       () => {
         // markOfflineSession stops waiting for a slow claim, so the marker
         // may already be written, and then deleted by this claim's clear.
-        if (claim?.done !== done || signingOut || lastMarker?.userId !== owner.userId) return;
+        if (!markerWroteBeforeClaim || claim?.done !== done || signingOut || lastMarker?.userId !== owner.userId) return;
+        markerWroteBeforeClaim = false;
         markerWritten = null;
         void markOfflineSession(lastMarker.userId, lastMarker.expires).catch(() => {});
       },
@@ -222,8 +236,13 @@ export async function markOfflineSession(userId: string, expires: number): Promi
   if (typeof window === "undefined" || signingOut) return;
   lastMarker = { userId, expires };
   // Wait for a claim in progress, which may clear the marker's cache, but
-  // not for ever: a stalled one mustn't keep the marker unwritten.
-  if (claim) await withTimeout(claim.done, STEP_TIMEOUT_MS).catch(() => {});
+  // not for ever: a stalled one mustn't keep the marker unwritten. When it
+  // finishes, it writes the marker again (claimOfflineData).
+  if (claim) {
+    await withTimeout(claim.done, STEP_TIMEOUT_MS).catch((error: unknown) => {
+      if (error instanceof OfflineStorageTimeoutError) markerWroteBeforeClaim = true;
+    });
+  }
   const key = `${userId}:${expires}`;
   if (signingOut || markerWritten === key) return;
   await writeSessionMarker({ userId, expires });

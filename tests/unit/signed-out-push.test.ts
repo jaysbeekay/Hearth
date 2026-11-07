@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
-import { readSession, refreshSessionMarker, settleSignedOutPush, unsubscribeIfStill, type SessionCheck } from "@/lib/pushClient";
+import {
+  pushOwnership,
+  readSession,
+  refreshSessionMarker,
+  restorePushAfterFailedSignOut,
+  settleSignedOutPush,
+  unsubscribeIfStill,
+  type SessionCheck,
+} from "@/lib/pushClient";
 
 // #375 — the sign-in page drops the previous member's push subscription only
 // once the server confirms nobody is signed in, and keeps asking until it can.
@@ -99,17 +107,29 @@ describe("settleSignedOutPush", () => {
     const s = sub();
     const d = deps({ signedIn: false }, s);
     d.markSignedOut.mockResolvedValueOnce(false);
+    d.readSession.mockResolvedValueOnce({ signedIn: false }).mockResolvedValueOnce({ signedIn: true, userId: "u2", expires: 9 });
     expect(await settleSignedOutPush(d)).toBe(true);
+    expect(d.markSignedIn).toHaveBeenCalledWith("u2", 9);
     expect(d.lookup).not.toHaveBeenCalled();
     expect(s.unsubscribe).not.toHaveBeenCalled();
   });
 
-  it("still drops the subscription when telling the worker fails", async () => {
+  it("overwrites a stale marker of the member who left, and drops their push", async () => {
     const s = sub();
     const d = deps({ signedIn: false }, s);
-    d.markSignedOut.mockRejectedValueOnce(new Error("quota"));
+    d.markSignedOut.mockResolvedValueOnce(false);
     expect(await settleSignedOutPush(d)).toBe(true);
+    expect(d.readSession).toHaveBeenCalledTimes(2);
+    expect(d.markSignedOut).toHaveBeenLastCalledWith(true);
     expect(s.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("tries again, without dropping, when the worker couldn't be told (the marker lock timed out)", async () => {
+    const s = sub();
+    const d = deps({ signedIn: false }, s);
+    d.markSignedOut.mockRejectedValueOnce(new DOMException("lock", "TimeoutError"));
+    expect(await settleSignedOutPush(d)).toBe(false);
+    expect(s.unsubscribe).not.toHaveBeenCalled();
   });
 
   it("tries again when the server, the browser or the unsubscribe can't be relied on", async () => {
@@ -117,6 +137,30 @@ describe("settleSignedOutPush", () => {
     expect(await settleSignedOutPush(deps({ signedIn: false }, new Error("timed out")))).toBe(false);
     expect(await settleSignedOutPush(deps({ signedIn: false }, sub(undefined, async () => false)))).toBe(false);
     expect(await settleSignedOutPush(deps({ signedIn: false }, null))).toBe(true);
+  });
+});
+
+describe("a sign-out that fails", () => {
+  it("knows whether this device's push row is the member's, or that it couldn't tell", async () => {
+    expect(await pushOwnership(async () => ({ registered: true }))).toBe("own");
+    expect(await pushOwnership(async () => ({ registered: false }))).toBe("not-own");
+    expect(await pushOwnership(async () => { throw new Error("offline"); })).toBe("unknown");
+    expect(await pushOwnership(() => new Promise(() => {}), 20)).toBe("unknown");
+  });
+
+  it("puts back only the member's own row, and says when push may be off", async () => {
+    const save = vi.fn(async () => ({ success: "ok" }));
+    expect(await restorePushAfterFailedSignOut("own", save)).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    save.mockClear();
+    expect(await restorePushAfterFailedSignOut("not-own", save)).toBe(true);
+    expect(await restorePushAfterFailedSignOut("unknown", save)).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+
+    expect(await restorePushAfterFailedSignOut("own", async () => ({ error: "x" }))).toBe(false);
+    expect(await restorePushAfterFailedSignOut("own", async () => { throw new Error("offline"); })).toBe(false);
+    expect(await restorePushAfterFailedSignOut("own", () => new Promise(() => {}), 20)).toBe(false);
   });
 });
 

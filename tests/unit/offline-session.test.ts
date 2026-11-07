@@ -220,7 +220,7 @@ describe("claiming offline data", () => {
     expect(await marker()).toMatchObject({ userId: "alice" });
   });
 
-  it("#375 with Web Locks, the sign-in page can't overwrite a marker written meanwhile", async () => {
+  it("#375 marker writes take the Web Lock in turn, and a signed-out marker never replaces a live one", async () => {
     // Serialises like the real LockManager, one holder at a time.
     let tail = Promise.resolve();
     const request = vi.fn((_name: string, _opts: unknown, work: () => Promise<void>) => {
@@ -241,7 +241,20 @@ describe("claiming offline data", () => {
       const late = l.session.markSignedOut();
       expect(await late).toBe(false);
       expect(await marker()).toMatchObject({ userId: "alice" });
+      // Unless told the server says nobody is signed in: then it's stale.
+      expect(await l.session.markSignedOut(true)).toBe(true);
+      expect(await marker()).toEqual({ signedOut: true });
     }
+  });
+
+  it("#375 reports a marker lock that timed out as not done", async () => {
+    vi.stubGlobal("navigator", {
+      ...globalThis.navigator,
+      locks: { request: vi.fn(async () => { throw new DOMException("lock", "TimeoutError"); }) },
+    });
+    const l = await load();
+    await expect(l.session.markSignedOut()).rejects.toThrow();
+    expect(await marker()).toBeNull();
   });
 
   it("#375 removes a signed-out marker when a signed-in page loads, and nothing else", async () => {

@@ -136,9 +136,10 @@ export interface SignedOutPushDeps {
   markSignedIn: (userId: string, expires: number) => Promise<void>;
   /**
    * Tells the service worker nobody is signed in (pushGate.ts). False when
-   * it didn't, because a member has signed in since.
+   * a member's live marker was there and `force` wasn't set; rejects when
+   * it couldn't be done.
    */
-  markSignedOut: () => Promise<boolean>;
+  markSignedOut: (force?: boolean) => Promise<boolean>;
 }
 
 /**
@@ -161,8 +162,29 @@ export async function settleSignedOutPush(deps: SignedOutPushDeps): Promise<bool
     }
     return true;
   }
-  // Signed in since, in another tab: that member's push now, not ours to drop.
-  if ((await deps.markSignedOut().catch(() => true)) === false) return true;
+  let marked: boolean;
+  try {
+    marked = await deps.markSignedOut();
+  } catch {
+    return false;
+  }
+  if (!marked) {
+    // A member's marker is there: someone signed in since, in another tab,
+    // or it's the last member's, left by a clear that timed out. Ask again.
+    const again = await deps.readSession();
+    if (again === null) return false;
+    if (again.signedIn) {
+      if (again.userId && Number.isFinite(again.expires)) {
+        await deps.markSignedIn(again.userId, again.expires).catch(() => {});
+      }
+      return true;
+    }
+    try {
+      await deps.markSignedOut(true);
+    } catch {
+      return false;
+    }
+  }
   let sub: DroppableSubscription | null;
   try {
     sub = await deps.lookup();
@@ -186,4 +208,41 @@ export async function refreshSessionMarker(
   if (!session?.signedIn || session.userId !== userId || !Number.isFinite(session.expires)) return false;
   await deps.mark(userId, session.expires);
   return true;
+}
+
+/** Whether this device's push row is the signed-in member's own. */
+export type PushOwnership = "own" | "not-own" | "unknown";
+
+/**
+ * #375 — asked before signing out, so a sign-out that then fails can put
+ * back only a row the member had. "unknown" when the server didn't answer
+ * within `ms`.
+ */
+export async function pushOwnership(check: () => Promise<{ registered: boolean }>, ms = 3_000): Promise<PushOwnership> {
+  try {
+    return (await withTimeout(check(), ms)).registered ? "own" : "not-own";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * After a sign-out that failed: puts back the member's own push row, in
+ * case the server deleted it before the answer was lost. Never creates one
+ * for a member who didn't have it. Whether push is known to be as it was:
+ * false when the row couldn't be put back, or ownership wasn't known, so
+ * the member is told to check Settings.
+ */
+export async function restorePushAfterFailedSignOut(
+  ownership: PushOwnership,
+  save: () => Promise<{ error?: string; success?: string } | null>,
+  ms = 3_000,
+): Promise<boolean> {
+  if (ownership === "not-own") return true;
+  if (ownership === "unknown") return false;
+  try {
+    return !(await withTimeout(save(), ms))?.error;
+  } catch {
+    return false;
+  }
 }

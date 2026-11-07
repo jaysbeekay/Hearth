@@ -24,10 +24,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   someone else signed in, or the session ran out over a week ago).
   Changing or resetting your password turns push off on all your devices,
   though a push already queued at the push service can still arrive.
-  Members
-  only ever see and remove their own devices, and Settings gets only a hash
-  of each device's push endpoint. Email stays a per-account choice and ntfy
-  stays household-wide.
+  Members only ever see and remove their own devices, and Settings gets
+  only a hash of each device's push endpoint. Email stays a per-account
+  choice and ntfy stays household-wide.
 - **Web Push reminders (#375, part 1).** Settings → My account has a
   "Notify this device" button: Reminders then arrive as notifications on
   that browser, with no SMTP, ntfy or other account. Push is a fourth

@@ -1070,9 +1070,10 @@ notice with none of the Reminder's content. It drops its subscription once
 it's clear the session is over: the sign-in page confirmed nobody is signed
 in, someone else signed in, or the session ran out more than a week ago.
 Opening Hearth after a session ends lands on the sign-in page, which drops
-the subscription as soon as it can reach the server, so push has to be
-turned on again after signing back in. Changing or resetting a password turns push off on all of
-that member's devices, though a push the push service had already queued
+the subscription as soon as it can reach the server (unless someone has
+signed in again in another tab meanwhile), so push has to be turned on again
+after signing back in. Changing or resetting a password turns push off on
+all of that member's devices, though a push the push service had already queued
 (Hearth asks them to keep one for up to a day) can still arrive and show on
 a browser that hasn't loaded Hearth since. A session ended on the server by
 a role change isn't seen until that browser next loads Hearth either.
