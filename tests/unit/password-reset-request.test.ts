@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { requestPasswordReset } from "@/lib/actions/auth";
 import { sendPasswordResetEmail } from "@/lib/notifications/email";
+import { consumeRateLimit } from "@/lib/rateLimit";
 
 // A reset request always answers with the same generic message, so a failed
 // send used to leave no trace anywhere. Every outcome is now recorded in the
@@ -60,6 +61,17 @@ describe("requestPasswordReset", () => {
     const [event] = await events();
     expect(event.type).toBe("PASSWORD_RESET_REQUESTED");
     expect(event.detail).toMatch(/Reset email/);
+  });
+
+  it("logs a throttled request and sends nothing", async () => {
+    vi.mocked(consumeRateLimit).mockReturnValueOnce({ allowed: false, retryAfterSeconds: 60 });
+
+    expect(await requestPasswordReset(null, form(email))).toEqual(GENERIC);
+
+    expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+    const [event] = await events();
+    expect(event.type).toBe("PASSWORD_RESET_REQUESTED");
+    expect(event.detail).toMatch(/^Throttled/);
   });
 
   it("logs a request for an unknown email and sends nothing", async () => {

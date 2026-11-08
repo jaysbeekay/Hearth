@@ -14,7 +14,7 @@ import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/b
 import { bannerClass, settingsActionRowClass } from "@/lib/ui";
 import { currencyLabel } from "@/components/CurrencySelect";
 import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
-import { isQualifiedSmtpFrom } from "@/lib/smtpFrom";
+import { smtpFromWarning } from "@/lib/smtpFrom";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -32,15 +32,6 @@ function SensitiveField({ id, name, isSet }: { id: string; name: string; isSet: 
 }
 
 // ─── SMTP ────────────────────────────────────────────────────────────────────
-
-// Servers reject a From without a fully qualified domain ("504 5.5.2 need
-// fully-qualified address"), so say so here rather than only in a bounce.
-function smtpFromWarning(current: { from: string; sentFrom: string; user: string }) {
-  if (!current.from.trim() || isQualifiedSmtpFrom(current.from)) return null;
-  return isQualifiedSmtpFrom(current.sentFrom)
-    ? `The From address "${current.from}" isn't a full address on a real domain, so Hearth sends as ${current.sentFrom} instead. Set your own address, or clear the field.`
-    : `The From address "${current.from}" isn't a full address on a real domain, so mail servers will reject Hearth's emails. Use an address like Hearth <hearth@example.com>.`;
-}
 
 export function SmtpForm({
   action,
@@ -84,7 +75,7 @@ export function SmtpForm({
         <Field label="Password" htmlFor="smtpPassword">
           <SensitiveField id="smtpPassword" name="smtpPassword" isSet={current.passwordIsSet} />
         </Field>
-        <Field label="From address" htmlFor="smtpFrom" hint="Blank sends as the username">
+        <Field label="From address" htmlFor="smtpFrom" hint="Blank sends as the username, if it's an email address">
           <input id="smtpFrom" name="smtpFrom" defaultValue={current.from} placeholder="Hearth <hearth@example.com>" className={inputClass} />
         </Field>
         <Field label="" htmlFor="smtpSecure" hint="Enable for port 465 (implicit TLS)">

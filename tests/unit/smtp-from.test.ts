@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isQualifiedSmtpFrom, resolveSmtpFrom, smtpFromAddress } from "@/lib/smtpFrom";
+import { envSmtpFromFallback, isQualifiedSmtpFrom, resolveSmtpFrom, smtpFromAddress, smtpFromWarning } from "@/lib/smtpFrom";
 
 // The old default From, no-reply@localhost, was rejected by real SMTP servers
 // ("504 5.5.2 need fully-qualified address"), so no email got through.
@@ -37,5 +37,35 @@ describe("resolveSmtpFrom", () => {
 
   it("leaves it alone when the username isn't an address either", () => {
     expect(resolveSmtpFrom("Hearth <no-reply@localhost>", "apikey")).toBe("Hearth <no-reply@localhost>");
+    expect(resolveSmtpFrom("", "apikey")).toBe("");
+  });
+});
+
+describe("envSmtpFromFallback", () => {
+  it("ignores the old unqualified default left in .env files", () => {
+    expect(envSmtpFromFallback("Hearth <no-reply@localhost>")).toBe("");
+    expect(envSmtpFromFallback("Hearth <hearth@example.com>")).toBe("Hearth <hearth@example.com>");
+  });
+});
+
+describe("smtpFromWarning", () => {
+  const host = "smtp.example.com";
+
+  it("says nothing before SMTP is set up, or when the From is fine", () => {
+    expect(smtpFromWarning({ host: "", from: "", sentFrom: "" })).toBeNull();
+    expect(smtpFromWarning({ host, from: "", sentFrom: "Hearth <login@example.org>" })).toBeNull();
+    expect(smtpFromWarning({ host, from: "a@example.com", sentFrom: "a@example.com" })).toBeNull();
+  });
+
+  it("says which address is used instead of an unqualified From", () => {
+    expect(smtpFromWarning({ host, from: "x@localhost", sentFrom: "Hearth <login@example.org>" })).toMatch(
+      /sends as Hearth <login@example.org> instead/,
+    );
+  });
+
+  it("warns when there is no usable From at all", () => {
+    expect(smtpFromWarning({ host, from: "x@localhost", sentFrom: "x@localhost" })).toMatch(/will reject/);
+    // Blank From with a SendGrid-style "apikey" username.
+    expect(smtpFromWarning({ host, from: "", sentFrom: "" })).toMatch(/Set a From address/);
   });
 });

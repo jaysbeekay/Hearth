@@ -8,6 +8,7 @@ import {
   setAppSetting,
   getOllamaConfig,
   isSmtpConfigured,
+  getSmtpConfig,
   isNtfyConfigured,
   getEmailIngestConfig,
   isEmailIngestionConfigured,
@@ -34,7 +35,10 @@ export async function saveSmtpSettings(
   await requireAdmin();
 
   const from = ((formData.get("smtpFrom") as string) || "").trim();
-  if (from && !isQualifiedSmtpFrom(from)) {
+  // Only a From the admin changed is checked: one saved before this check
+  // existed comes back in the form unchanged, and refusing it would block
+  // saving a new password or host until the From was fixed too.
+  if (from && !isQualifiedSmtpFrom(from) && from !== (await getSmtpConfig()).configuredFrom.trim()) {
     return {
       error:
         "Use a From address on a real domain, like Hearth <hearth@example.com>, or leave it blank to send as the username. Mail servers reject addresses like no-reply@localhost.",

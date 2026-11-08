@@ -31,3 +31,32 @@ export function resolveSmtpFrom(configured: string, user: string): string {
   if (isQualifiedSmtpFrom(user)) return `Hearth <${smtpFromAddress(user)}>`;
   return configured.trim();
 }
+
+/**
+ * SMTP_FROM from the environment, used when no From is saved in Settings.
+ * An unqualified one (the old default, still in many .env files) counts as
+ * unset: otherwise Settings would show it in the From field, every save of
+ * the form would be refused over it, and clearing the field would only bring
+ * it back from .env.
+ */
+export function envSmtpFromFallback(envFrom: string): string {
+  return isQualifiedSmtpFrom(envFrom) ? envFrom.trim() : "";
+}
+
+/**
+ * Settings' warning when Hearth's mail will go out from an address servers
+ * reject, or from a different address than the one entered. Null when
+ * there's nothing to say, including before SMTP is set up.
+ */
+export function smtpFromWarning(current: { host: string; from: string; sentFrom: string }): string | null {
+  if (!current.host) return null;
+  const from = current.from.trim();
+  if (isQualifiedSmtpFrom(current.sentFrom)) {
+    return from && !isQualifiedSmtpFrom(from)
+      ? `The From address "${from}" isn't a full address on a real domain, so Hearth sends as ${current.sentFrom} instead. Set your own address, or clear the field.`
+      : null;
+  }
+  return from
+    ? `The From address "${from}" isn't a full address on a real domain, so mail servers will reject Hearth's emails. Use an address like Hearth <hearth@example.com>.`
+    : "Set a From address, like Hearth <hearth@example.com>. The SMTP username isn't an email address, so Hearth has no address to send as and mail servers will reject its emails.";
+}

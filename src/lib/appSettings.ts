@@ -4,7 +4,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
 import { isCurrencyCode } from "@/lib/currencyCodes";
 import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay, type DueContext } from "@/lib/duePolicy";
-import { resolveSmtpFrom } from "@/lib/smtpFrom";
+import { envSmtpFromFallback, resolveSmtpFrom } from "@/lib/smtpFrom";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -122,7 +122,7 @@ export async function getSmtpConfig() {
       "smtp.secure": String(env.smtp.secure),
       "smtp.user": env.smtp.user,
       "smtp.password": env.smtp.pass,
-      "smtp.from": env.smtp.from,
+      "smtp.from": envSmtpFromFallback(env.smtp.from),
     },
   );
   return {

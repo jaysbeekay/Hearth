@@ -405,8 +405,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   email got through, password resets included. `SMTP_FROM` now defaults to
   blank, and a blank or unqualified From (including a saved
   `no-reply@localhost`) sends as the SMTP username when that's an email
-  address. Settings → Reminders warns when the From address isn't fully
-  qualified and refuses to save a new one that isn't.
+  address. An unqualified `SMTP_FROM` left in `.env` is ignored the same
+  way; to send from your own address, set `SMTP_FROM` to one on your domain
+  (or remove the line to send as `SMTP_USER`). Settings → Reminders warns
+  when there's no usable From address, including a blank From with a
+  username that isn't an email address (SendGrid's `apikey`, SES keys), and
+  refuses to save a new From that isn't fully qualified.
 
 - **A long Test result no longer runs into the Save button.** On the
   Settings email, ntfy, email-ingestion and Ollama forms, the result of
