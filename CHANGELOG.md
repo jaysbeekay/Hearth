@@ -195,6 +195,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **The Contracts page says what it holds.** A line under the heading reads
+  "Insurance policies, plans, leases, loans and subscriptions", so it's clear
+  an insurance policy belongs under Contracts. The name itself stays
+  Contracts (`GLOSSARY.md`, #362).
+
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
   and used to show as two identical rows. Search now shows the latest

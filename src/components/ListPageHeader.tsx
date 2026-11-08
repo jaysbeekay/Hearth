@@ -17,12 +17,17 @@ export interface ListPageAction {
 // `md` the heading keeps its own line with Export tucked into the ⋮ menu
 // beside it, and the button drops underneath at full width, so nothing
 // wraps on a 360px phone. Callers leave `action` out for read-only members.
+// `description` is an optional one-line note under the heading, for a name
+// broader than it looks (Contracts also holds insurance policies).
 export function ListPageHeader({
   title,
+  description,
   exportPath,
   action,
 }: {
   title: string;
+  /** One line under the heading saying what kinds of record the page holds. */
+  description?: string;
   /** e.g. "/api/export/contracts"; the CSV and PDF links add ?format=. */
   exportPath?: string;
   action?: ListPageAction;
@@ -30,8 +35,11 @@ export function ListPageHeader({
   const online = action?.online ?? true;
   return (
     <div className="space-y-3 md:flex md:items-center md:justify-between md:gap-4 md:space-y-0">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-medium">{title}</h1>
+      <div className={cn("flex justify-between gap-2", description ? "items-start" : "items-center")}>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-medium">{title}</h1>
+          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+        </div>
         {exportPath && (
           <div className="md:hidden">
             <DetailOverflowMenu label="More list actions">
