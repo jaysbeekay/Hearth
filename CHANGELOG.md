@@ -399,6 +399,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Form fields, secondary buttons and filter chips have a visible edge
+  (#558).** Their border used the same faint `--border` as card edges and
+  dividers (about 1.5:1), below the 3:1 WCAG 1.4.11 asks of a control. They
+  now use a new `--border-control` token (3.3:1 on the page and 3.6:1 on a
+  card in light mode; 3.5:1 and 3.2:1 in dark mode). Cards and dividers keep
+  the lighter `--border`. `scripts/check-contrast.mjs` now enforces 3:1 for
+  the new token in both themes.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only
