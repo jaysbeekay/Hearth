@@ -13,52 +13,80 @@ export function cronDue(pattern: string, at: Date): boolean {
 }
 
 const MINUTE_MS = 60_000;
-/** How far ahead to look for a schedule's next run: past a week, so weekly schedules are covered. */
-const SEARCH_AHEAD_MS = 8 * 24 * 60 * MINUTE_MS;
 /** With no run on record, a run the schedule wanted within this long ago is still owed. */
 const FIRST_RUN_LOOKBACK_MS = 24 * 60 * MINUTE_MS;
+/** The furthest back a missed run is looked for: past a year, so yearly schedules are covered. */
+const MAX_LOOKBACK_MS = 400 * 24 * 60 * MINUTE_MS;
+/** Minutes checked between yields to the event loop, so a long scan doesn't stall the server. */
+const YIELD_EVERY = 10_000;
+
+const floorToMinute = (ms: number) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
+
+// How far each job's schedule has been checked with nothing owed, so a tick
+// only looks at the minutes since the last tick. Lost on restart, when the
+// job's last run starts the scan again.
+const scannedThrough = new Map<string, number>();
 
 /**
- * The first whole minute strictly after `after`'s minute that `pattern`
- * matches, looking at most `withinMs` ahead. Null when there is none in
- * that window or the pattern is invalid.
+ * Whether a scheduled job is owed a run: some minute after its last run, up
+ * to now, matches its schedule. cronDue only matches inside the scheduled
+ * second, and node-cron skips a tick the process was asleep or blocked for
+ * rather than running it late, so a daily job could silently lose its day;
+ * this still runs it once the server is back, however long it was down (up
+ * to 400 days, which covers a yearly schedule).
+ *
+ * `key` names the job; `lastRun` is when its last run was queued (null if
+ * never). The first scan after a restart covers the whole time since
+ * `lastRun`; later ones only the minutes since the previous tick.
  */
-export function nextCronMinute(pattern: string, after: Date, withinMs = SEARCH_AHEAD_MS): Date | null {
+export async function cronOwed(key: string, pattern: string, lastRun: Date | null, now: Date): Promise<boolean> {
   let task: ReturnType<typeof cron.createTask>;
+  let dayTask: ReturnType<typeof cron.createTask> | null;
   try {
     task = cron.createTask(pattern, () => {});
+    dayTask = daysOf(pattern);
   } catch {
-    return null;
+    return false; // an invalid pattern in Settings shouldn't crash the ticker
   }
-  const start = Math.floor(after.getTime() / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
-  for (let t = start; t <= after.getTime() + withinMs; t += MINUTE_MS) {
+  const end = floorToMinute(now.getTime());
+  const since = lastRun ? lastRun.getTime() : now.getTime() - FIRST_RUN_LOOKBACK_MS;
+  const memoKey = `${key}|${pattern}`;
+  const start = Math.max(floorToMinute(since), scannedThrough.get(memoKey) ?? -Infinity, end - MAX_LOOKBACK_MS);
+
+  let checked = 0;
+  let day = "";
+  let dayMatches = true;
+  for (let t = start + MINUTE_MS; t <= end; t += MINUTE_MS) {
     const at = new Date(t);
-    if (task.match(at)) return at;
+    if (dayTask && at.toDateString() !== day) {
+      day = at.toDateString();
+      dayMatches = dayTask.match(new Date(at.getFullYear(), at.getMonth(), at.getDate(), 12));
+    }
+    if (!dayMatches) {
+      // Skip to the last minute of this day; the loop steps into the next one.
+      t = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1).getTime() - MINUTE_MS;
+      continue;
+    }
+    if (task.match(at)) return true;
+    if (++checked % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
   }
-  return null;
+  scannedThrough.set(memoKey, end);
+  return false;
 }
 
-// The next run only changes when the pattern or the last run does, so the
-// minute-by-minute search runs once per run rather than on every tick.
-const nextRunMemo = new Map<string, Date | null>();
-
 /**
- * Whether a scheduled job is owed a run: the schedule's first time after
- * the job's last run has come. cronDue only matches inside the scheduled
- * second, and node-cron skips a tick the process was asleep or blocked for
- * rather than running it late, so a daily job could silently lose its day.
- * This still runs it once the server is back. `lastRun` is when the last
- * run was queued (null if never). A schedule with no time in the next week
- * (a monthly one) falls back to cronDue.
+ * The days a pattern runs on, as a pattern that matches any time on them,
+ * so a scan can skip whole days a monthly or yearly schedule doesn't run on.
+ * Null when the pattern isn't plain 5- or 6-field cron (no skipping then).
  */
-export function cronOwed(pattern: string, lastRun: Date | null, now: Date): boolean {
-  const since = lastRun ?? new Date(now.getTime() - FIRST_RUN_LOOKBACK_MS);
-  const key = `${pattern}|${since.getTime()}`;
-  if (!nextRunMemo.has(key)) {
-    if (nextRunMemo.size > 50) nextRunMemo.clear();
-    nextRunMemo.set(key, nextCronMinute(pattern, since));
-  }
-  const next = nextRunMemo.get(key) ?? null;
-  if (next == null) return cronDue(pattern, now);
-  return next.getTime() <= now.getTime();
+function daysOf(pattern: string): ReturnType<typeof cron.createTask> | null {
+  const fields = pattern.trim().split(/\s+/);
+  if (fields.length !== 5 && fields.length !== 6) return null;
+  const [dayOfMonth, month, dayOfWeek] = fields.slice(-3);
+  return cron.createTask(`* * ${dayOfMonth} ${month} ${dayOfWeek}`, () => {});
+}
+
+/** Forgets what cronOwed has scanned; for tests. */
+export function resetCronOwedScans(): void {
+  scannedThrough.clear();
 }

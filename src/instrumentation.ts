@@ -99,7 +99,7 @@ export async function register() {
         // or blocked for, which used to lose that day's Reminder check.
         const now = new Date();
         const owed = async (type: "REMINDER_CHECK" | "BACKUP_RUN" | "EMAIL_INGEST", pattern: string) => {
-          if (cronOwed(pattern, await lastQueuedAt(type), now)) await enqueueJobUnlessPending(type);
+          if (await cronOwed(type, pattern, await lastQueuedAt(type), now)) await enqueueJobUnlessPending(type);
         };
 
         const { cron: reminderCron } = await getReminderConfig();
