@@ -399,6 +399,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **A password reset email that fails to send is no longer silent.** The
+  forgot-password form always shows the same message, so an SMTP error (wrong
+  password, blocked port, rejected sender) left no trace anywhere. Settings →
+  Security now records every reset request with its outcome (sent, no account
+  with that email, throttled) and flags a failed send with the SMTP server's
+  error, which also goes to the server log. A sent email whose link points at
+  localhost because `APP_URL` isn't set is called out too.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only
