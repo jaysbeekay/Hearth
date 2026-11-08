@@ -22,7 +22,7 @@ export function AssistantEnabledToggle({
         <p className="text-xs text-muted">
           {enabled
             ? configured
-              ? "Household members can open it from the side panel or the Assistant page."
+              ? "Household members can open it from the Assistant page."
               : "Choose a provider below so members can start chatting."
             : "Nobody in the household sees the assistant. Saved provider settings are kept."}
         </p>
