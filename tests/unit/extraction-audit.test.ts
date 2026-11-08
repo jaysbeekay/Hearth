@@ -104,6 +104,14 @@ describe("Confirm details", () => {
     expect(event.detail).toBe('Warranty "OLED TV" · auto-filled: Description');
   });
 
+  it("logs nothing when the record was already confirmed", async () => {
+    const contract = await newContract();
+    await addPendingFields("CONTRACT", contract.id, ["endDate"]);
+    await confirmContractExtractionCommand(contract.id, {}, actor.id);
+    await confirmContractExtractionCommand(contract.id, {}, actor.id);
+    expect(await auditEvents()).toHaveLength(1);
+  });
+
   it("logs nothing when the confirmation is refused", async () => {
     const contract = await newContract();
     await expect(
@@ -151,14 +159,35 @@ describe("saving a scanned form", () => {
 
 describe("backfill migration", () => {
   it("copies confirmations already saved into the log, with the reviewer when one was recorded", async () => {
+    const confirmedAt = new Date("2026-11-08T09:00:00.000Z");
     const reviewed = await newContract("Reviewed");
-    await addPendingFields("CONTRACT", reviewed.id, ["title"]);
+    await addPendingFields("CONTRACT", reviewed.id, ["title", "cost"]);
     await db.prisma.extractionReviewField.updateMany({
       where: { ownerId: reviewed.id },
-      data: { reviewedAt: new Date(), reviewedById: actor.id },
+      data: { reviewedAt: confirmedAt, reviewedById: actor.id },
     });
-    const confirmedAt = new Date("2026-11-08T09:00:00.000Z");
     await db.prisma.contract.update({ where: { id: reviewed.id }, data: { extractionConfirmedAt: confirmedAt } });
+    // Two reviewers: no single person to name.
+    const other = await createTestUser();
+    const mixed = await newContract("Mixed reviewers");
+    await addPendingFields("CONTRACT", mixed.id, ["title", "cost"]);
+    await db.prisma.extractionReviewField.updateMany({
+      where: { ownerId: mixed.id },
+      data: { reviewedAt: confirmedAt, reviewedById: actor.id },
+    });
+    await db.prisma.extractionReviewField.updateMany({
+      where: { ownerId: mixed.id, fieldName: "cost" },
+      data: { reviewedById: other.id },
+    });
+    await db.prisma.contract.update({ where: { id: mixed.id }, data: { extractionConfirmedAt: confirmedAt } });
+    // Reviewed earlier, confirmed later by someone else's Save: not the reviewer's confirmation.
+    const later = await newContract("Later save");
+    await addPendingFields("CONTRACT", later.id, ["title"]);
+    await db.prisma.extractionReviewField.updateMany({
+      where: { ownerId: later.id },
+      data: { reviewedAt: new Date("2026-11-01T09:00:00.000Z"), reviewedById: actor.id },
+    });
+    await db.prisma.contract.update({ where: { id: later.id }, data: { extractionConfirmedAt: confirmedAt } });
     const unknown = await newContract("Saved confirmed");
     await db.prisma.contract.update({ where: { id: unknown.id }, data: { extractionConfirmedAt: confirmedAt } });
     await newContract("Never confirmed");
@@ -172,13 +201,16 @@ describe("backfill migration", () => {
     }
 
     const events = await db.prisma.securityEventLog.findMany({ where: { type: "AUTOFILL_CONFIRMED" }, orderBy: { detail: "asc" } });
-    expect(events).toHaveLength(2);
-    expect(events[0]).toMatchObject({
+    expect(events).toHaveLength(4);
+    const byDetail = (title: string) => events.find((e) => e.detail?.startsWith(`Contract "${title}"`));
+    expect(byDetail("Mixed reviewers")).toMatchObject({ userId: null, email: null });
+    expect(byDetail("Later save")).toMatchObject({ userId: null, email: null });
+    expect(byDetail("Reviewed")).toMatchObject({
       userId: actor.id,
       email: "reviewer@example.test",
       detail: 'Contract "Reviewed" · confirmed before this log',
       createdAt: confirmedAt,
     });
-    expect(events[1]).toMatchObject({ userId: null, email: null, detail: 'Contract "Saved confirmed" · confirmed before this log' });
+    expect(byDetail("Saved confirmed")).toMatchObject({ userId: null, email: null });
   });
 });

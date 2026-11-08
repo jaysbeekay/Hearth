@@ -38,6 +38,24 @@ const CONCERNING_EVENTS = new Set<SecurityEventType>([
   "MCP_THROTTLED",
 ]);
 
+// Auto-fill confirmations get their own 100-entry window, so a busy Quick
+// check or Import can't push sign-in and role events out of view.
+async function recentEvents() {
+  const [security, audit] = await Promise.all([
+    prisma.securityEventLog.findMany({
+      where: { type: { not: "AUTOFILL_CONFIRMED" } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.securityEventLog.findMany({
+      where: { type: "AUTOFILL_CONFIRMED" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+  ]);
+  return [...security, ...audit].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 export default async function SecurityLogPage() {
   const session = await auth();
   if (session?.user.role !== "ADMIN") {
@@ -45,7 +63,7 @@ export default async function SecurityLogPage() {
   }
 
   const [events, { dateFormat, displayTimeZone }, shareLinks] = await Promise.all([
-    prisma.securityEventLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    recentEvents(),
     getUserPreferences(),
     listActiveShareLinks(),
   ]);
@@ -57,7 +75,8 @@ export default async function SecurityLogPage() {
       <p className="text-sm text-muted">
         Security and audit events across the household — failed and throttled sign-ins and MCP
         requests, password and role changes, two-factor disablement, account removal, Documents shared by link,
-        and who confirmed a record&apos;s auto-filled details. The most recent 100 events.
+        and who confirmed a record&apos;s auto-filled details. The most recent 100 security events and
+        100 auto-fill confirmations.
       </p>
 
       {/* #374 — links that open a Document without signing in, until they expire. */}

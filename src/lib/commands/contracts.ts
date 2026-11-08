@@ -176,10 +176,12 @@ export async function confirmContractExtractionCommand(
   const reviewedAt = new Date();
   const pendingWhere = { ownerType: "CONTRACT" as const, ownerId: id, reviewedAt: null };
   let reviewedFieldNames: string[] = [];
+  let wasAwaitingReview = false;
   await writeContract(id, actorId, options, {
-    patch: async (tx) => {
+    patch: async (tx, existing) => {
       const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
       reviewedFieldNames = pending.map((f) => f.fieldName);
+      wasAwaitingReview = existing.extractionPending || pending.length > 0;
       const reviewed = typeof corrections === "function" ? corrections(new Set(reviewedFieldNames)) : corrections;
       return { ...reviewed, extractionPending: false, extractionConfirmedAt: reviewedAt };
     },
@@ -187,8 +189,9 @@ export async function confirmContractExtractionCommand(
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
   // Who confirmed it is audit detail for admins (Settings > Security log),
-  // not something the record page shows.
-  await logExtractionConfirmed({ ownerType: "CONTRACT", ownerId: id, actorId, fieldNames: reviewedFieldNames });
+  // not something the record page shows. Only a confirmation that changed
+  // something is logged, so re-confirming can't flood the log.
+  if (wasAwaitingReview) await logExtractionConfirmed({ ownerType: "CONTRACT", ownerId: id, actorId, fieldNames: reviewedFieldNames });
   return { id };
 }
 
