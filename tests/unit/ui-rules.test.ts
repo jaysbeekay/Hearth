@@ -98,6 +98,8 @@ describe("lib/ui", () => {
       expect(cls).toContain("rounded-lg");
     }
     expect(buttonClass("secondary", { icon: true })).toContain("w-9");
+    // The icon button's px-0 replaces the base px-3, or the icon is squeezed.
+    expect(buttonClass("quiet", { icon: true }).split(" ")).not.toContain("px-3");
   });
 
   it("gives cards p-4 and no shadow", () => {

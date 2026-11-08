@@ -212,6 +212,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   an insurance policy belongs under Contracts. The name itself stays
   Contracts (`GLOSSARY.md`, #362).
 
+- **The sidebar's bottom-left corner is now an account menu.** Your
+  initials and name open a popover with your name and email, the running
+  version ("v0.20.1 (d5d643f)"), Settings, the Changelog, Feedback (the
+  GitHub new-issue page Help already links to) and Sign out; Help is the
+  "?" beside it. The sidebar now stays put while the page scrolls, so the
+  menu is always in the corner. The phone More sheet shows the same avatar
+  and version. The version is `package.json`'s; the commit comes from git
+  at build time, or from the new optional `GIT_SHA` Docker build arg, which
+  the publish workflow sets.
+
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
   and used to show as two identical rows. Search now shows the latest
@@ -410,6 +420,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   The due-soon window and Contract rule differences (#386) are tracked there.
 
 ### Fixed
+
+- Icon-only buttons kept the text buttons' side padding, which squeezed
+  their 20px icons to 12px wide.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:

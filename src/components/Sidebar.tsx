@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Settings, Search, HelpCircle } from "lucide-react";
+import { Flame, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
-import { SignOutButton } from "@/components/SignOutButton";
+import { AccountMenu } from "@/components/AccountMenu";
+import { buttonClass } from "@/lib/ui";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 
@@ -33,8 +34,10 @@ export function Sidebar({
   const moduleItems = items.filter((item) => item.group === "modules");
   const toolItems = items.filter((item) => item.group === "tools");
 
+  // Pinned to the viewport, so the account menu stays at the bottom-left
+  // however long the page is; z-30 keeps its popover above the page.
   return (
-    <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
+    <aside className="sticky top-0 z-30 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-4">
         <Flame size={20} className="text-accent" />
         <span className="text-xl font-medium">Hearth</span>
@@ -52,7 +55,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
         {dashboardItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, pathname);
           return (
@@ -120,36 +123,18 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="border-t border-border px-3 py-3">
-        <Link
-          href={FOOTER_NAV.settings.href}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-            isActive("/settings", pathname)
-              ? "bg-accent/10 text-accent"
-              : "text-muted hover:bg-hover",
-          )}
-        >
-          <Settings size={20} />
-          {FOOTER_NAV.settings.label}
-        </Link>
+      {/* The account lives behind its avatar (Settings, Changelog,
+          Feedback, Sign out, version), with Help beside it. */}
+      <div className="relative flex items-center gap-1 border-t border-border px-3 py-3">
+        <AccountMenu userName={userName} userEmail={userEmail} />
         <Link
           href={FOOTER_NAV.help.href}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-            isActive("/help", pathname)
-              ? "bg-accent/10 text-accent"
-              : "text-muted hover:bg-hover",
-          )}
+          aria-label={FOOTER_NAV.help.label}
+          aria-current={isActive(FOOTER_NAV.help.href, pathname) ? "page" : undefined}
+          className={buttonClass("quiet", { icon: true }, isActive(FOOTER_NAV.help.href, pathname) ? "text-accent" : "text-muted")}
         >
           <HelpCircle size={20} />
-          {FOOTER_NAV.help.label}
         </Link>
-        <div className="mt-2 px-3">
-          <p className="truncate text-sm font-medium">{userName}</p>
-          <p className="truncate text-xs text-muted">{userEmail}</p>
-          <SignOutButton className="mt-2 flex items-center gap-2 text-sm text-muted hover:text-foreground" />
-        </div>
       </div>
     </aside>
   );

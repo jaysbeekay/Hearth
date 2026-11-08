@@ -7,7 +7,8 @@
 // The rules, from the issue:
 // - Type: five sizes (text-2xl/xl/base/sm/xs) and two weights (400/500),
 //   sentence case, tabular-nums set once on body.
-// - Shape: rounded-lg everywhere except rounded-full for the FAB and dots;
+// - Shape: rounded-lg everywhere except rounded-full for the FAB, dots and
+//   the account avatar;
 //   1px borders; dashed only for the file drop zone; no card shadows, one
 //   shadow-overlay for dialogs and menus.
 // - Spacing: steps 1/2/3/4/6/8. Card padding p-4.
@@ -177,16 +178,15 @@ export function buttonClass(
   { icon = false, destructive = false, online = true }: ButtonOptions = {},
   className?: string,
 ) {
-  return mergeClasses(
-    cn(
-      BUTTON_BASE,
-      BUTTON_VARIANT.get(variant),
-      icon && "w-9 shrink-0 px-0",
-      destructive && "text-danger",
-      !online && "pointer-events-none opacity-40",
-    ),
-    className,
+  const base = cn(
+    BUTTON_BASE,
+    BUTTON_VARIANT.get(variant),
+    destructive && "text-danger",
+    !online && "pointer-events-none opacity-40",
   );
+  // Merged rather than appended: beside the base's px-3, a plain px-0 lost
+  // on stylesheet order and squeezed a 20px icon to 12px.
+  return mergeClasses(icon ? mergeClasses(base, "w-9 shrink-0 px-0") : base, className);
 }
 
 /**
@@ -219,6 +219,17 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
     cn(
       "flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm transition-colors hover:bg-hover",
       destructive && "text-danger",
+    ),
+    className,
+  );
+}
+
+/** The round initials avatar on the account menu, at 32px (`md`) or 40px (`lg`). */
+export function avatarClass(size: "md" | "lg" = "md", className?: string) {
+  return mergeClasses(
+    cn(
+      "inline-flex shrink-0 items-center justify-center rounded-full bg-hover text-muted",
+      size === "md" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm",
     ),
     className,
   );

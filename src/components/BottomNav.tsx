@@ -10,6 +10,8 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
+import { Avatar } from "@/components/AccountMenu";
+import { versionLabel } from "@/lib/account";
 import { sheetClass, buttonClass } from "@/lib/ui";
 
 function isActive(href: string, pathname: string) {
@@ -78,6 +80,7 @@ export function BottomNav({
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const items = getNavItems(new Set(enabledModules), chatConfigured);
+  const version = versionLabel();
 
   // Close automatically on route change (link click).
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -202,12 +205,16 @@ export function BottomNav({
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{userName}</p>
-              <p className="truncate text-xs text-muted">{userEmail}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar name={userName} email={userEmail} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{userName}</p>
+                <p className="truncate text-xs text-muted">{userEmail}</p>
+              </div>
             </div>
             <SignOutButton className="flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm text-muted hover:text-foreground" />
           </div>
+          {version && <p className="mt-2 text-xs text-muted">Version {version}</p>}
         </>
       </Dialog>
     </>

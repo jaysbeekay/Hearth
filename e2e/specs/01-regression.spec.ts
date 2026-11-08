@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
@@ -51,18 +51,27 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/help", "Help"],
 ];
 
+// Settings lives in the account menu, behind the sidebar's avatar button.
+async function sidebarLink(page: Page, label: string) {
+  const sidebar = page.getByRole("complementary");
+  if (label === "Settings") {
+    const account = sidebar.getByRole("button", { name: /account menu$/ });
+    if ((await account.getAttribute("aria-expanded")) !== "true") await account.click();
+  }
+  return sidebar.getByRole("link", { name: label, exact: true });
+}
+
 test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
-  const sidebar = page.getByRole("complementary");
   for (const [, label] of TOP_LEVEL) {
-    await expect(sidebar.getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(await sidebarLink(page, label)).toBeVisible();
   }
 });
 
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
   for (const [url, label] of TOP_LEVEL) {
     await page.goto(url);
-    await expect(page.getByRole("complementary").getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(await sidebarLink(page, label)).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(label);
     await expect(page).toHaveTitle(`${label} · Hearth`);
   }
