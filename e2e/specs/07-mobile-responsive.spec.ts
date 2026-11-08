@@ -209,7 +209,7 @@ const PHONE_DESTINATIONS = {
   // No /assistant: the seed configures no chat provider (spec 09 sets one
   // up later in the run).
   tools: ["/documents", "/spend"],
-  footer: ["/settings", "/help"],
+  footer: ["/settings", "/settings/household", "/help"],
 };
 
 test("phones have one navigation: no menu drawer, and each destination is in the bar or the More sheet exactly once", async ({
