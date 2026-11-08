@@ -84,7 +84,7 @@ export function HouseholdReminderHealthCard({
 
       {health.deliveryReady && !appUrlConfigured && (
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <AlertTriangle size={16} className="mt-1 shrink-0" aria-hidden />
           Reminders can&apos;t link to the record they&apos;re about until the server&apos;s
           APP_URL is set to the address you open Hearth on.
         </p>
@@ -92,7 +92,7 @@ export function HouseholdReminderHealthCard({
 
       {!health.deliveryReady ? (
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <AlertTriangle size={16} className="mt-1 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
           coverage until email or ntfy is set up below, or a webhook under Integrations.
         </p>

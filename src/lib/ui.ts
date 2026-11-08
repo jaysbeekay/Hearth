@@ -8,6 +8,9 @@
 // - Type: five sizes (text-2xl/xl/base/sm/xs) and three weights: 400 for
 //   body, 500 for UI text and titles, 600 only for section headings
 //   (sectionHeadingClass) so they stand apart from 14px body copy (#558).
+//   The app ships no font, so on a system stack without a semibold face
+//   (Liberation Sans / DejaVu on Linux, some older Android Roboto) the
+//   browser renders 600 as 700 and 500 as 400. Apple and Windows have both.
 //   Sentence case, tabular-nums set once on body.
 // - Shape: rounded-lg everywhere except rounded-full for the FAB and dots;
 //   1px borders; dashed only for the file drop zone; no card shadows, one
@@ -41,6 +44,7 @@ const CLASS_GROUPS: RegExp[] = [
   /^h-/,
   /^w-/,
   /^text-(xs|sm|base|xl|2xl)$/,
+  /^leading-/,
   /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
 ];
 
@@ -154,7 +158,10 @@ export function bannerToneClass(tone: BannerTone) {
   return BANNER_TONE.get(tone) ?? "";
 }
 
-/** A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3, 24px lines (#558). */
+/**
+ * A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3, 24px
+ * lines (#558). A 16px leading icon takes mt-1 to centre on the first line.
+ */
 export function bannerClass(tone: BannerTone = "neutral", className?: string) {
   return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm leading-6", BANNER_TONE.get(tone)), className);
 }

@@ -79,14 +79,14 @@ export function WealthImportClient({ portfolioId }: Props) {
 
       {parseError && (
         <Banner tone="danger" className="flex items-start gap-2">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <AlertCircle size={16} className="mt-1 shrink-0" />
           {parseError}
         </Banner>
       )}
 
       {result && (
         <Banner tone="success" className="flex items-start gap-2">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+          <CheckCircle2 size={16} className="mt-1 shrink-0" />
           {result}
         </Banner>
       )}

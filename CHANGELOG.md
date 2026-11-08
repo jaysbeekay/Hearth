@@ -201,7 +201,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   a new `sectionHeadingClass`; the #411 rules in `src/lib/ui.ts` now allow
   600 for section headings only, and `tests/unit/ui-rules.test.ts` keeps it
   there. Notes on record pages and Help answers now use 24px lines and stop
-  at about 65 characters wide (`proseClass`), and banners use 24px lines.
+  at about 65 characters wide (`proseClass`), and banners use 24px lines
+  (their icons move down 2px to stay centred on the first line). Weight 600
+  needs a semibold face; on Linux system fonts it renders as bold.
 
 - **The Contracts page says what it holds.** A line under the heading reads
   "Insurance policies, plans, leases, loans and subscriptions", so it's clear

@@ -62,7 +62,7 @@ export default async function WealthPage() {
 
       {data.propertyStale && enabledModules.has("HOME") && (
         <Banner className="flex items-start gap-3">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <AlertTriangle size={16} className="mt-1 shrink-0" />
           <span>One or more properties don&apos;t have a valuation in the last 12 months. <Link href="/home" className="underline">Update property valuations</Link> for a more accurate net worth.</span>
         </Banner>
       )}

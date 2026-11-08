@@ -41,10 +41,10 @@ describe("type, shape and motion", () => {
   });
 
   it("styles section <h2>s through sectionHeadingClass (#558)", () => {
-    // Small muted group labels (text-sm) may stay at 500.
+    // Small muted group labels (text-sm text-muted) may stay at 500.
     const handRolled = files.flatMap((f) =>
       [...f.text.matchAll(/<h2\b[^>]*className="([^"]*)"/g)]
-        .filter((m) => /\bfont-medium\b/.test(m[1]) && !/\btext-sm\b/.test(m[1]))
+        .filter((m) => /\bfont-medium\b/.test(m[1]) && !(/\btext-sm\b/.test(m[1]) && /\btext-muted\b/.test(m[1])))
         .map((m) => `${f.file}: ${m[1]}`),
     );
     expect(handRolled).toEqual([]);
