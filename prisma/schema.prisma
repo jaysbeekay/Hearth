@@ -52,6 +52,7 @@ enum NotificationChannel {
   EMAIL
   NTFY
   WEBHOOK
+  PUSH
 }
 
 // #201 foundation: NotificationLog is now polymorphic across the three
@@ -215,6 +216,7 @@ model User {
   trips                 Trip[]
   properties            Property[]
   passkeys              PasskeyCredential[]
+  pushSubscriptions     PushSubscription[]
   vehicles              Vehicle[]
   inventoryItems        InventoryItem[]
   portfolios            Portfolio[]
@@ -274,6 +276,26 @@ model PasskeyCredential {
 
   @@index([userId])
   @@map("passkey_credentials")
+}
+
+// #375 — a browser's Web Push subscription: one row per device that turned
+// on reminders. The endpoint is unique, so a device that changes hands
+// belongs to whoever subscribed it last.
+model PushSubscription {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  deviceLabel   String?
+  createdAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime? // when the current run of failures began
+  lastError     String?
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model PasskeyChallenge {
@@ -380,8 +402,11 @@ model ContractTerm {
 // no schema syntax for triggers. If a future change to this model forces
 // Prisma's SQLite RedefineTables fallback (rebuilds the table via CREATE
 // new_X/DROP TABLE X/rename), those triggers are silently dropped — the new
-// migration must re-create all three verbatim, or e2e/prepare-db.ts's
-// document_search_fts integrity check fails CI.
+// migration must re-create all three, or e2e/prepare-db.ts's
+// document_search_fts integrity check fails CI. Copy each table's latest
+// definition, not necessarily the #314 one: the trip segment, rental
+// statement, home item, vehicle item and trade `_au` triggers were replaced
+// in 20261107120000_document_text_all_kinds (#398) to carry extractedText.
 model Document {
   id               String         @id @default(cuid())
   contractId       String
@@ -923,8 +948,13 @@ model TripSegmentDocument {
   supersedes    TripSegmentDocument? @relation("TripSegmentDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
   uploadedAt    DateTime             @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([tripSegmentId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1038,8 +1068,13 @@ model RentalStatementDocument {
   supersedes        RentalStatementDocument? @relation("RentalStatementDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
   uploadedAt        DateTime                 @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([rentalStatementId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1087,8 +1122,13 @@ model HomeItemDocument {
   supersedes   HomeItemDocument? @relation("HomeItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
   uploadedAt   DateTime          @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([homeItemId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1180,8 +1220,13 @@ model VehicleItemDocument {
   supersedes    VehicleItemDocument? @relation("VehicleItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
   uploadedAt    DateTime             @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([vehicleItemId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1323,8 +1368,13 @@ model TradeDocument {
   supersedes   TradeDocument? @relation("TradeDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy TradeDocument? @relation("TradeDocumentVersions")
   uploadedAt   DateTime       @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([tradeId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1409,6 +1459,8 @@ model BackgroundJob {
   // legitimately run many at once, one per document, and never set this)
   // never collide with each other.
   activeDedupeKey String?   @unique
+  // #398 review — claimed highest first (JOB_PRIORITY, src/lib/jobs/priority.ts).
+  priority        Int       @default(0)
 
   @@index([status, availableAt])
   @@map("background_jobs")

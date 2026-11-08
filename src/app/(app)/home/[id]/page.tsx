@@ -85,7 +85,7 @@ export default async function PropertyDetailPage({
           updatedBy: true,
           items: {
             where: { deletedAt: null },
-            include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+            include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           },
           valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" } },
           rentalAgreements: LIVE_TENANCY_AGREEMENTS,

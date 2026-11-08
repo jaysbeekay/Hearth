@@ -8,6 +8,8 @@ export interface ActiveChannels {
   email: boolean;
   ntfy: boolean;
   webhook: boolean;
+  /** #375 — at least one device has Web Push turned on. */
+  push: boolean;
   /** Members who get reminder emails; empty unless SMTP is configured. */
   emailRecipients: { email: string; dateFormat: string | null }[];
 }
@@ -20,22 +22,30 @@ export interface ActiveChannels {
  * turned on.
  */
 export async function activeChannels(): Promise<ActiveChannels> {
-  const [smtp, ntfy, webhookEndpoints] = await Promise.all([
+  const [smtp, ntfy, webhookEndpoints, pushDevices] = await Promise.all([
     isSmtpConfigured(),
     isNtfyConfigured(),
     getEnabledWebhookEndpoints(),
+    prisma.pushSubscription.count(),
   ]);
   const emailRecipients = smtp
     ? await prisma.user.findMany({ where: { emailReminders: true }, select: { email: true, dateFormat: true } })
     : [];
-  return { email: emailRecipients.length > 0, ntfy, webhook: webhookEndpoints.length > 0, emailRecipients };
+  return {
+    email: emailRecipients.length > 0,
+    ntfy,
+    webhook: webhookEndpoints.length > 0,
+    push: pushDevices > 0,
+    emailRecipients,
+  };
 }
 
 /** The active channels as the Reminder schedule names them. */
-export function channelList(channels: Pick<ActiveChannels, "email" | "ntfy" | "webhook">): ReminderChannel[] {
+export function channelList(channels: Pick<ActiveChannels, "email" | "ntfy" | "webhook" | "push">): ReminderChannel[] {
   return [
     ...(channels.email ? (["EMAIL"] as const) : []),
     ...(channels.ntfy ? (["NTFY"] as const) : []),
     ...(channels.webhook ? (["WEBHOOK"] as const) : []),
+    ...(channels.push ? (["PUSH"] as const) : []),
   ];
 }

@@ -38,6 +38,7 @@ import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications
 import { logSecurityEvent } from "@/lib/securityEventLog";
 import { safeCallbackPath } from "@/lib/callbackUrl";
 import { issueState } from "@/lib/validation/issues";
+import { pushEndpointSchema } from "@/lib/validation/push";
 
 export type ActionState = {
   error?: string;
@@ -514,10 +515,16 @@ export async function changePassword(
   // one. That necessarily includes this session, so sign out and send the
   // user back to /login rather than leaving them on a page whose session
   // silently stopped working.
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { passwordHash, sessionVersion: { increment: 1 } },
-  });
+  // #375 — and stops every device's push: a browser left signed in
+  // elsewhere would otherwise keep showing this member's Reminders. Each
+  // device turns it on again after signing in.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
+    prisma.pushSubscription.deleteMany({ where: { userId: user.id } }),
+  ]);
   await logSecurityEvent({ type: "PASSWORD_CHANGED", userId: user.id, email: user.email });
 
   await signOut({ redirectTo: "/login?passwordChanged=1" });
@@ -619,6 +626,10 @@ async function setPasswordWithToken(
       where: { id: token.userId },
       data: { passwordHash, sessionVersion: { increment: 1 } },
     });
+    // #375 — a reset is for a lost or stolen password: stop push on every
+    // device that was signed in with it. Invitations share this path; a new
+    // member has no devices yet, so it deletes nothing there.
+    await tx.pushSubscription.deleteMany({ where: { userId: token.userId } });
     await tx.passwordResetToken.updateMany({
       where: { userId: token.userId, usedAt: null },
       data: { usedAt: now },
@@ -730,6 +741,20 @@ export async function acceptInvitation(
 
 // The caller (SignOutButton) does a full page load to /login afterwards, so
 // no client-side router cache of the signed-out user's pages survives.
-export async function logout() {
+export async function logout(pushEndpoint?: string) {
+  // #375 — drop this device's push subscription with the session, so the
+  // next person on it doesn't get this member's Reminders. Best effort: it
+  // must never stop the sign-out itself.
+  const parsed = pushEndpointSchema.safeParse({ endpoint: pushEndpoint });
+  if (parsed.success) {
+    try {
+      const session = await auth();
+      if (session?.user?.id) {
+        await prisma.pushSubscription.deleteMany({ where: { endpoint: parsed.data.endpoint, userId: session.user.id } });
+      }
+    } catch (error) {
+      console.error("[logout] couldn't drop this device's push subscription:", error);
+    }
+  }
   await signOut({ redirect: false });
 }
