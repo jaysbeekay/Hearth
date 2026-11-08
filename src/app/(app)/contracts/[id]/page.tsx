@@ -426,7 +426,6 @@ export default async function ContractDetailPage({
         updatedByName={contract.updatedBy?.name}
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
-        extractionConfirmedAt={contract.extractionConfirmedAt}
         memberCount={memberCount}
       />
     </PageShell>

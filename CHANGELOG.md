@@ -200,6 +200,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   an insurance policy belongs under Contracts. The name itself stays
   Contracts (`GLOSSARY.md`, #362).
 
+- **Auto-fill confirmations moved from record pages to the Security log.**
+  Contract and Warranty pages no longer say "Auto-filled details confirmed
+  {date}". Instead, each confirmation is an admin-only Security log entry
+  (Settings > Household > Security log) naming who confirmed which record and
+  the fields the scan had filled. Confirmations saved before this release are
+  copied into the log on upgrade. Needs review works as before.
+
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
   and used to show as two identical rows. Search now shows the latest

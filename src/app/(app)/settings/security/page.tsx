@@ -26,6 +26,7 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
   MCP_THROTTLED: "MCP requests throttled",
   DOCUMENT_SHARE_LINK_CREATED: "Document shared by link",
   DOCUMENT_SHARE_LINK_REVOKED: "Share link revoked",
+  AUTOFILL_CONFIRMED: "Auto-filled details confirmed",
 };
 
 // Events a household member should notice, not just an admin auditing the
@@ -54,9 +55,9 @@ export default async function SecurityLogPage() {
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
-        Auth-relevant events across the household — failed and throttled sign-ins and MCP
-        requests, password and role changes, two-factor disablement, account removal, and Documents shared by
-        link. The most recent 100 events.
+        Security and audit events across the household — failed and throttled sign-ins and MCP
+        requests, password and role changes, two-factor disablement, account removal, Documents shared by link,
+        and who confirmed a record&apos;s auto-filled details. The most recent 100 events.
       </p>
 
       {/* #374 — links that open a Document without signing in, until they expire. */}
@@ -98,7 +99,7 @@ export default async function SecurityLogPage() {
                   >
                     {EVENT_LABELS[event.type]}
                   </p>
-                  <p className="truncate text-xs text-muted">
+                  <p className="break-words text-xs text-muted">
                     {event.email ?? (event.userId ? `user ${event.userId}` : "—")}
                     {event.detail ? ` · ${event.detail}` : ""}
                   </p>

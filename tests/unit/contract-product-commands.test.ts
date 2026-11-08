@@ -142,7 +142,8 @@ describe("extraction review", () => {
           new Proxy(tx as object, {
             get(target, key) {
               if (key === "extractionReviewField") {
-                return { updateMany: () => Promise.reject(new Error("boom")) };
+                const real = Reflect.get(target, key) as { findMany: (...args: unknown[]) => unknown };
+                return { findMany: real.findMany.bind(real), updateMany: () => Promise.reject(new Error("boom")) };
               }
               return Reflect.get(target, key);
             },

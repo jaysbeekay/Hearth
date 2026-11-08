@@ -16,6 +16,7 @@ import { formToContractInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { logExtractionConfirmedFromForm } from "@/lib/documents/extractionAudit";
 import {
   saveExtractionReviewFieldsFromForm,
   contractReviewCorrectionsFromForm,
@@ -127,6 +128,7 @@ export async function createContract(
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
   }
   await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
+  await logExtractionConfirmedFromForm("CONTRACT", contract.id, user.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (file instanceof File && file.size > 0) {
@@ -177,6 +179,7 @@ export async function updateContract(
       user.id,
     );
     await saveExtractionReviewFieldsFromForm("CONTRACT", contractId, formData);
+    await logExtractionConfirmedFromForm("CONTRACT", contractId, user.id, formData);
   } catch (error) {
     // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };

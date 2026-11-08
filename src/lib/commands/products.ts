@@ -14,6 +14,7 @@ import {
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
+import { logExtractionConfirmed } from "@/lib/documents/extractionAudit";
 import type { Prisma } from "@/generated/prisma/client";
 import { retireStagedProduct, syncLegacyProduct } from "@/lib/items/syncLegacyItem";
 
@@ -145,18 +146,20 @@ export async function confirmProductExtractionCommand(
 ) {
   const reviewedAt = new Date();
   const pendingWhere = { ownerType: "PRODUCT" as const, ownerId: id, reviewedAt: null };
+  let reviewedFieldNames: string[] = [];
   await writeProduct(id, actorId, options, {
     patch: async (tx) => {
-      let reviewed = corrections;
-      if (typeof reviewed === "function") {
-        const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
-        reviewed = reviewed(new Set(pending.map((f) => f.fieldName)));
-      }
+      const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
+      reviewedFieldNames = pending.map((f) => f.fieldName);
+      const reviewed = typeof corrections === "function" ? corrections(new Set(reviewedFieldNames)) : corrections;
       return { ...reviewed, extractionPending: false, extractionConfirmedAt: reviewedAt };
     },
     alsoInTransaction: (tx) =>
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
+  // Who confirmed it is audit detail for admins (Settings > Security log),
+  // not something the record page shows.
+  await logExtractionConfirmed({ ownerType: "PRODUCT", ownerId: id, actorId, fieldNames: reviewedFieldNames });
   return { id };
 }
 
