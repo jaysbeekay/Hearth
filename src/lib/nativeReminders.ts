@@ -73,33 +73,62 @@ export function safeReminderPath(url: unknown): string | null {
   return typeof url === "string" && url.startsWith("/") && !url.startsWith("//") && !url.includes("\\") ? url : null;
 }
 
+/** iOS keeps at most 64 pending local notifications per app; leave room. */
+export const DEVICE_REMINDER_LIMIT = 60;
+
 /**
  * The notifications to schedule: each Reminder at REMINDER_HOUR local time
- * on its day, dropping any whose time has already gone.
+ * on its day, dropping any whose time has already gone, then the soonest
+ * DEVICE_REMINDER_LIMIT.
  */
 export function notificationsFor(reminders: DeviceReminder[], now: Date): LocalNotificationSchema[] {
-  return reminders.flatMap((r) => {
-    const [y, m, d] = r.day.split("-").map(Number);
-    const at = new Date(y, m - 1, d, REMINDER_HOUR, 0, 0);
-    if (!(at.getTime() > now.getTime())) return [];
-    return [
-      {
-        id: notificationId(`server:${r.key}`),
-        title: r.title,
-        body: r.body,
-        schedule: { at, allowWhileIdle: true },
-        channelId: CHANNEL_ID,
-        extra: { source: "hearth-server", url: r.url },
-      },
-    ];
-  });
+  return reminders
+    .flatMap((r) => {
+      const [y, m, d] = r.day.split("-").map(Number);
+      const at = new Date(y, m - 1, d, REMINDER_HOUR, 0, 0);
+      if (!(at.getTime() > now.getTime())) return [];
+      return [
+        {
+          id: notificationId(`server:${r.key}`),
+          title: r.title,
+          body: r.body,
+          schedule: { at, allowWhileIdle: true },
+          channelId: CHANNEL_ID,
+          extra: { source: "hearth-server", url: r.url },
+        },
+      ];
+    })
+    .slice(0, DEVICE_REMINDER_LIMIT);
+}
+
+/**
+ * Bumped whenever Reminders here are cancelled or turned off (sign-out,
+ * another member, Turn off). A sync started before that doesn't schedule,
+ * so a late answer can't put the previous member's Reminders back.
+ */
+let generation = 0;
+
+/** The current generation, to pass to scheduleDeviceReminders once the fetch is back. */
+export function deviceRemindersGeneration(): number {
+  return generation;
+}
+
+/** Thrown when a sync was overtaken by a cancel or turn-off. */
+export class DeviceRemindersSuperseded extends Error {
+  constructor() {
+    super("Reminders on this phone changed while updating. Try again.");
+  }
+}
+
+async function cancelIds(ids: number[]): Promise<void> {
+  if (ids.length > 0) await localNotifications().cancel({ notifications: ids.map((id) => ({ id })) });
 }
 
 /** Cancels what this page scheduled. "On" is kept, so the member's next visit schedules again. */
 export async function cancelDeviceReminders(): Promise<void> {
+  generation++;
   if (!deviceRemindersAvailable()) return;
-  const ids = storedIds();
-  if (ids.length > 0) await localNotifications().cancel({ notifications: ids.map((id) => ({ id })) });
+  await cancelIds(storedIds());
   write(IDS_KEY, null);
 }
 
@@ -111,18 +140,39 @@ export async function allowDeviceNotifications(): Promise<boolean> {
 }
 
 /**
- * Replaces this page's scheduled Reminders with `reminders`, for `userId`.
- * The number scheduled.
+ * Replaces this page's scheduled Reminders with `reminders`, for `userId`,
+ * if nothing cancelled them since `startedAt` (deviceRemindersGeneration()
+ * when the fetch began). The number scheduled.
+ *
+ * Failure-safe: a Reminder keeps its id from one sync to the next, and
+ * scheduling an id again replaces it, so only the ones no longer wanted are
+ * cancelled first, then the rest are scheduled over the old. If scheduling
+ * fails, what was there stays, and every id is kept for the next cancel.
  */
-export async function scheduleDeviceReminders(userId: string, reminders: DeviceReminder[]): Promise<number> {
+export async function scheduleDeviceReminders(
+  userId: string,
+  reminders: DeviceReminder[],
+  startedAt: number,
+): Promise<number> {
+  if (startedAt !== generation) throw new DeviceRemindersSuperseded();
   const ln = localNotifications();
   await ln
     .createChannel({ id: CHANNEL_ID, name: "Hearth reminders", description: "Reminders before things come due.", importance: 4, visibility: 1 })
     .catch(() => {});
-  await cancelDeviceReminders();
   const notifications = notificationsFor(reminders, new Date());
+  const ids = notifications.map((n) => n.id);
+  const previous = storedIds();
+  if (startedAt !== generation) throw new DeviceRemindersSuperseded();
+  await cancelIds(previous.filter((id) => !ids.includes(id)));
+  // Until the schedule is done, both sets count as this page's.
+  write(IDS_KEY, JSON.stringify([...new Set([...previous, ...ids])]));
   if (notifications.length > 0) await ln.schedule({ notifications });
-  write(IDS_KEY, JSON.stringify(notifications.map((n) => n.id)));
+  if (startedAt !== generation) {
+    // Cancelled while scheduling: take back what this sync put there.
+    await cancelIds(ids);
+    throw new DeviceRemindersSuperseded();
+  }
+  write(IDS_KEY, JSON.stringify(ids));
   write(USER_KEY, userId);
   return notifications.length;
 }

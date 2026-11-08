@@ -12,8 +12,12 @@ import type { ReminderPlan } from "@/lib/notifications/reminderSchedule";
 
 /** How far ahead the app schedules. */
 export const DEVICE_REMINDER_HORIZON_DAYS = 120;
-/** iOS keeps at most 64 pending local notifications per app; leave room. */
-export const DEVICE_REMINDER_LIMIT = 60;
+/**
+ * How many the server sends. The app keeps at most 60 (iOS allows 64
+ * pending), counted after it drops any whose time today has gone, so a few
+ * spare here keep those from cutting into the days ahead.
+ */
+export const DEVICE_REMINDER_FETCH_LIMIT = 80;
 
 export interface DeviceReminderDay {
   entry: DueEntry;
@@ -73,5 +77,5 @@ export async function deviceReminderSchedule(userId: string): Promise<DeviceRemi
       return { key: `${ownerType}:${ownerId}:${entry.field}:${entry.date}:${thresholdDays}`, day, title, body, url };
     }),
   );
-  return reminders.sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key)).slice(0, DEVICE_REMINDER_LIMIT);
+  return reminders.sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key)).slice(0, DEVICE_REMINDER_FETCH_LIMIT);
 }

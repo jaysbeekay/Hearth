@@ -8,6 +8,7 @@ import { PushDeviceToggle, type PushDevice } from "@/components/PushDeviceToggle
 import {
   allowDeviceNotifications,
   deviceRemindersAvailable,
+  deviceRemindersGeneration,
   deviceRemindersUser,
   scheduleDeviceReminders,
   turnOffDeviceReminders,
@@ -23,9 +24,11 @@ function scheduledMessage(count: number): string {
 
 /** Fetches the household's Reminders ahead and schedules them here. */
 export async function syncDeviceReminders(userId: string): Promise<Message> {
+  // Taken before the fetch: a sign-out or turn-off while it's out wins.
+  const startedAt = deviceRemindersGeneration();
   const result = await getDeviceReminders();
   if ("error" in result) return { error: result.error };
-  return { success: scheduledMessage(await scheduleDeviceReminders(userId, result.reminders)) };
+  return { success: scheduledMessage(await scheduleDeviceReminders(userId, result.reminders, startedAt)) };
 }
 
 /**
