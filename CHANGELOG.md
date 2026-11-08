@@ -399,6 +399,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Inventory shows in the sidebar, and modules are listed A–Z.**
+  Inventory was left out of the desktop sidebar and the phone More sheet
+  even when enabled (it was only reachable from the bottom of Warranties).
+  It now appears with the other modules, and the Modules nav group and
+  Settings → Modules list are sorted alphabetically.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only

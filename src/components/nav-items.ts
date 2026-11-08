@@ -2,8 +2,8 @@ import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, Bo
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // "dashboard" stands alone (not part of either group); "modules" are
-// record-type sections (Contracts, Warranties, plus
-// whichever optional modules are enabled); "tools" are cross-cutting views
+// record-type sections (Contracts, Warranties, plus whichever optional
+// modules are enabled), listed alphabetically by label; "tools" are cross-cutting views
 // that work across all record types (Documents, Upcoming, Spending,
 // Assistant).
 export type NavGroup = "dashboard" | "modules" | "tools";
@@ -40,11 +40,18 @@ export const FOOTER_NAV = {
 } as const;
 
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
-  const moduleItems = Object.values(MODULE_REGISTRY)
-    .filter((module) => module.key !== "INVENTORY" && enabledModules.has(module.key))
+  const optionalModuleItems = Object.values(MODULE_REGISTRY)
+    .filter((module) => enabledModules.has(module.key))
     .map(({ href, label, icon }): NavItem => ({ href, label, icon, group: "modules" }));
+  const moduleItems = [...BASE_NAV_ITEMS.filter((item) => item.group === "modules"), ...optionalModuleItems].sort(
+    (a, b) => a.label.localeCompare(b.label),
+  );
 
-  return [...BASE_NAV_ITEMS, ...moduleItems].filter(
+  return [
+    ...BASE_NAV_ITEMS.filter((item) => item.group === "dashboard"),
+    ...moduleItems,
+    ...BASE_NAV_ITEMS.filter((item) => item.group === "tools"),
+  ].filter(
     (item) => item.href !== "/assistant" || chatConfigured,
   );
 }
