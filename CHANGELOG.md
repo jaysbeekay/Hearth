@@ -399,6 +399,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Every record page names itself in the browser tab (#558).** About 30
+  pages (record detail, edit, renew and add pages for Contracts, Warranties,
+  Travel, Vehicles, Properties and Items) fell back to a bare "Hearth"
+  title, failing WCAG 2.4.2. They now read like "Netflix · Contracts ·
+  Hearth", "Edit Netflix · Hearth" or "Add a contract · Hearth", matching
+  each page's heading. A record in a turned-off module gets the generic
+  title, so the tab never shows what the page itself won't. A unit test
+  fails if a new page under `(app)` ships without a title.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only

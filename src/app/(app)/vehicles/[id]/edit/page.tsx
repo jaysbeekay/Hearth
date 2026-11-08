@@ -12,6 +12,12 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("vehicle", id, (name) => `Edit ${name}`, "Edit vehicle");
+}
 
 export default async function EditVehiclePage({
   params,
