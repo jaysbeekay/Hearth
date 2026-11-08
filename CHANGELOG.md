@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **The AI assistant is now opt-in, with its own on/off switch.** First-run
+  setup has a new "AI assistant (optional)" box; ticking it turns the
+  assistant on and finishes setup on Settings → AI & privacy to choose a
+  provider. Left unticked, it stays off. Admins can turn it on or off at any
+  time beside the AI Assistant provider settings, which are kept while it's
+  off. While it's off the Assistant page 404s, it leaves the navigation, and
+  `/api/chat` refuses before anything reaches a provider. Households that had
+  already saved an assistant provider are switched on by the migration, so
+  nothing changes for them.
+
 - **Search finds Documents of every record type by their contents (#398).**
   Documents on Service records, Maintenance records, Trip segments, Rental
   statements and Trades now get their text extracted in the background

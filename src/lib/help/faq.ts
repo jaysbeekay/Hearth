@@ -135,7 +135,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "The Assistant isn't in my navigation.",
-        a: "[[Assistant]] only appears once a chat AI provider is configured for the household, in [[Settings → Household → AI & privacy → AI Assistant]].",
+        a: "[[Assistant]] is off unless the household turns it on. An admin can turn it on and choose a chat AI provider in [[Settings → Household → AI & privacy → AI Assistant]]; it appears once both are done.",
       },
       {
         q: "A record another household member added doesn't show up for me.",

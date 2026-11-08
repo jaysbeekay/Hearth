@@ -26,8 +26,11 @@ setup("seed admin + member users and a sample trip", async ({ page, browser }) =
   for (const moduleKey of ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"]) {
     await page.locator(`input[type="checkbox"][value="${moduleKey}"]`).check();
   }
+  // Opt in to the AI assistant too (specs 01/07/09 use /assistant); setup then
+  // finishes on the AI settings page to choose a provider.
+  await page.locator('input[type="checkbox"][name="assistant"]').check();
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/);
+  await page.waitForURL(/\/settings\/ai\?welcome=assistant/);
   await page.context().storageState({ path: ADMIN_AUTH_FILE });
 
   // A second, non-admin household member — used to verify Travel's
