@@ -66,6 +66,7 @@
     "react-hook-form": "^7.91.0",
     "ssh2-sftp-client": "^12.1.1",
     "undici": "^8.12.4",
+    "web-push": "3.6.7",
     "yahoo-finance2": "^4.0.5",
     "zod": "^4.6.6"
   },
@@ -113,6 +114,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ssh2-sftp-client": "^9.0.6",
+    "@types/web-push": "3.6.4",
     "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^10",
     "eslint-config-next": "^16.4.4",

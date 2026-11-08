@@ -39,7 +39,7 @@ test("reminder health card reports no delivery channel configured, and the test 
 
   await page.getByRole("button", { name: "Send test reminder" }).click();
   await expect(
-    page.getByText("No delivery channel is configured yet — set up email or ntfy in Settings.").first(),
+    page.getByText("No delivery channel is configured yet — turn on push on this device, or set up email or ntfy in Settings.").first(),
   ).toBeVisible();
 });
 
