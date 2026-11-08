@@ -11,6 +11,7 @@ import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
 import { sheetClass, buttonClass, tabActiveClass } from "@/lib/ui";
+import { navCurrent } from "@/lib/navCurrent";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -39,11 +40,12 @@ function MoreLink({
   ariaLabel?: string;
   badge?: React.ReactNode;
 }) {
+  const pathname = usePathname();
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      aria-current={active ? "page" : undefined}
+      aria-current={navCurrent(href, pathname)}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
         active ? cn(tabActiveClass, "bg-accent/10") : "text-muted hover:bg-hover",
@@ -108,7 +110,7 @@ export function BottomNav({
             <Link
               key={href}
               href={href}
-              aria-current={active ? "page" : undefined}
+              aria-current={navCurrent(href, pathname)}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-xs font-medium",
                 active ? tabActiveClass : "text-muted",

@@ -403,8 +403,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   The active sidebar entry, phone tab and More-sheet tile differed from the
   rest by hue alone (accent against muted text is about 1.0:1), failing WCAG
   1.4.1. They now carry an accent bar (down the left edge in the sidebar,
-  along the top on phones) and `aria-current="page"`, so screen readers
-  announce the current page too.
+  along the top on phones) and `aria-current`, so screen readers announce
+  it too: "page" on the link to the page you're on, "true" on a section
+  link above it (Contracts on a contract, Settings on a Settings section),
+  so the sidebar never claims a different current page than the Settings
+  tabs. `e2e/specs/57-nav-current.spec.ts` covers both.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
