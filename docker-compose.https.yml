@@ -43,6 +43,9 @@ services:
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC:-}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueJobUnlessPending, runPendingJobs } from "@/lib/jobs/runner";
+import { JOB_PRIORITY } from "@/lib/jobs/priority";
 
 // Manual/external trigger for the expiration check, useful for testing or
 // for self-hosters who prefer an external cron over the built-in scheduler.
@@ -30,7 +31,10 @@ export async function POST(request: NextRequest) {
   }
 
   const job = await enqueueJobUnlessPending("REMINDER_CHECK");
-  await runPendingJobs(50);
+  // Only normal-priority work: the document text backfill (#398) can keep
+  // hours of OCR queued, which the in-process runner works through, and an
+  // external scheduler's request shouldn't wait on it.
+  await runPendingJobs(50, { minPriority: JOB_PRIORITY.NORMAL });
 
   const settled = await prisma.backgroundJob.findUnique({
     where: { id: job?.id ?? "" },

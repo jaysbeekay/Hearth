@@ -40,6 +40,9 @@ export const env = {
     topic: optional("NTFY_TOPIC"),
     token: optional("NTFY_TOKEN"),
   },
+  // #375 — the contact Web Push services see on our VAPID token
+  // ("mailto:…" or "https://…"). Defaults to APP_URL when that's https.
+  vapidSubject: optional("VAPID_SUBJECT"),
   ollama: {
     baseUrl: optional("OLLAMA_BASE_URL"),
     model: optional("OLLAMA_MODEL"),

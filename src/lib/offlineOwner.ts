@@ -66,7 +66,11 @@ export function stuckSyncing<T extends { ownerId?: string; status: string }>(ops
 export const SESSION_CACHE = "hearth-session";
 export const SESSION_MARKER_PATH = "/__hearth/offline-session";
 
-/** Written by the app while signed in; removed on sign-out. */
+/**
+ * Written by the app while signed in (and by the sign-in page when its
+ * session check finds the member signed in after all); removed on sign-out.
+ * The same cache entry can instead hold pushGate.ts's signed-out marker.
+ */
 export interface SessionMarker {
   userId: string;
   /** Epoch ms the session expires at; the worker stops serving after it. */

@@ -26,7 +26,7 @@ import {
 import { parseThresholds } from "@/lib/notifications/thresholds";
 import { activeSnoozeUntil, type SnoozeFields } from "@/lib/snooze";
 
-export const REMINDER_CHANNELS = ["EMAIL", "NTFY", "WEBHOOK"] as const;
+export const REMINDER_CHANNELS = ["EMAIL", "NTFY", "WEBHOOK", "PUSH"] as const;
 export type ReminderChannel = (typeof REMINDER_CHANNELS)[number];
 
 /** One row of the sent log, as the schedule needs it. */
@@ -58,7 +58,7 @@ export type ReminderRecord = DueRecord;
 const NOTHING: ChannelSchedule = { sendNow: null, nextReminderOn: null };
 
 function nothing(): ReminderSchedule {
-  return { EMAIL: NOTHING, NTFY: NOTHING, WEBHOOK: NOTHING };
+  return { EMAIL: NOTHING, NTFY: NOTHING, WEBHOOK: NOTHING, PUSH: NOTHING };
 }
 
 /**
