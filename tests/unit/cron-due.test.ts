@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import cron from "node-cron";
 import { cronDue, cronOwed, resetCronOwedScans } from "@/lib/jobs/cronDue";
 
 describe("cronDue (#250)", () => {
@@ -91,4 +92,27 @@ describe("cronOwed — schedule edits", () => {
     expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 8, 0, 2))).toBe(true);
   });
 
+});
+
+describe("cronOwed — clock trouble and memory", () => {
+  beforeEach(() => resetCronOwedScans());
+
+  it("doesn't let a run stamped while the clock was ahead hold off later runs", async () => {
+    const now = new Date(2026, 10, 8, 8, 0, 5);
+    const stampedAhead = new Date(2026, 11, 20, 8, 0, 3);
+    expect(await cronOwed("REMINDER_CHECK", "0 8 * * *", stampedAhead, now)).toBe(true);
+  });
+
+  it("doesn't grow node-cron's task registry tick after tick", async () => {
+    const now = new Date(2026, 10, 8, 9, 0, 0);
+    await cronOwed("REMINDER_CHECK", "0 8 * * *", null, now);
+    cronDue("0 8 * * *", now);
+    const before = cron.getTasks().size;
+    for (let i = 1; i <= 200; i += 1) {
+      await cronOwed("REMINDER_CHECK", "0 8 * * *", null, new Date(now.getTime() + i * 60_000));
+      cronDue("0 8 * * *", now);
+      cronDue("not a cron pattern", now);
+    }
+    expect(cron.getTasks().size).toBe(before);
+  });
 });

@@ -408,7 +408,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the server is back, however long it was down. A schedule changed in
   Settings starts from the change, a time skipped by the clocks springing
   forward runs just after the jump, and an hour repeated when they fall back
-  runs once.
+  runs once. The scheduled-job ticker also no longer leaks a node-cron
+  task every minute.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:

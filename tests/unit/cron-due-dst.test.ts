@@ -24,4 +24,11 @@ describe("cronOwed across daylight saving (America/New_York)", () => {
     expect(await cronOwed("BACKUP_RUN", "30 1 * * *", ranAt, new Date("2026-11-01T07:00:00Z"))).toBe(false);
     expect(await cronOwed("BACKUP_RUN", "30 1 * * *", ranAt, new Date("2026-11-02T06:30:00Z"))).toBe(true);
   });
+
+  it("doesn't run again in the repeated hour after a catch-up earlier in it", async () => {
+    // Down across 01:30 EDT, back at 01:10 EST: the catch-up covers 01:30 EST too.
+    const caughtUp = new Date("2026-11-01T06:10:02Z"); // 01:10 EST
+    expect(await cronOwed("BACKUP_RUN", "30 1 * * *", caughtUp, new Date("2026-11-01T06:30:00Z"))).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "30 1 * * *", caughtUp, new Date("2026-11-02T06:30:00Z"))).toBe(true);
+  });
 });
