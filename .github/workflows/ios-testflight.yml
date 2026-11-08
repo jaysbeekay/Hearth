@@ -40,6 +40,9 @@ jobs:
       HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_DIST_CERT_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
       HAS_ASC_KEY: ${{ secrets.ASC_API_KEY_P8_BASE64 != '' && secrets.ASC_API_KEY_ID != '' && secrets.ASC_API_ISSUER_ID != '' }}
       SHOULD_UPLOAD: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.upload == true }}
+      # The app's numeric Apple ID (App Store Connect → the app → App
+      # Information → Apple ID). Not a secret, so it's a repository variable.
+      ASC_APP_APPLE_ID: ${{ vars.ASC_APP_APPLE_ID }}
       TEAM_ID: NANJZZ9DQR
       BUNDLE_ID: com.hearthapp.app
       PBXPROJ: ios/App/App.xcodeproj/project.pbxproj
@@ -50,12 +53,13 @@ jobs:
       # tag build that silently skipped TestFlight would look like a release
       # that shipped.
       - name: Require signing and App Store Connect secrets
-        if: ${{ env.HAS_SIGNING != 'true' || (env.SHOULD_UPLOAD == 'true' && env.HAS_ASC_KEY != 'true') }}
+        if: ${{ env.HAS_SIGNING != 'true' || (env.SHOULD_UPLOAD == 'true' && (env.HAS_ASC_KEY != 'true' || env.ASC_APP_APPLE_ID == '')) }}
         run: |
-          echo "::error::iOS signing / App Store Connect secrets are missing. Set" \
-               "IOS_DIST_CERT_P12_BASE64, IOS_DIST_CERT_PASSWORD," \
+          echo "::error::iOS signing / App Store Connect settings are missing. Set the" \
+               "secrets IOS_DIST_CERT_P12_BASE64, IOS_DIST_CERT_PASSWORD," \
                "IOS_PROVISIONING_PROFILE_BASE64, ASC_API_KEY_P8_BASE64," \
-               "ASC_API_KEY_ID and ASC_API_ISSUER_ID — see docs/deployment/ios-testflight.md."
+               "ASC_API_KEY_ID and ASC_API_ISSUER_ID, and the repository variable" \
+               "ASC_APP_APPLE_ID — see docs/deployment/ios-testflight.md."
           exit 1
 
       - name: Checkout
@@ -277,17 +281,49 @@ jobs:
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
         run: |
           set -euo pipefail
           # altool looks for the key as AuthKey_<id>.p8 in this directory.
           KEY_DIR="$HOME/.appstoreconnect/private_keys"
           mkdir -p "$KEY_DIR"
           echo "$ASC_API_KEY_P8_BASE64" | base64 --decode > "$KEY_DIR/AuthKey_${ASC_API_KEY_ID}.p8"
-          xcrun altool --upload-app \
+          if ! [[ "$ASC_APP_APPLE_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::ASC_APP_APPLE_ID must be the app's numeric Apple ID, not an email or bundle ID."
+            exit 1
+          fi
+          # --upload-package replaces the deprecated --upload-app. Passing
+          # --apple-id matters on Xcode 26: without it altool can pick another
+          # app whose bundle ID shares this prefix. Xcode 26's altool has also
+          # been reported to exit 0 on a failed upload, so the JSON result is
+          # checked as well as the exit code.
+          RESULT="$RUNNER_TEMP/altool-upload.json"
+          STATUS=0
+          xcrun altool --upload-package "$EXPORT_PATH/App.ipa" \
             --type ios \
-            --file "$EXPORT_PATH/App.ipa" \
+            --apple-id "$ASC_APP_APPLE_ID" \
+            --bundle-id "$BUNDLE_ID" \
+            --bundle-version "$BUILD" \
+            --bundle-short-version-string "$VERSION" \
             --apiKey "$ASC_API_KEY_ID" \
-            --apiIssuer "$ASC_API_ISSUER_ID"
+            --apiIssuer "$ASC_API_ISSUER_ID" \
+            --output-format json > "$RESULT" || STATUS=$?
+          cat "$RESULT"
+          python3 - "$RESULT" "$STATUS" <<'PY'
+          import json, sys
+          path, status = sys.argv[1], int(sys.argv[2])
+          try:
+              result = json.load(open(path))
+          except ValueError:
+              result = None
+          # Any non-empty "...error..." key (e.g. product-errors) is a failure.
+          errors = isinstance(result, dict) and any(
+              "error" in key.lower() and value for key, value in result.items())
+          if status != 0 or not isinstance(result, dict) or errors:
+              print("::error::altool upload failed (exit %d); see its output above." % status)
+              sys.exit(1)
+          PY
           echo "Uploaded ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }}). It appears in TestFlight once App Store Connect finishes processing."
 
       - name: Upload xcodebuild logs

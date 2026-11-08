@@ -11,7 +11,7 @@ App Store distribution and uploads it to TestFlight.
 | Manual run (Actions → Build iOS and upload to TestFlight) against a `v*` tag | Yes | Yes |
 | Manual run against a branch | Yes | Only if **Upload to TestFlight** is ticked |
 
-**Expected failure until it is configured.** Until the secrets below exist,
+**Expected failure until it is configured.** Until the secrets and variable below exist,
 every pushed `v*` tag starts a run that fails at its first step ("Require
 signing and App Store Connect secrets") and lists the missing names. That
 failure is expected and doesn't affect `release.yml`, Docker or Android. Once
@@ -102,6 +102,14 @@ profile has expired, or the profile is missing an entitlement the app declares.
 | `ASC_API_ISSUER_ID` | App Store Connect issuer ID (a UUID shown above the keys list) |
 | `ASC_API_KEY_P8_BASE64` | The downloaded `AuthKey_<KEY_ID>.p8` file, base64-encoded |
 
+Uploading also needs one **repository variable** (Settings → Secrets and
+variables → Actions → Variables tab → New repository variable). It isn't
+secret, so it doesn't go in the secrets list:
+
+| Variable | What it is |
+| --- | --- |
+| `ASC_APP_APPLE_ID` | The app's numeric Apple ID: App Store Connect → the app → App Information → Apple ID (e.g. `1234567890`), not your account email |
+
 ### 1. Apple Distribution certificate (`.p12`)
 
 1. On a Mac, open Xcode → Settings → Accounts, select the team, click
@@ -145,6 +153,25 @@ update both secrets.
    `ASC_API_ISSUER_ID`.
 4. `base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy` into `ASC_API_KEY_P8_BASE64`.
 
+### 4. App Apple ID
+
+Once the app record exists (see "Before the first upload"), copy its Apple ID
+from App Store Connect → the app → App Information into the
+`ASC_APP_APPLE_ID` repository variable.
+
+### How the upload works
+
+The upload step runs `xcrun altool --upload-package` with the API key.
+Apple's App Store Connect help still lists altool as a supported way to
+upload builds; only its older `--upload-app` command is deprecated. The step
+passes `--apple-id` because Xcode 26's altool can otherwise send the build to
+a different app whose bundle ID shares the same prefix, a problem Apple has
+confirmed. Xcode 26's altool has also been reported to exit successfully
+after a failed upload, so the step reads altool's JSON result as well and
+fails if it reports errors or isn't valid JSON. If Apple drops altool
+uploads, the fallback is the Transporter command-line tool with the same API
+key.
+
 ## Before the first upload
 
 - **Prove the pipeline once.** After adding the secrets and merging, run the
@@ -155,6 +182,7 @@ update both secrets.
   - the run is green and the build appears under the app's TestFlight tab
     once processing finishes;
   - its version and build number are what the run logged;
+  - the upload step's altool JSON output reports success;
   - the entitlements App Store Connect shows for the build match the app,
     including iCloud if #500 has merged;
   - the export-compliance question, if asked, is answered;
