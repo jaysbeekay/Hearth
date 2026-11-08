@@ -12,6 +12,7 @@ import {
   type Trashable,
 } from "@/lib/commands/shared";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
+import { hasExtractableText, resetSearchTextStatus, type SearchTextKind } from "@/lib/documents/documentText";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
@@ -113,8 +114,38 @@ interface KindConfig {
   delegate: (db: Db) => Delegate;
   loadOwner: (ownerId: string, db: Db) => Promise<OwnerInfo | null>;
   // Extra columns for a new row, and what to do once it exists.
-  createData?: (input: AddDocumentInput) => Record<string, unknown>;
+  /** `stored` is what was saved: its type is the sniffed one when the upload's was generic. */
+  createData?: (input: AddDocumentInput, stored: { mimeType: string }) => Record<string, unknown>;
   afterCreate?: (doc: DocumentRecord, input: AddDocumentInput) => Promise<void>;
+}
+
+// #398 — a kind whose text is extracted only for Search: PDFs and images
+// are queued for extraction; anything else is settled at once, with no text.
+// `input.extractedText` isn't used here yet: nothing files an Inbox Document
+// onto these kinds. When something does, pass it through and skip the job,
+// and make the kind's `fts_*_ai` trigger insert NEW."extractedText" (it
+// inserts NULL today); see the implementation note on #398.
+function searchTextHooks(kind: SearchTextKind): Pick<KindConfig, "createData" | "afterCreate"> {
+  return {
+    createData: (_input, stored) => ({ extractionStatus: hasExtractableText(stored.mimeType) ? "PENDING" : "COMPLETED" }),
+    afterCreate: async (doc) => {
+      if (!hasExtractableText(doc.mimeType)) return;
+      try {
+        await queueDocumentExtraction({
+          kind,
+          id: doc.id,
+          ownerId: doc.ownerId,
+          storedName: doc.storedName,
+          mimeType: doc.mimeType,
+        });
+      } catch (error) {
+        // Nothing queued: back to "not looked at", so the backfill picks it
+        // up instead of it staying PENDING for good.
+        await resetSearchTextStatus(kind, doc.id).catch(() => {});
+        throw error;
+      }
+    },
+  };
 }
 
 const KINDS: Record<OwnedDocumentKind, KindConfig> = {
@@ -187,6 +218,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("TRIP_SEGMENT"),
   },
   RENTAL_STATEMENT: {
     ownerField: "rentalStatementId",
@@ -207,6 +239,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("RENTAL_STATEMENT"),
   },
   HOME_ITEM: {
     ownerField: "homeItemId",
@@ -227,6 +260,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("HOME_ITEM"),
   },
   VEHICLE_ITEM: {
     ownerField: "vehicleItemId",
@@ -247,6 +281,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("VEHICLE_ITEM"),
   },
   INVENTORY_ITEM: {
     ownerField: "inventoryItemId",
@@ -274,6 +309,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("TRADE"),
   },
 };
 
@@ -410,7 +446,7 @@ async function insertDocument(
           sha256,
           category: input.category ?? null,
           supersedesId,
-          ...config.createData?.(input),
+          ...config.createData?.(input, { mimeType }),
         },
         select: rowSelect(kind),
       });
