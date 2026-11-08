@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Flame, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navCurrent } from "@/lib/navCurrent";
-import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV, isFooterNavActive } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { AccountMenu } from "@/components/AccountMenu";
 import { accountCurrentClass, buttonClass, sidebarActiveClass } from "@/lib/ui";
@@ -35,7 +35,7 @@ export function Sidebar({
   const moduleItems = items.filter((item) => item.group === "modules");
   const toolItems = items.filter((item) => item.group === "tools");
 
-  const helpActive = isActive(FOOTER_NAV.help.href, pathname);
+  const helpActive = isFooterNavActive("help", pathname);
 
   // Pinned to the viewport, so the account menu stays at the bottom-left
   // however long the page is; z-30 keeps its popover above the page.

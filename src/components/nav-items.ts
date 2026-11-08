@@ -1,5 +1,18 @@
-import { LayoutDashboard, FileText, ShieldCheck, CalendarDays, TrendingUp, Files, Bot, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  FileText,
+  ShieldCheck,
+  CalendarDays,
+  TrendingUp,
+  Files,
+  Bot,
+  HelpCircle,
+  House,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
+import { SETTINGS_ROUTES, settingsArea } from "@/lib/routeLabels";
 
 // "dashboard" stands alone (not part of either group); "modules" are
 // record-type sections (Contracts, Warranties, plus whichever optional
@@ -33,11 +46,30 @@ const BASE_NAV_ITEMS: NavItem[] = [
 ];
 
 // Always shown below the module and tool groups, in every nav (Sidebar,
-// BottomNav's More sheet).
+// BottomNav's More sheet). Settings is two separate screens: My account
+// (only your own account) and Household settings (shared by everyone).
 export const FOOTER_NAV = {
-  settings: { href: "/settings", label: "Settings" },
-  help: { href: "/help", label: "Help" },
-} as const;
+  settings: { href: SETTINGS_ROUTES.settings.href, label: SETTINGS_ROUTES.settings.label, icon: UserRound },
+  household: { href: SETTINGS_ROUTES.household.href, label: SETTINGS_ROUTES.household.label, icon: House },
+  help: { href: "/help", label: "Help", icon: HelpCircle },
+} as const satisfies Record<string, Omit<NavItem, "group">>;
+
+export type FooterNavKey = keyof typeof FOOTER_NAV;
+
+/** The footer entries in the order every nav shows them. */
+export const FOOTER_NAV_KEYS: FooterNavKey[] = ["settings", "household", "help"];
+
+/**
+ * Whether a footer entry is the current page. /settings/household and its
+ * sub-pages also start with /settings, so the two Settings entries go by
+ * settingsArea() rather than by prefix.
+ */
+export function isFooterNavActive(key: FooterNavKey, pathname: string): boolean {
+  if (key === "settings") return settingsArea(pathname) === "account";
+  if (key === "household") return settingsArea(pathname) === "household";
+  const { href } = FOOTER_NAV[key];
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 // Labels are fixed English strings, so pin the collation: a bare
 // localeCompare follows the server's LANG and the browser's locale, which can

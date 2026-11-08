@@ -200,7 +200,7 @@ export default async function ContractDetailPage({
                 <ConfirmForm
                   action={deleteContract.bind(null, contract.id)}
                   undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
-                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                 >

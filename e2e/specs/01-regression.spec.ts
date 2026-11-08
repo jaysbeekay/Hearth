@@ -18,7 +18,8 @@ const PAGES: Array<[string, string[]]> = [
   ["/import", ["Upload"]],
   ["/calendar", ["Upcoming"]],
   ["/assistant", ["Assistant"]],
-  ["/settings", ["Settings"]],
+  ["/settings", ["My account"]],
+  ["/settings/household", ["Household settings"]],
   ["/settings/webhooks", ["Webhook"]],
   ["/settings/modules", ["Travel"]],
 ];
@@ -48,7 +49,8 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/documents", "Documents"],
   ["/calendar", "Upcoming"],
   ["/spend", "Spending"],
-  ["/settings", "Settings"],
+  ["/settings", "My account"],
+  ["/settings/household", "Household settings"],
   ["/help", "Help"],
 ];
 

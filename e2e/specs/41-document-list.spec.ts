@@ -270,7 +270,7 @@ test.describe.serial("The one Document list", () => {
 
     await rowOf(page, filename).getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Household → Recently deleted");
+    await expect(dialog).toContainText("Household settings → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
     await expect(toast).toContainText("Moved to Recently deleted.");

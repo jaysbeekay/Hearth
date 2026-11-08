@@ -470,7 +470,7 @@ export default async function HoldingPage({
                                 parentId: holdingId,
                                 label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
                               }}
-                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />

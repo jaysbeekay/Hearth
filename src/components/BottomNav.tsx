@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, HelpCircle, MoreHorizontal, X, type LucideIcon } from "lucide-react";
+import { MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV, isFooterNavActive, FOOTER_NAV_KEYS } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
@@ -100,8 +100,7 @@ export function BottomNav({
   const overflowTools = overflow.filter((i) => i.group === "tools");
   const overflowActive =
     overflow.some((i) => isActive(i.href, pathname)) ||
-    isActive(FOOTER_NAV.settings.href, pathname) ||
-    isActive(FOOTER_NAV.help.href, pathname);
+    FOOTER_NAV_KEYS.some((key) => isFooterNavActive(key, pathname));
   const inboxBadge = <InboxCountBadge count={inboxCount} className="absolute -right-3 -top-1.5" />;
 
   return (
@@ -194,18 +193,15 @@ export function BottomNav({
                 badge={href === "/documents" ? inboxBadge : undefined}
               />
             ))}
-            <MoreLink
-              href={FOOTER_NAV.settings.href}
-              label={FOOTER_NAV.settings.label}
-              icon={Settings}
-              active={isActive(FOOTER_NAV.settings.href, pathname)}
-            />
-            <MoreLink
-              href={FOOTER_NAV.help.href}
-              label={FOOTER_NAV.help.label}
-              icon={HelpCircle}
-              active={isActive(FOOTER_NAV.help.href, pathname)}
-            />
+            {FOOTER_NAV_KEYS.map((key) => (
+              <MoreLink
+                key={key}
+                href={FOOTER_NAV[key].href}
+                label={FOOTER_NAV[key].label}
+                icon={FOOTER_NAV[key].icon}
+                active={isFooterNavActive(key, pathname)}
+              />
+            ))}
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">

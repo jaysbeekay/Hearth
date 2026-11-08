@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, MEMBER_AUTH_FILE } from "../env";
 
 // #383 — reminders and due dates will count days in the household
-// timezone. Admins set it in Settings → Household; everyone else only sees it.
+// timezone. Admins set it in Household settings; everyone else only sees it.
 
 async function saveHouseholdTimeZone(page: Page, value: string) {
   await page.goto("/settings/household");
@@ -50,13 +50,13 @@ test.describe("as an admin", () => {
 test.describe("as a member", () => {
   test.use({ storageState: MEMBER_AUTH_FILE });
 
-  test("sees the household timezone read-only, on both Settings tabs", async ({ page }) => {
+  test("sees the household timezone read-only, on both Settings screens", async ({ page }) => {
     await page.goto("/settings");
     await expect(page.locator("body")).toContainText("The household timezone is");
     await expect(page.locator("body")).toContainText("Only an admin can change it.");
     await expect(page.locator("#householdTimeZone")).toHaveCount(0);
 
-    // #363 — members can open the Household tab; the timezone is text there.
+    // #363 — members can open Household settings; the timezone is text there.
     await page.goto("/settings/household");
     await expect(page).toHaveURL(/\/settings\/household$/);
     await expect(page.locator("main")).toContainText("Only an admin can change it.");

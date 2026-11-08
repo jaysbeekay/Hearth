@@ -174,7 +174,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -293,7 +293,7 @@ export default async function PropertyDetailPage({
                             <ConfirmForm
                               action={deleteHomeItem.bind(null, property.id, item.id)}
                               undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -416,7 +416,7 @@ export default async function PropertyDetailPage({
                         parentId: property.id,
                         label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
                       }}
-                      confirmText="Delete this valuation? You can restore it within 30 days from Settings → Household → Recently deleted."
+                      confirmText="Delete this valuation? You can restore it within 30 days from Household settings → Recently deleted."
                       className={menuItemClass({ destructive: true })}
                     >
                       <Trash2 size={16} />
