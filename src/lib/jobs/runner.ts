@@ -95,6 +95,16 @@ export async function enqueueJobUnlessPending(type: JobType, payload: Record<str
   }
 }
 
+/** When a job of this type was last queued, by a schedule or by hand; null if never. */
+export async function lastQueuedAt(type: JobType): Promise<Date | null> {
+  const last = await prisma.backgroundJob.findFirst({
+    where: { type },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  return last?.createdAt ?? null;
+}
+
 async function claimJob(minPriority?: number) {
   const now = new Date();
   // A job whose last allowed attempt lost its lease (the process died, or

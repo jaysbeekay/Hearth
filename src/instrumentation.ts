@@ -64,8 +64,8 @@ export async function register() {
   };
 
   const cron = await import("node-cron");
-  const { enqueueJobUnlessPending, createJobTick } = await import("@/lib/jobs/runner");
-  const { cronDue } = await import("@/lib/jobs/cronDue");
+  const { enqueueJobUnlessPending, createJobTick, lastQueuedAt } = await import("@/lib/jobs/runner");
+  const { cronDue, cronOwed } = await import("@/lib/jobs/cronDue");
   const { JOB_PRIORITY } = await import("@/lib/jobs/priority");
 
   if (!globalForCron.__jobTickerStarted) {
@@ -93,19 +93,26 @@ export async function register() {
           isEmailIngestionConfigured,
           getEmailIngestConfig,
         } = await import("@/lib/appSettings");
+        // Reminders, backups and email ingestion run when their schedule's
+        // next time after their last run has come, not only inside the
+        // scheduled second: node-cron skips a tick the process was asleep
+        // or blocked for, which used to lose that day's Reminder check.
         const now = new Date();
+        const owed = async (type: "REMINDER_CHECK" | "BACKUP_RUN" | "EMAIL_INGEST", pattern: string) => {
+          if (cronOwed(pattern, await lastQueuedAt(type), now)) await enqueueJobUnlessPending(type);
+        };
 
         const { cron: reminderCron } = await getReminderConfig();
-        if (cronDue(reminderCron, now)) await enqueueJobUnlessPending("REMINDER_CHECK");
+        await owed("REMINDER_CHECK", reminderCron);
 
         if (await isBackupConfigured()) {
           const { cron: backupCron } = await getBackupScheduleConfig();
-          if (cronDue(backupCron, now)) await enqueueJobUnlessPending("BACKUP_RUN");
+          await owed("BACKUP_RUN", backupCron);
         }
 
         if (await isEmailIngestionConfigured()) {
           const { cron: emailIngestCron } = await getEmailIngestConfig();
-          if (cronDue(emailIngestCron, now)) await enqueueJobUnlessPending("EMAIL_INGEST");
+          await owed("EMAIL_INGEST", emailIngestCron);
         }
 
         // Not user-configurable, so this could stay a fixed cron.schedule of

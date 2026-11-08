@@ -18,7 +18,7 @@ vi.mock("@/lib/prices", () => ({ refreshAllPortfolioPrices }));
 vi.mock("@/lib/documents/textExtraction", () => ({ extractSearchableText: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ readDocument: vi.fn(), readProductDocument: vi.fn(), readInboxDocument: vi.fn() }));
 
-import { LEASE_MS, createJobTick, enqueueJobUnlessPending, runOneJob, runPendingJobs } from "@/lib/jobs/runner";
+import { LEASE_MS, createJobTick, enqueueJobUnlessPending, lastQueuedAt, runOneJob, runPendingJobs } from "@/lib/jobs/runner";
 
 const db = setupTestDb();
 
@@ -107,6 +107,16 @@ describe("job runner", () => {
     // /api/cron's path: claims the next job straight away.
     await runPendingJobs(5);
     expect((await job("EMAIL_INGEST")).status).toBe("DONE");
+  });
+
+  it("reports when a job type was last queued, finished or not", async () => {
+    expect(await lastQueuedAt("REMINDER_CHECK")).toBeNull();
+    const older = new Date("2026-11-05T21:00:00Z");
+    const newer = new Date("2026-11-06T21:00:00Z");
+    await db.prisma.backgroundJob.create({ data: { type: "REMINDER_CHECK", payload: "{}", status: "DONE", createdAt: older } });
+    await db.prisma.backgroundJob.create({ data: { type: "REMINDER_CHECK", payload: "{}", status: "FAILED", createdAt: newer } });
+    await db.prisma.backgroundJob.create({ data: { type: "BACKUP_RUN", payload: "{}", createdAt: new Date() } });
+    expect(await lastQueuedAt("REMINDER_CHECK")).toEqual(newer);
   });
 
   it("reclaims a job whose lease expired", async () => {
