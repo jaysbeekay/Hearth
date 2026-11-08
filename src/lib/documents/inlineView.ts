@@ -31,13 +31,33 @@ export const INLINE_VIEW_CSP = [
  * Only a PDF is ever served inline. Any other type (an uploaded HTML file,
  * say) stays an attachment, so ?inline=1 can't turn a stored file into a
  * page that renders on this origin.
+ *
+ * The name goes out twice (RFC 6266): an ASCII `filename` for old clients,
+ * and the real name as UTF-8 in `filename*`. A header value can't carry a
+ * character above U+00FF, so a raw "John’s lease.pdf" made the route 500.
  */
 export function contentDisposition(
   mimeType: string,
   filename: string,
   inlineRequested: boolean,
 ): string {
-  const safeFilename = filename.replace(/[\r\n"]/g, "_");
   const kind = inlineRequested && mimeType === "application/pdf" ? "inline" : "attachment";
-  return `${kind}; filename="${safeFilename}"`;
+  return `${kind}; ${filenameParams(filename)}`;
+}
+
+function filenameParams(filename: string): string {
+  const name = filename.replace(/[\r\n]/g, "_");
+  const ascii = name.replace(/["\\]/g, "_").replace(/[^\x20-\x7e]/g, "_");
+  let encoded: string;
+  try {
+    encoded = encodeURIComponent(name);
+  } catch {
+    // A lone surrogate can't be encoded; the ASCII name alone will do.
+    return `filename="${ascii}"`;
+  }
+  const utf8 = encoded.replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `filename="${ascii}"; filename*=UTF-8''${utf8}`;
 }

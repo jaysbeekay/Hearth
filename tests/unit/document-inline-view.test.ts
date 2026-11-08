@@ -27,18 +27,37 @@ describe("isInlineViewRequest", () => {
 });
 
 describe("contentDisposition", () => {
+  const kindOf = (value: string) => value.split(";")[0];
+
   it("serves a PDF inline only when asked", () => {
-    expect(contentDisposition("application/pdf", "a.pdf", true)).toBe('inline; filename="a.pdf"');
-    expect(contentDisposition("application/pdf", "a.pdf", false)).toBe('attachment; filename="a.pdf"');
+    expect(contentDisposition("application/pdf", "a.pdf", true)).toBe(
+      "inline; filename=\"a.pdf\"; filename*=UTF-8''a.pdf",
+    );
+    expect(kindOf(contentDisposition("application/pdf", "a.pdf", false))).toBe("attachment");
   });
 
   it("never serves another type inline", () => {
-    expect(contentDisposition("text/html", "x.html", true)).toBe('attachment; filename="x.html"');
-    expect(contentDisposition("image/svg+xml", "x.svg", true)).toBe('attachment; filename="x.svg"');
+    expect(kindOf(contentDisposition("text/html", "x.html", true))).toBe("attachment");
+    expect(kindOf(contentDisposition("image/svg+xml", "x.svg", true))).toBe("attachment");
   });
 
-  it("strips quotes and line breaks from the filename", () => {
-    expect(contentDisposition("application/pdf", 'a"b\r\nc.pdf', true)).toBe('inline; filename="a_b__c.pdf"');
+  it("can't be broken out of by quotes or line breaks in the filename", () => {
+    expect(contentDisposition("application/pdf", 'a"b\r\nc.pdf', true)).toBe(
+      "inline; filename=\"a_b__c.pdf\"; filename*=UTF-8''a%22b__c.pdf",
+    );
+  });
+
+  // A header value can't hold a character above U+00FF: the route used to 500.
+  it("sends a non-Latin-1 name as UTF-8, with an ASCII fallback", () => {
+    const value = contentDisposition("application/pdf", "John’s – 日本 (1).pdf", false);
+    expect(value).toMatch(/^[\x20-\x7e]*$/);
+    expect(() => new Headers({ "content-disposition": value })).not.toThrow();
+    expect(value).toContain('filename="John_s _ __ (1).pdf"');
+    expect(value).toContain("filename*=UTF-8''John%E2%80%99s%20%E2%80%93%20%E6%97%A5%E6%9C%AC%20%281%29.pdf");
+  });
+
+  it("falls back to the ASCII name for a name UTF-8 can't encode", () => {
+    expect(contentDisposition("application/pdf", "bad\uD800.pdf", false)).toBe('attachment; filename="bad_.pdf"');
   });
 });
 

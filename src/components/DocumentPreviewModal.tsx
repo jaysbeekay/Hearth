@@ -40,19 +40,31 @@ export function DocumentPreviewModal({
     let cancelled = false;
 
     async function load() {
+      // Start over each time: a connection that drops and comes back must
+      // not leave the last attempt's error (or frame) behind.
+      setError(false);
+      setFrameReady(false);
+      setObjectUrl(null);
+
       // A framed URL can't report a failure to the page, so ask first: a
-      // missing file (404), an expired session (redirect to /login, which
-      // refuses to be framed) or an unreachable server shows the message
-      // below instead of an error page inside the dialog.
+      // missing file (404) or an expired session (redirect to /login, which
+      // refuses to be framed) shows the message below instead of an error
+      // page inside the dialog. If the server can't be reached at all, fall
+      // through to the fetch below, which the service worker can answer
+      // from a copy it cached the last time this file was opened.
       if (framesUrl) {
+        let res: Response | null = null;
         try {
-          const res = await fetch(inlineViewHref(doc.downloadHref), { method: "HEAD" });
-          if (!res.ok || res.redirected) throw new Error("Failed to load preview");
-          if (!cancelled) setFrameReady(true);
+          res = await fetch(inlineViewHref(doc.downloadHref), { method: "HEAD" });
         } catch {
-          if (!cancelled) setError(true);
+          // Unreachable: try the cached copy below.
         }
-        return;
+        if (cancelled) return;
+        if (res) {
+          if (res.ok && !res.redirected) setFrameReady(true);
+          else setError(true);
+          return;
+        }
       }
 
       // Offline: only the explicitly-downloaded blob is available — there's
@@ -128,9 +140,7 @@ export function DocumentPreviewModal({
         <div className="flex flex-1 items-center justify-center overflow-auto bg-hover p-4">
           {error ? (
             <p className="text-sm text-muted">Couldn&apos;t load a preview for this file.</p>
-          ) : framesUrl && !frameReady ? (
-            <p className="text-sm text-muted">Loading preview…</p>
-          ) : framesUrl ? (
+          ) : framesUrl && frameReady ? (
             <iframe
               src={inlineViewHref(doc.downloadHref)}
               title={doc.filename}
@@ -140,9 +150,10 @@ export function DocumentPreviewModal({
             <p className="text-sm text-muted">Loading preview…</p>
           ) : isPdf ? (
             // #229 — <embed type="application/pdf"> is blocked by the app's
-            // CSP (object-src 'none', deliberate). Offline there's only the
-            // cached blob, so it's framed over a blob: URL. Chrome and
-            // Firefox draw that; Safari doesn't (see inlineView.ts).
+            // CSP (object-src 'none', deliberate). Offline, or with the
+            // server unreachable, there's only a cached copy, so it's framed
+            // over a blob: URL. Chrome and Firefox draw that; Safari doesn't
+            // (see inlineView.ts).
             <iframe src={objectUrl} title={doc.filename} className="h-[70vh] w-full border-0" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob: URL, not an optimizable remote image

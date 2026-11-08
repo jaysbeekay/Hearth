@@ -112,6 +112,51 @@ test("a PDF preview that can't load says so instead of framing an error page", a
   await expect(dialog.locator("iframe")).toHaveCount(0);
 });
 
+test("a PDF preview comes back after the connection drops and returns", async ({ page, context }) => {
+  const filename = `preview-reconnect-${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
+  const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
+  await expect(dialog.locator("iframe")).toBeVisible();
+
+  // Not saved for offline use, so offline it can't show...
+  await context.setOffline(true);
+  await expect(dialog.getByText("Couldn't load a preview for this file.")).toBeVisible();
+  // ...and back online it shows again, without reopening.
+  await context.setOffline(false);
+  await expect(dialog.locator("iframe")).toBeVisible();
+  await expect(dialog.getByText("Couldn't load a preview for this file.")).toHaveCount(0);
+});
+
+test("a PDF preview falls back to a plain fetch when the server can't be reached", async ({ page }) => {
+  const filename = `preview-unreachable-${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+  // The HEAD check fails as if the server were down; the GET after it is
+  // what the service worker would answer from its cache.
+  await page.route(/\/api\/documents\/[^/?]+\?inline=1$/, (route) =>
+    route.request().method() === "HEAD" ? route.abort("connectionrefused") : route.continue(),
+  );
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
+  const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
+  await expect(dialog.locator("iframe")).toHaveAttribute("src", /^blob:/);
+  await expect(dialog.getByText("Couldn't load a preview for this file.")).toHaveCount(0);
+});
+
+test("a Document whose name isn't plain ASCII still downloads and previews", async ({ page }) => {
+  const filename = `John’s lease – 日本 ${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+  const href = await page.locator(`a[href^="/api/documents/"]`, { hasText: filename }).first().getAttribute("href");
+  for (const url of [href!, `${href}?inline=1`]) {
+    const res = await page.request.get(url);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-disposition"]).toContain("filename*=UTF-8''John%E2%80%99s");
+  }
+  // HEAD answers without the body, with the same headers.
+  const head = await page.request.head(`${href}?inline=1`);
+  expect(head.status()).toBe(200);
+  expect(head.headers()["content-disposition"]).toMatch(/^inline;/);
+});
+
 test("previewing an image document from the Documents page renders it", async ({ page }) => {
   const filename = `preview-image-test-${Date.now()}.png`;
 
