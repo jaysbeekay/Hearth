@@ -1,0 +1,87 @@
+import http from "http";
+import type { AddressInfo } from "net";
+import { test, expect, type Page } from "@playwright/test";
+import { ADMIN_AUTH_FILE } from "../env";
+
+test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 1440, height: 900 } });
+
+// An Ollama-shaped /api/chat that answers every turn with one line of text.
+function startMockOllama(): Promise<{ url: string; close: () => Promise<void> }> {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      if (req.method !== "POST" || req.url !== "/api/chat") {
+        res.writeHead(404).end();
+        return;
+      }
+      req.resume();
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+        res.write(JSON.stringify({ message: { role: "assistant", content: "Hello from the panel." }, done: false }) + "\n");
+        res.end(JSON.stringify({ message: { role: "assistant", content: "" }, done: true }) + "\n");
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise((r) => server.close(() => r())),
+      });
+    });
+  });
+}
+
+async function configureMockAssistant(page: Page, url: string) {
+  await page.goto("/settings/ai");
+  if (await page.getByRole("button", { name: "Turn on" }).isVisible()) {
+    await page.getByRole("button", { name: "Turn on" }).click();
+    await expect(page.getByText("AI Assistant turned on.")).toBeVisible();
+  }
+  const chatAlreadySet = (await page.locator("#chatProvider").inputValue()) === "OLLAMA";
+  await page.locator("#ollamaBaseUrl").fill(url);
+  await page.selectOption("#chatProvider", "OLLAMA");
+  const chatModel = page.locator("#chatModel");
+  const modelAlreadySet = chatAlreadySet && (await chatModel.inputValue()) === "test-model";
+  await chatModel.fill("test-model");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
+  if (!modelAlreadySet) await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
+}
+
+test("assistant side panel opens beside any page, chats, and remembers open/closed", async ({ page }) => {
+  const mock = await startMockOllama();
+  try {
+    await configureMockAssistant(page, mock.url);
+
+    await page.goto("/contracts");
+    const panel = page.getByRole("complementary", { name: "Assistant" });
+    await expect(panel).toHaveCount(0);
+    await page.getByRole("button", { name: "Open assistant panel" }).click();
+    await expect(panel).toBeVisible();
+
+    await panel.locator("textarea").fill("What renews next month?");
+    await page.keyboard.press("Enter");
+    await expect(panel.getByText("Hello from the panel.")).toBeVisible();
+
+    // Still open after a navigation and a reload, with the chat listed.
+    await page.goto("/dashboard");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("#assistantPanelThread option", { hasText: "What renews next month?" })).toHaveCount(1);
+
+    await panel.getByRole("button", { name: "Close assistant panel" }).click();
+    await expect(panel).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Open assistant panel" })).toBeVisible();
+    await expect(panel).toHaveCount(0);
+
+    // The full page is the same chat, so no panel there.
+    await page.goto("/assistant");
+    await expect(page.getByRole("button", { name: "Open assistant panel" })).toHaveCount(0);
+
+    // Narrower windows use the Assistant page instead.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto("/contracts");
+    await expect(page.getByRole("button", { name: "Open assistant panel" })).toBeHidden();
+  } finally {
+    await mock.close();
+  }
+});

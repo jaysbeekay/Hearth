@@ -20,6 +20,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   warranty card that was left open, and deleting a conversation. Households that had
   already saved an assistant provider are switched on by the migration, so
   nothing changes for them.
+- **Assistant side panel.** With the assistant on, wide windows (1280px and
+  up) get a slim rail on the right of every page; it opens the assistant as
+  a docked panel beside whatever you're looking at, the same chat as the
+  Assistant page (streaming, your private chat history, confirm-before-write
+  cards). The conversation stays put as you move between pages, and each
+  browser remembers whether the panel is open. Phones and narrower windows
+  keep using the Assistant page.
 
 - **Search finds Documents of every record type by their contents (#398).**
   Documents on Service records, Maintenance records, Trip segments, Rental
