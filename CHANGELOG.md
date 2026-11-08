@@ -195,6 +195,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Section headings stand out from body text, and long text reads more
+  easily (#558).** Section headings were 16px at weight 500 over 14px body
+  text at 400, too small a step to scan by. They are now weight 600 through
+  a new `sectionHeadingClass`; the #411 rules in `src/lib/ui.ts` now allow
+  600 for section headings only, and `tests/unit/ui-rules.test.ts` keeps it
+  there. Notes on record pages and Help answers now use 24px lines and stop
+  at about 65 characters wide (`proseClass`), and banners use 24px lines.
+
 - **The Contracts page says what it holds.** A line under the heading reads
   "Insurance policies, plans, leases, loans and subscriptions", so it's clear
   an insurance policy belongs under Contracts. The name itself stays

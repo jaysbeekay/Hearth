@@ -18,6 +18,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.reminders.label };
 
@@ -51,7 +52,7 @@ export default async function ReminderSettingsPage() {
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Email (SMTP)</h2>
+            <h2 className={sectionHeadingClass()}>Email (SMTP)</h2>
             <p className="text-xs text-muted mt-0.5">Used to send reminders</p>
           </div>
           <SmtpForm
@@ -70,7 +71,7 @@ export default async function ReminderSettingsPage() {
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Push notifications (ntfy)</h2>
+            <h2 className={sectionHeadingClass()}>Push notifications (ntfy)</h2>
             <p className="text-xs text-muted mt-0.5">Real-time push via ntfy.sh or a self-hosted ntfy server</p>
           </div>
           <NtfyForm
@@ -81,7 +82,7 @@ export default async function ReminderSettingsPage() {
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Schedule</h2>
+            <h2 className={sectionHeadingClass()}>Schedule</h2>
             <p className="text-xs text-muted mt-0.5">
               When Hearth checks for reminders to send. Webhooks are under{" "}
               {SETTINGS_ROUTES.integrations.label}.

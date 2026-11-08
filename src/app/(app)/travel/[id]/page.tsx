@@ -29,7 +29,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass, cardClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
@@ -167,14 +167,14 @@ export default async function TripDetailPage({
 
       {trip.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{trip.notes}</p>
         </Card>
       )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Itinerary</h2>
+          <h2 className={sectionHeadingClass()}>Itinerary</h2>
           {canWrite && (
             <Link
               href={`/travel/${trip.id}/segments/new`}
@@ -342,7 +342,7 @@ export default async function TripDetailPage({
                   )}
 
                   {segment.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
+                    <p className={proseClass("mt-4 whitespace-pre-wrap")}>
                       {segment.notes}
                     </p>
                   )}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonClass, dialogPanelClass, cardClass } from "@/lib/ui";
+import { buttonClass, dialogPanelClass, cardClass, sectionHeadingClass } from "@/lib/ui";
 
 interface Option {
   label: string;
@@ -81,7 +81,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         panelClassName={dialogPanelClass("max-w-md")}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-base font-medium">
+          <h2 id={titleId} className={sectionHeadingClass()}>
             What are you adding?
           </h2>
           <button

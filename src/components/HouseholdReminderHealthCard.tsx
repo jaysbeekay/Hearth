@@ -3,7 +3,7 @@ import { BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, sectionHeadingClass } from "@/lib/ui";
 import { channelSummary } from "@/lib/notifications/reminderSummary";
 
 function pushSummary({ total, failing }: HouseholdReminderHealth["pushDevices"]) {
@@ -26,7 +26,7 @@ export function HouseholdReminderHealthCard({
   return (
     <Card as="section" className="space-y-4">
       <div>
-        <h2 className="flex items-center gap-2 font-medium">
+        <h2 className={sectionHeadingClass("flex items-center gap-2")}>
           <BellRing size={16} className="text-muted" aria-hidden />
           Reminder delivery health
         </h2>
