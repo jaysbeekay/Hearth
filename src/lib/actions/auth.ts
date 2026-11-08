@@ -30,6 +30,7 @@ import {
   checkRateLimit,
   clientAddress,
   consumeRateLimit,
+  RATE_LIMITS,
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/rateLimit";
@@ -561,8 +562,23 @@ export async function disableTotp(
 
 const GENERIC_RESET_MESSAGE = "If that email exists, we've sent a password reset link.";
 
-function logResetRequest(email: string, address: string, detail: string, userId?: string) {
-  return logSecurityEvent({ type: "PASSWORD_RESET_REQUESTED", email, address, detail, userId });
+// Anyone can ask for a reset without signing in, so these rows share one
+// budget across all addresses (passwordResetLog); past it, one row says
+// logging is paused. A failed send is always logged: it needs a real account
+// and is capped by the per-address send limit.
+async function logResetRequest(email: string, address: string, detail: string, userId?: string) {
+  if (!checkRateLimit("passwordResetLog", "all").allowed) return;
+  consumeRateLimit("passwordResetLog", "all");
+  const paused = !checkRateLimit("passwordResetLog", "all").allowed;
+  await logSecurityEvent({
+    type: "PASSWORD_RESET_REQUESTED",
+    email: paused ? undefined : email,
+    address,
+    userId: paused ? undefined : userId,
+    detail: paused
+      ? `Too many reset requests; logging them is paused for up to ${Math.ceil(RATE_LIMITS.passwordResetLog.windowMs / 60_000)} minutes`
+      : detail,
+  });
 }
 
 export async function requestPasswordReset(
@@ -581,14 +597,27 @@ export async function requestPasswordReset(
   const resetThrottle = consumeRateLimit("passwordReset", address);
   if (!resetThrottle.allowed) {
     // Same generic response as the success path: whether the throttle fired
-    // must not reveal that the account exists.
-    await logResetRequest(parsed.data.email, address, "Throttled: too many reset requests from this address");
+    // must not reveal that the account exists. Not logged: the request that
+    // used up the address's last slot already said so.
     return { success: GENERIC_RESET_MESSAGE };
+  }
+  if (resetThrottle.remaining === 0) {
+    await logResetRequest(
+      parsed.data.email,
+      address,
+      "Throttled: this address has used its reset requests for the hour; further ones are refused",
+    );
   }
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (!user) {
     await logResetRequest(parsed.data.email, address, "No account with this email; nothing sent");
+    return { success: GENERIC_RESET_MESSAGE };
+  }
+  // The forgot-password page hides its form without SMTP, but the action can
+  // still be posted (a page loaded before SMTP was removed).
+  if (!(await isSmtpConfigured())) {
+    await logResetRequest(user.email, address, "SMTP is not configured; nothing sent", user.id);
     return { success: GENERIC_RESET_MESSAGE };
   }
 
@@ -600,11 +629,8 @@ export async function requestPasswordReset(
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     },
   });
-  const resetUrl = buildConfiguredAppUrl(env.appUrl, `/reset-password/${token}`);
-  if (!resetUrl) {
-    await logResetRequest(user.email, address, "APP_URL is not set; nothing sent", user.id);
-    return { success: GENERIC_RESET_MESSAGE };
-  }
+  // env.appUrl falls back to http://localhost:3000, so this always builds.
+  const resetUrl = buildConfiguredAppUrl(env.appUrl, `/reset-password/${token}`)!;
   try {
     await sendPasswordResetEmail(user.email, resetUrl);
     await logResetRequest(
@@ -620,7 +646,7 @@ export async function requestPasswordReset(
   } catch (error) {
     // The response stays identical whether or not the account exists, so the
     // failure is only visible to admins: in Settings > Security and the
-    // server log. Before this it was swallowed with no trace at all.
+    // server log.
     const reason = error instanceof Error ? error.message : "unknown error";
     console.error("[auth] password reset email failed:", reason);
     await logSecurityEvent({

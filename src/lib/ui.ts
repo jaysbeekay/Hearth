@@ -269,14 +269,14 @@ export function pageShellClass(width: PageWidth, className?: string) {
   return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
 
+// A settings form's Test button on the left and Save on the right, with the
+// test's result on a full-width row beneath (TestConnectionButton inRow).
+export const settingsActionRowClass = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2";
+
 // ── Links ───────────────────────────────────────────────────────────────
 
 /**
  * A link inside running text: underlined, since the accent alone is too
  * close in lightness to muted text to tell it apart (WCAG 1.4.1).
  */
-// A settings form's Test button on the left and Save on the right, with the
-// test's result on a full-width row beneath (TestConnectionButton inRow).
-export const settingsActionRowClass = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2";
-
 export const inlineLinkClass = "text-accent underline underline-offset-2";

@@ -20,6 +20,10 @@ describe("isQualifiedSmtpFrom", () => {
     ["", false],
     ["Hearth <hearth@example.com>", true],
     ["appsupport@cjak.com.au", true],
+    ["hearth@example.com (Hearth)", true],
+    ["a@b..com", false],
+    ["a@b.com,c", false],
+    ["Hearth <a@b.com>, Other <c@d.com>", false],
   ])("%s → %s", (value, expected) => {
     expect(isQualifiedSmtpFrom(value)).toBe(expected);
   });

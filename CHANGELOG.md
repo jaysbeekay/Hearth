@@ -406,7 +406,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   blank, and a blank or unqualified From (including a saved
   `no-reply@localhost`) sends as the SMTP username when that's an email
   address. An unqualified `SMTP_FROM` left in `.env` is ignored the same
-  way; to send from your own address, set `SMTP_FROM` to one on your domain
+  way, and is only used as a last resort when the username isn't an email
+  address either; Hearth refuses to send with no From at all and says why.
+  To send from your own address, set `SMTP_FROM` to one on your domain
   (or remove the line to send as `SMTP_USER`). Settings → Reminders warns
   when there's no usable From address, including a blank From with a
   username that isn't an email address (SendGrid's `apikey`, SES keys), and
@@ -423,7 +425,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Security now records every reset request with its outcome (sent, no account
   with that email, throttled) and flags a failed send with the SMTP server's
   error, which also goes to the server log. A sent email whose link points at
-  localhost because `APP_URL` isn't set is called out too.
+  localhost because `APP_URL` isn't set is called out too, as is a request
+  made while SMTP isn't configured. Since anyone can request a reset without
+  signing in, these rows share a budget of 30 an hour across all addresses
+  (one row says when logging is paused), a throttled address is noted once
+  rather than per request, and emails over 254 characters are refused.
+  **Rolling back** past this release: delete `security_event_logs` rows of
+  type `PASSWORD_RESET_REQUESTED` and `PASSWORD_RESET_EMAIL_FAILED` first, or
+  the older Settings → Security page fails to load.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:

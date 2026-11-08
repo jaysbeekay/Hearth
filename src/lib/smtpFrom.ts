@@ -4,11 +4,12 @@
 // was exactly that: every email, password resets included, bounced at the
 // server with "504 5.5.2 Sender address rejected: need fully-qualified address".
 
-const ADDRESS = /^[^\s@<>]+@([^\s@<>]+)$/;
+const ADDRESS = /^[^\s@<>,]+@([^\s@<>,()]+)$/;
 
 /** The bare address in `Name <addr@host>` or `addr@host`, or "" if there isn't one. */
 export function smtpFromAddress(value: string): string {
-  const trimmed = value.trim();
+  // A trailing "(comment)" is valid: "hearth@example.com (Hearth)".
+  const trimmed = value.trim().replace(/\s*\([^()]*\)$/, "");
   const bracketed = /<([^<>]*)>\s*$/.exec(trimmed);
   const address = (bracketed ? bracketed[1] : trimmed).trim();
   return ADDRESS.test(address) ? address : "";
@@ -16,8 +17,10 @@ export function smtpFromAddress(value: string): string {
 
 /** True when the address's domain has a dot and isn't localhost. */
 export function isQualifiedSmtpFrom(value: string): boolean {
+  // One sender only: "A <a@x.com>, B <b@y.com>" is two.
+  if ((value.match(/@/g) ?? []).length > 1) return false;
   const domain = ADDRESS.exec(smtpFromAddress(value))?.[1]?.toLowerCase() ?? "";
-  return domain.includes(".") && !domain.startsWith(".") && !domain.endsWith(".") && !domain.endsWith(".localhost");
+  return domain.includes(".") && !domain.includes("..") && !domain.startsWith(".") && !domain.endsWith(".") && !domain.endsWith(".localhost");
 }
 
 /**

@@ -5,6 +5,7 @@ import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth } from "@/lib/auth";
 import { saveSmtpSettings } from "@/lib/actions/app-settings";
 import { getSmtpConfig, setAppSetting } from "@/lib/appSettings";
+import { sendTestEmail } from "@/lib/notifications/email";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -55,5 +56,12 @@ describe("saveSmtpSettings From address", () => {
     await setAppSetting("smtp.from", "Hearth <no-reply@localhost>");
     expect(await saveSmtpSettings(null, form("Hearth <no-reply@localhost>"))).toEqual({ success: "Email settings saved." });
     expect((await getSmtpConfig()).host).toBe("smtp.example.com");
+  });
+
+  it("refuses to send with no From at all, with an error that says why", async () => {
+    // A SendGrid-style username isn't an address, and no From is set.
+    await setAppSetting("smtp.host", "smtp.example.com");
+    await setAppSetting("smtp.user", "apikey");
+    await expect(sendTestEmail("a@example.com")).rejects.toThrow(/No From address/);
   });
 });

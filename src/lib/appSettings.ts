@@ -133,7 +133,10 @@ export async function getSmtpConfig() {
     pass: s["smtp.password"],
     // What an admin entered (shown in Settings) and what is actually sent.
     configuredFrom: s["smtp.from"],
-    from: resolveSmtpFrom(s["smtp.from"], s["smtp.user"]),
+    // Last resort: SMTP_FROM from .env even when unqualified (left out of the
+    // form above), which a lenient relay may still accept. Sending with no
+    // From at all never works.
+    from: resolveSmtpFrom(s["smtp.from"], s["smtp.user"]) || env.smtp.from.trim(),
   };
 }
 
