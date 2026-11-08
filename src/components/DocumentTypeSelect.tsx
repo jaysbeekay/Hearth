@@ -62,7 +62,7 @@ export function DocumentTypeSelect({
           }
         });
       }}
-      className={pillClass("neutral", "cursor-pointer border-0 outline-none focus:ring-1 focus:ring-accent")}
+      className={pillClass("neutral", "cursor-pointer border border-border-control outline-none focus:ring-1 focus:ring-accent")}
     >
       {!picked.value && <option value="">Set type</option>}
       {DOCUMENT_CATEGORIES.map((c) => (

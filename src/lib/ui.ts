@@ -242,7 +242,7 @@ export const inputClass = cn(INPUT_SHAPE, "border-border-control bg-background a
  */
 export function reviewFieldClass(fill: "none" | "extracted" | "ai" = "none") {
   if (fill === "ai") return cn(INPUT_SHAPE, "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60");
-  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent/40 bg-accent/5 ring-1 ring-accent/40");
+  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent bg-accent/5 ring-1 ring-accent/40");
   return inputClass;
 }
 
