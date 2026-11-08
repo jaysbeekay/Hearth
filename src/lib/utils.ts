@@ -137,6 +137,15 @@ export interface CurrencyFormatOptions {
   showCode?: boolean;
 }
 
+/**
+ * A saved money amount as a form field's starting value, always with two
+ * decimals: amounts are stored as floats, so 510.10 comes back as 510.1 and
+ * would otherwise show in the field without its trailing zero.
+ */
+export function moneyInputValue(amount: number | null | undefined): string {
+  return amount == null ? "" : amount.toFixed(2);
+}
+
 export function formatCurrency(
   amount: number | null | undefined,
   currency: string,

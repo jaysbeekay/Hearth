@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyInputValue } from "@/lib/utils";
 import {
   ExtractionReviewNote,
   SaveForLaterButton,
@@ -313,7 +314,7 @@ export function ProductForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={effectiveValues?.price ?? product?.price ?? ""}
+            defaultValue={effectiveValues?.price ?? moneyInputValue(product?.price)}
             className={inputClass}
           />
         </Field>

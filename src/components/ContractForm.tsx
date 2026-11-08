@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyInputValue } from "@/lib/utils";
 import {
   ExtractionReviewNote,
   SaveForLaterButton,
@@ -329,7 +330,7 @@ export function ContractForm({
               type="number"
               min={0}
               step="0.01"
-              defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
+              defaultValue={effectiveValues?.cost ?? moneyInputValue(contract?.cost)}
               onChange={handleCostChange}
               className={inputClass}
             />

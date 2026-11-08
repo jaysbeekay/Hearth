@@ -31,7 +31,7 @@ const FIELD_KEYS = [
   "netAmount",
 ] as const;
 
-const AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
+const AMOUNT_PATTERN = /((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
 
 function heuristicExtract(text: string): ExtractedRentalStatementFields {
   return {

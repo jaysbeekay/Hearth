@@ -9,7 +9,7 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { billingFrequencyText, formatTermCost, nextTermDates, pickTermDocument } from "@/lib/contractTerms";
-import { formatDate } from "@/lib/utils";
+import { formatDate, moneyInputValue } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 
@@ -54,7 +54,7 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
           defaults={{
             startDate: next.startDate ?? "",
             endDate: next.endDate ?? "",
-            cost: contract.cost != null ? String(contract.cost) : "",
+            cost: moneyInputValue(contract.cost),
           }}
           today={today}
           baseUpdatedAt={contract.updatedAt.toISOString()}
