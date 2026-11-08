@@ -399,6 +399,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Emails no longer bounce for an unqualified From address.** The default
+  From, `Hearth <no-reply@localhost>`, is rejected by most SMTP servers
+  ("504 5.5.2 Sender address rejected: need fully-qualified address"), so no
+  email got through, password resets included. `SMTP_FROM` now defaults to
+  blank, and a blank or unqualified From (including a saved
+  `no-reply@localhost`) sends as the SMTP username when that's an email
+  address. Settings → Reminders warns when the From address isn't fully
+  qualified and refuses to save a new one that isn't.
+
 - **A password reset email that fails to send is no longer silent.** The
   forgot-password form always shows the same message, so an SMTP error (wrong
   password, blocked port, rejected sender) left no trace anywhere. Settings →

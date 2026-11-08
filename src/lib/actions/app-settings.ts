@@ -19,6 +19,7 @@ import { isValidTimeZone } from "@/lib/duePolicy";
 import { POPULAR_CURRENCIES, isCurrencyCode } from "@/lib/currencyCodes";
 import { aiProviderFetch, isEgressProxyRefusal } from "@/lib/ai/egressProxy";
 import { isAiEgressProxyConfigured } from "@/lib/env";
+import { isQualifiedSmtpFrom } from "@/lib/smtpFrom";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -32,12 +33,21 @@ export async function saveSmtpSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
+  const from = ((formData.get("smtpFrom") as string) || "").trim();
+  if (from && !isQualifiedSmtpFrom(from)) {
+    return {
+      error:
+        "Use a From address on a real domain, like Hearth <hearth@example.com>, or leave it blank to send as the username. Mail servers reject addresses like no-reply@localhost.",
+      field: "smtpFrom",
+    };
+  }
+
   try {
     await setAppSetting("smtp.host", formData.get("smtpHost") as string);
     await setAppSetting("smtp.port", formData.get("smtpPort") as string);
     await setAppSetting("smtp.secure", formData.get("smtpSecure") === "on" ? "true" : "false");
     await setAppSetting("smtp.user", formData.get("smtpUser") as string);
-    await setAppSetting("smtp.from", formData.get("smtpFrom") as string);
+    await setAppSetting("smtp.from", from);
 
     // Sensitive: only overwrite if a new value was submitted
     const newPass = (formData.get("smtpPassword") as string) || "";
