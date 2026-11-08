@@ -13,6 +13,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { moneyInputValue } from "@/lib/utils";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -191,7 +192,7 @@ export function TradeForm({
             type="number"
             step="any"
             min="0"
-            defaultValue={state?.values?.fees ?? (trade?.fees != null ? String(trade.fees) : "")}
+            defaultValue={state?.values?.fees ?? moneyInputValue(trade?.fees)}
             placeholder="e.g. 9.99"
             className={inputClass}
           />

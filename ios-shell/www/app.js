@@ -3916,7 +3916,7 @@ function formFields(type, row) {
         <label>Date<input name="tradeDate" type="date" value="${escapeAttr(dateInputValue(row?.trade_date) || dateInputValue(nowIso()))}" required /></label>
         <label>Units<input name="units" type="number" min="0" step="0.000001" value="${escapeAttr(row?.units ?? "")}" required /></label>
         <label>Price per unit<input name="pricePerUnit" type="number" min="0" step="0.000001" value="${escapeAttr(row?.price_per_unit ?? "")}" required /></label>
-        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(row?.fees ?? "")}" /></label>
+        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.fees))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? portfolio?.currency ?? defaultCurrency())}" /></label>
         <label>Holding name<input name="name" value="${escapeAttr(getRecord("holdings", row?.holding_id)?.name)}" /></label>
         <label>Asset class<select name="assetClass">${options(["SHARE", "ETF", "FUND", "CRYPTO", "CASH", "OTHER"], getRecord("holdings", row?.holding_id)?.asset_class ?? "SHARE")}</select></label>

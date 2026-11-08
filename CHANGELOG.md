@@ -411,7 +411,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
-- **Money amounts keep two decimals in edit forms.** A saved 510.10 came
+- **Money amounts keep two decimals in edit forms (#601).** A saved 510.10 came
   back as 510.1 because amounts are stored as numbers. Edit and Renew forms,
   web and standalone app, now show it as 510.10.
 - **Document scans read amounts without a thousands comma.** "$5101.00" was

@@ -44,7 +44,7 @@ export function heuristicExtract(text: string): ExtractedRentalStatementFields {
     statementDate: findLabeledDate(text, /(statement date|invoice date|date|issued)/i),
     periodStart: findLabeledDate(text, /(period (from|start)|from|rental period start)/i),
     periodEnd: findLabeledDate(text, /(period (to|end)|to|rental period end)/i),
-    grossRent: labeledAmount(text, /(gross rent|rent received|rental income|rent)/i),
+    grossRent: labeledAmount(text, /(gross rent|rent received|rental income|\brent\b)/i),
     managementFee: labeledAmount(text, /(management fee|mgmt fee|management commission)/i),
     otherDeductions: labeledAmount(text, /(other deductions?|deductions?|repairs?|water|council)/i),
     netAmount: labeledAmount(text, /(net (amount|proceeds|remittance)|amount (payable|remitted)|total payable)/i) ?? findCost(text),

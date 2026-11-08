@@ -3,6 +3,7 @@ import { moneyInputValue } from "@/lib/utils";
 import { findCost } from "@/lib/documents/textHeuristics";
 import { heuristicExtract as extractLease, normaliseFields } from "@/lib/documents/leaseAgreementExtraction";
 import { heuristicExtract as extractRentalStatement } from "@/lib/documents/rentalStatementExtraction";
+import { fieldToInputValue } from "@/lib/documents/extractionReview";
 
 describe("moneyInputValue", () => {
   it("keeps two decimals on a saved amount", () => {
@@ -50,5 +51,20 @@ describe("rental statement amounts", () => {
 
   it("reads amounts without a thousands separator", () => {
     expect(extractRentalStatement("Gross rent $2600.00")).toMatchObject({ grossRent: "2600.00" });
+  });
+});
+
+describe("review panel money values", () => {
+  it("shows a saved cost or price with two decimals", () => {
+    expect(fieldToInputValue("cost", 510.1)).toBe("510.10");
+    expect(fieldToInputValue("price", 42)).toBe("42.00");
+    expect(fieldToInputValue("title", 42)).toBe("42");
+    expect(fieldToInputValue("cost", null)).toBe("");
+  });
+});
+
+describe("rental statement rent label", () => {
+  it("doesn't read a Rental Statement number as gross rent", () => {
+    expect(extractRentalStatement("Rental Statement #20241108\nRent $2,600.00").grossRent).toBe("2600.00");
   });
 });
