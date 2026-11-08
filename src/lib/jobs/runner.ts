@@ -6,6 +6,9 @@ import { runExpirationCheck } from "@/lib/notifications/scheduler";
 import { runBackup } from "@/lib/backup/scheduler";
 import { runEmailIngestion } from "@/lib/emailIngestion/scheduler";
 import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { giveUpSearchTextJob, isSearchTextKind, processSearchTextJob, runDocumentTextBackfill } from "@/lib/documents/documentText";
+import { JOB_PRIORITY } from "@/lib/jobs/priority";
+import type { ExtractionJobPayload } from "@/lib/documents/queueExtraction";
 
 // #250 — REMINDER_CHECK/BACKUP_RUN/EMAIL_INGEST join PRICE_REFRESH/
 // OCR_DOCUMENT on this same DB-leased runner, replacing the direct
@@ -17,7 +20,10 @@ export type JobType =
   | "OCR_DOCUMENT"
   | "REMINDER_CHECK"
   | "BACKUP_RUN"
-  | "EMAIL_INGEST";
+  | "EMAIL_INGEST"
+  // #398 — extracts text from Documents filed before text search covered
+  // every kind, a batch at a time; queues itself again while any are left.
+  | "DOCUMENT_TEXT_BACKFILL";
 export const LEASE_MS = 5 * 60_000;
 const MAX_ATTEMPTS = 3;
 // #432 — a job that never settles (an S3 upload with no request timeout, a
@@ -45,8 +51,15 @@ function withTimeout<T>(work: Promise<T>, ms: number, type: string): Promise<T> 
   });
 }
 
-export async function enqueueJob(type: JobType, payload: Record<string, unknown> = {}) {
-  return prisma.backgroundJob.create({ data: { type, payload: JSON.stringify(payload) } });
+interface EnqueueOptions {
+  /** Not claimed before this. */
+  availableAt?: Date;
+  /** JOB_PRIORITY; higher is claimed first. */
+  priority?: number;
+}
+
+export async function enqueueJob(type: JobType, payload: Record<string, unknown> = {}, options: EnqueueOptions = {}) {
+  return prisma.backgroundJob.create({ data: { type, payload: JSON.stringify(payload), ...options } });
 }
 
 // Job types where only one PENDING/RUNNING instance makes sense at a time —
@@ -57,6 +70,7 @@ const SINGLETON_TYPES = new Set<JobType>([
   "BACKUP_RUN",
   "EMAIL_INGEST",
   "PRICE_REFRESH",
+  "DOCUMENT_TEXT_BACKFILL",
 ]);
 
 // Used by the scheduled-job ticker (instrumentation.ts) and /api/cron — a
@@ -70,29 +84,38 @@ const SINGLETON_TYPES = new Set<JobType>([
 // technique #249's SyncOperationReceipt uses for /api/sync. The key is
 // cleared back to null in runOneJob() once the job leaves PENDING/RUNNING,
 // so a later, genuinely new run isn't blocked by this one's completed row.
-export async function enqueueJobUnlessPending(type: JobType, payload: Record<string, unknown> = {}) {
-  if (!SINGLETON_TYPES.has(type)) return enqueueJob(type, payload);
+export async function enqueueJobUnlessPending(type: JobType, payload: Record<string, unknown> = {}, options: EnqueueOptions = {}) {
+  if (!SINGLETON_TYPES.has(type)) return enqueueJob(type, payload, options);
   try {
     return await prisma.backgroundJob.create({
-      data: { type, payload: JSON.stringify(payload), activeDedupeKey: type },
+      data: { type, payload: JSON.stringify(payload), activeDedupeKey: type, ...options },
     });
   } catch {
     return null; // unique constraint on activeDedupeKey — already pending or running
   }
 }
 
-async function claimJob() {
+async function claimJob(minPriority?: number) {
   const now = new Date();
   // A job whose last allowed attempt lost its lease (the process died, or
   // the attempt hung past LEASE_MS) can't be reclaimed below; fail it and
   // release its singleton key, or that job type could never be queued again.
+  const abandoned = { status: "RUNNING", leasedUntil: { lt: now }, attempts: { gte: MAX_ATTEMPTS } };
+  const lost = await prisma.backgroundJob.findMany({ where: { ...abandoned, type: "OCR_DOCUMENT" }, select: { payload: true } });
   await prisma.backgroundJob.updateMany({
-    where: { status: "RUNNING", leasedUntil: { lt: now }, attempts: { gte: MAX_ATTEMPTS } },
+    where: abandoned,
     data: { status: "FAILED", finishedAt: now, leasedUntil: null, activeDedupeKey: null, lastError: "Lease expired on the last attempt" },
   });
+  for (const job of lost) await settleFailedOcr(job.payload, new Error("Lease expired on the last attempt"));
   const candidate = await prisma.backgroundJob.findFirst({
-    where: { OR: [{ status: "PENDING", availableAt: { lte: now } }, { status: "RUNNING", leasedUntil: { lt: now } }], attempts: { lt: MAX_ATTEMPTS } },
-    orderBy: { createdAt: "asc" },
+    where: {
+      OR: [{ status: "PENDING", availableAt: { lte: now } }, { status: "RUNNING", leasedUntil: { lt: now } }],
+      attempts: { lt: MAX_ATTEMPTS },
+      ...(minPriority === undefined ? {} : { priority: { gte: minPriority } }),
+    },
+    // #398 review — the document text backfill's jobs run at a lower
+    // priority, so they never hold up anything queued after them.
+    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
   });
   if (!candidate) return null;
   const leasedUntil = new Date(now.getTime() + LEASE_MS);
@@ -103,24 +126,51 @@ async function claimJob() {
   return result.count === 1 ? { ...candidate, leasedUntil } : null;
 }
 
-async function executeJob(job: { type: string; payload: string }) {
+// How long the backfill waits before its next batch; it also waits for the
+// previous batch's extractions to finish.
+export const BACKFILL_REQUEUE_DELAY_MS = 60_000;
+
+interface NextRun {
+  type: JobType;
+  options: EnqueueOptions;
+}
+
+// Resolves to a job to queue again once this run is DONE: a singleton can't
+// queue its own next run while it still holds its dedupe key.
+async function executeJob(job: { type: string; payload: string }): Promise<NextRun | void> {
   if (job.type === "PRICE_REFRESH") await refreshAllPortfolioPrices();
   else if (job.type === "OCR_DOCUMENT") await processOcr(JSON.parse(job.payload));
   else if (job.type === "REMINDER_CHECK") await runExpirationCheck();
   else if (job.type === "BACKUP_RUN") await runBackup();
   else if (job.type === "EMAIL_INGEST") await runEmailIngestion();
+  else if (job.type === "DOCUMENT_TEXT_BACKFILL") {
+    const { more } = await runDocumentTextBackfill();
+    if (more) {
+      return {
+        type: "DOCUMENT_TEXT_BACKFILL",
+        options: { availableAt: new Date(Date.now() + BACKFILL_REQUEUE_DELAY_MS), priority: JOB_PRIORITY.BACKGROUND },
+      };
+    }
+  }
   else throw new Error(`Unsupported job type: ${job.type}`);
 }
 
-export async function runOneJob(options: { timeoutMs?: number } = {}) {
-  const job = await claimJob();
+interface RunOptions {
+  timeoutMs?: number;
+  /** Only claim jobs at this priority or above (JOB_PRIORITY). */
+  minPriority?: number;
+}
+
+export async function runOneJob(options: RunOptions = {}) {
+  const job = await claimJob(options.minPriority);
   if (!job) return false;
   try {
-    await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
+    const next = await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
     await prisma.backgroundJob.update({
       where: { id: job.id },
       data: { status: "DONE", finishedAt: new Date(), leasedUntil: null, activeDedupeKey: null },
     });
+    if (next) await enqueueJobUnlessPending(next.type, {}, next.options);
   } catch (error) {
     const failedTerminally = job.attempts + 1 >= MAX_ATTEMPTS;
     await prisma.backgroundJob.update({
@@ -135,11 +185,24 @@ export async function runOneJob(options: { timeoutMs?: number } = {}) {
         activeDedupeKey: failedTerminally ? null : job.activeDedupeKey,
       },
     });
+    if (failedTerminally && job.type === "OCR_DOCUMENT") await settleFailedOcr(job.payload, error);
   }
   return true;
 }
 
-async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id: string; ownerId?: string; storedName: string; mimeType: string }) {
+// #398 review — a Document whose extraction has used its last attempt
+// leaves PENDING, so it isn't stuck there with nothing queued for it.
+async function settleFailedOcr(payload: string, error: unknown) {
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (isSearchTextKind((parsed as { kind?: unknown } | null)?.kind)) await giveUpSearchTextJob(parsed, error);
+  } catch (settleError) {
+    console.error("[jobs] couldn't settle a failed text extraction", settleError);
+  }
+}
+
+async function processOcr(payload: ExtractionJobPayload) {
+  if (isSearchTextKind(payload.kind)) return processSearchTextJob(payload);
   const buffer = payload.kind === "contract" ? await readDocument(payload.ownerId!, payload.storedName) : payload.kind === "product" ? await readProductDocument(payload.ownerId!, payload.storedName) : await readInboxDocument(payload.storedName);
   const text = await extractSearchableText(buffer, payload.mimeType);
   if (payload.kind === "contract") await prisma.document.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
@@ -152,7 +215,7 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }
 
-export async function runPendingJobs(limit = 4, options: { timeoutMs?: number } = {}): Promise<void> {
+export async function runPendingJobs(limit = 4, options: RunOptions = {}): Promise<void> {
   for (let i = 0; i < limit; i += 1) {
     if (!(await runOneJob(options))) break;
   }

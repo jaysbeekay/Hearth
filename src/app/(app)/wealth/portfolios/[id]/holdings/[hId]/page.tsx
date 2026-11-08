@@ -200,7 +200,7 @@ export default async function HoldingPage({
         portfolio: true,
         trades: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           orderBy: { date: "asc" },
         },
       },
