@@ -103,7 +103,12 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
           </p>
         )}
         <div className="py-1">
-          <Link href={FOOTER_NAV.settings.href} onClick={close} className={menuItemClass()}>
+          <Link
+            href={FOOTER_NAV.settings.href}
+            onClick={close}
+            aria-current={settingsActive ? "page" : undefined}
+            className={menuItemClass()}
+          >
             <Settings size={16} className="text-muted" />
             {FOOTER_NAV.settings.label}
           </Link>

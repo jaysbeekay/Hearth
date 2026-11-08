@@ -68,6 +68,21 @@ test("all nav items appear together on one page", async ({ page }) => {
   }
 });
 
+test("account menu: Escape returns focus to the avatar, a click on a field keeps it there", async ({ page }) => {
+  await page.goto("/contracts/new");
+  const account = page.getByRole("complementary").getByRole("button", { name: /account menu$/ });
+  await account.click();
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeHidden();
+  await expect(account).toBeFocused();
+
+  await account.click();
+  await page.locator("#title").click();
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeHidden();
+  await expect(page.locator("#title")).toBeFocused();
+});
+
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
   for (const [url, label] of TOP_LEVEL) {
     await page.goto(url);

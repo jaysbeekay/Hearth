@@ -423,6 +423,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
+- Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a
+  field outside it no longer pulls focus back to the menu's button, so the
+  field you clicked keeps it.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
