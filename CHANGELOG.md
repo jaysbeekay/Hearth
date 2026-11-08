@@ -246,6 +246,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   is saved, and if that write fails the confirmation still succeeds and the
   entry is missing from the log. Needs review works as before.
 
+- **My account looks like Household settings, and each row opens in place.**
+  Both screens are now one list of rows, each with an icon, a name and a
+  one-line status ("Email on · 1 device", "DD/MM/YYYY · AUD · Household
+  timezone"). Clicking a row on My account (Profile, Notifications,
+  Preferences, Password, Two-factor authentication, Calendar feed,
+  Downloaded documents) drops it down to edit right there. Passkeys and the
+  household sections still open their own page. Household timezone and
+  currency are rows too. A link like `/settings#preferences` or
+  `/settings/household#timezone` opens that row. A row that holds a field
+  the browser flags opens itself, and one Save changes covers each screen.
+  The personal fields now read "My default currency" and "My timezone", next
+  to a line naming the household timezone and currency that reminders and
+  totals use.
+
 - **My account and Household settings are now two separate screens.**
   The single Settings entry with two tabs is replaced by two entries, in
   the sidebar's account menu and in the phone's More sheet: **My account** (`/settings`,

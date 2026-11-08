@@ -383,10 +383,13 @@ test.describe("read-only member (#400)", () => {
     const main = page.locator("main");
 
     await page.goto("/settings");
-    await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
+    await expect(main.getByText("Profile", { exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Save changes" })).toBeVisible();
+    await expect(main.getByRole("link", { name: /^Passkeys/ })).toBeVisible();
+    // Each row drops down in place to edit.
+    await main.getByText("Password", { exact: true }).click();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
-    await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
+    await main.getByText("Two-factor authentication", { exact: true }).click();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();
 
     await page.goto("/calendar");

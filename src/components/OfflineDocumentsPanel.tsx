@@ -12,7 +12,9 @@ import { showToast } from "@/components/Toast";
 import { Card } from "@/components/ui/Card";
 import { buttonClass } from "@/lib/ui";
 
-export function OfflineDocumentsPanel() {
+// `inRow`: rendered inside its My account row, which already shows the name,
+// so there's no card chrome and no heading.
+export function OfflineDocumentsPanel({ inRow = false }: { inRow?: boolean }) {
   const [docs, setDocs] = useState<OfflineDocument[] | null>(null);
 
   useEffect(() => {
@@ -33,14 +35,15 @@ export function OfflineDocumentsPanel() {
     showToast("Removed all downloaded documents.");
   }
 
-  if (docs === null) return null;
+  if (docs === null) return inRow ? <p className="text-sm text-muted">Checking this device…</p> : null;
 
+  const Wrapper = inRow ? PlainSection : CardSection;
   const totalBytes = docs.reduce((sum, d) => sum + d.size, 0);
 
   return (
-    <Card as="section">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-medium">Downloaded documents</h2>
+    <Wrapper>
+      <div className={inRow ? "mb-3 flex justify-end empty:hidden" : "mb-3 flex items-center justify-between"}>
+        {!inRow && <h2 className="font-medium">Downloaded documents</h2>}
         {docs.length > 0 && (
           <button
             type="button"
@@ -83,6 +86,14 @@ export function OfflineDocumentsPanel() {
           </ul>
         </>
       )}
-    </Card>
+    </Wrapper>
   );
+}
+
+function CardSection({ children }: { children: React.ReactNode }) {
+  return <Card as="section">{children}</Card>;
+}
+
+function PlainSection({ children }: { children: React.ReactNode }) {
+  return <section>{children}</section>;
 }
