@@ -22,6 +22,8 @@ test.describe("bulk document import and extraction", () => {
 
     // The document should appear in the list
     await expect(page.locator("body")).toContainText("import-test.pdf");
+    // #604 — nothing to guess a type from, so the row asks for one.
+    await expect(page.getByText("Couldn't tell what this is — pick a type.")).toBeVisible({ timeout: 30_000 });
   });
 
   test("the import flow shows extracted fields for review", async ({ page }) => {
@@ -154,9 +156,12 @@ test.describe("bulk document import and extraction", () => {
     await expect(typeSelect).toHaveValue("PRODUCT", { timeout: 30_000 });
     await expect(page.locator('input[id$="-manufacturer"]')).toHaveValue("Bosch");
     expect(scans).toBe(1);
+    // #604 — the row says the type came from the document, until it's changed.
+    await expect(page.getByText("Detected as a warranty — change it if that's wrong.")).toBeVisible();
 
     await typeSelect.selectOption("CONTRACT");
     await expect(page.locator('input[id$="-title"]')).toBeVisible();
+    await expect(page.getByText(/^Detected as/)).toHaveCount(0);
     await typeSelect.selectOption("PRODUCT");
     await expect(page.locator('input[id$="-manufacturer"]')).toHaveValue("Bosch");
     expect(scans).toBe(1);

@@ -70,6 +70,9 @@ interface Row {
   error?: string;
   href?: string;
   scanMessage?: string;
+  // #604 — where the row's type came from: the scan's guess, the Contract
+  // fallback when the scan couldn't tell, or the person's own pick.
+  typeOrigin?: "detected" | "fallback" | "chosen";
   source: ExtractionSource;
   // Set once at scan time (matches ContractForm/ProductForm's own
   // extractionUsed flag) so the created record is held for review until the
@@ -162,6 +165,20 @@ function withType(row: Row, type: EntityType): Row {
     extractionUsed: Object.values(autoFilled).some(Boolean),
     scanMessage: forType(row.scanMessages, type),
   };
+}
+
+const DETECTED_TYPE_LABELS: Record<EntityType, string> = {
+  CONTRACT: "a contract",
+  PRODUCT: "a warranty",
+  INVENTORY: "an inventory item",
+  INBOX: "something to review later",
+};
+
+/** #604 — says whether the row's type was read from the document or is just the default. */
+export function typeOriginNote(origin: "detected" | "fallback", type: EntityType) {
+  return origin === "detected"
+    ? `Detected as ${DETECTED_TYPE_LABELS[type]} — change it if that's wrong.`
+    : "Couldn't tell what this is — pick a type.";
 }
 
 /** Whether a saved row's record is held for a quick check (it was saved unconfirmed). */
@@ -294,7 +311,7 @@ export function ImportClient({
             purchasePrice: Boolean(inv.fields.purchasePrice),
           },
         };
-        return withType(next, type);
+        return { ...withType(next, type), typeOrigin: guessed ? "detected" : "fallback" };
       }),
     );
   }
@@ -410,7 +427,7 @@ export function ImportClient({
     setRows((prev) =>
       prev.map((r) => {
         if (!r.selected || !(r.status === "ready" || r.status === "error")) return r;
-        let next = bulk.type ? withType(r, bulk.type) : r;
+        let next: Row = bulk.type ? { ...withType(r, bulk.type), typeOrigin: "chosen" } : r;
         if (bulk.category) next = { ...next, contract: { ...next.contract, category: bulk.category } };
         if (bulk.link) {
           const [kind, id] = bulk.link.split(":");
@@ -588,8 +605,8 @@ export function ImportClient({
           <div className="space-y-3">
             {rows.map((row) => (
               <Card key={row.id}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 basis-48 items-center gap-2">
                     {pendingRows.length > 1 && (row.status === "ready" || row.status === "error") && (
                       <input
                         type="checkbox"
@@ -603,21 +620,27 @@ export function ImportClient({
                     <FileText size={16} className="shrink-0 text-muted" />
                     <span className="min-w-0 truncate text-sm font-medium">{row.file.name}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="ml-auto flex shrink-0 items-center gap-2">
                     {row.status === "saved" ? (
                       <span className="flex items-center gap-1 text-xs text-success">
                         <Check size={16} /> Saved
                       </span>
                     ) : (
                       <>
+                        <label htmlFor={`${row.id}-type`} className="whitespace-nowrap text-xs font-medium text-muted">
+                          File as
+                        </label>
                         <select
+                          id={`${row.id}-type`}
                           aria-label={`File ${row.file.name} as`}
                           value={row.type}
                           disabled={row.status === "scanning" || row.status === "saving"}
                           onChange={(e) => {
                             // #358 — the scan already covered every type.
                             const type = e.target.value as EntityType;
-                            setRows((prev) => prev.map((r) => (r.id === row.id ? withType(r, type) : r)));
+                            setRows((prev) =>
+                              prev.map((r) => (r.id === row.id ? { ...withType(r, type), typeOrigin: "chosen" } : r)),
+                            );
                           }}
                           className={inputClass}
                         >
@@ -643,6 +666,10 @@ export function ImportClient({
                   <p role="status" className="flex items-center gap-2 text-sm text-muted">
                     <Loader2 size={16} className="animate-spin" /> Scanning…
                   </p>
+                )}
+
+                {row.status === "ready" && row.typeOrigin && row.typeOrigin !== "chosen" && (
+                  <p className="mb-1 text-xs text-muted">{typeOriginNote(row.typeOrigin, row.type)}</p>
                 )}
 
                 {row.scanMessage && row.status !== "scanning" && (
