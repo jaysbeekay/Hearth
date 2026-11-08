@@ -59,8 +59,8 @@ describe("sendChannelTest", () => {
     signedInAs("ADMIN");
     vi.mocked(isSmtpConfigured).mockResolvedValue(false);
     vi.mocked(isNtfyConfigured).mockResolvedValue(false);
-    expect(await sendChannelTest("EMAIL")).toEqual({ error: "Email isn't set up for the household yet." });
-    expect(await sendChannelTest("NTFY")).toEqual({ error: "ntfy isn't set up for the household yet." });
+    expect(await sendChannelTest("EMAIL")).toEqual({ error: "Email isn't set up for the household." });
+    expect(await sendChannelTest("NTFY")).toEqual({ error: "ntfy isn't set up for the household." });
     expect(sendTestEmail).not.toHaveBeenCalled();
     expect(sendTestNtfy).not.toHaveBeenCalled();
   });
