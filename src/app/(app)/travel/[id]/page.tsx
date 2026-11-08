@@ -57,7 +57,7 @@ export default async function TripDetailPage({
         updatedBy: true,
         segments: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
         },
       },
     }),
@@ -108,7 +108,7 @@ export default async function TripDetailPage({
     ? await prisma.tripSegment
         .findMany({
           where: { tripId: id, deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           orderBy: { startDate: "asc" },
         })
         .then((rows) =>

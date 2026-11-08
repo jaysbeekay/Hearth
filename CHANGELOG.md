@@ -34,6 +34,61 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   written a record at a time, so large document libraries no longer have to
   fit in memory at once.
 
+- **Search finds Documents of every record type by their contents (#398).**
+  Documents on Service records, Maintenance records, Trip segments, Rental
+  statements and Trades now get their text extracted in the background
+  (pdftotext, then OCR; PDFs and images only), like Contract documents and
+  Warranty invoices already did, so Search can find a receipt by a word
+  inside it. Inventory item documents are still found by filename. These
+  hits name the record they're attached to, with its date ("Logbook service
+  · 12 Mar 2024 · Corolla"), and say when only the contents matched;
+  Documents of every kind are now ranked together, best match first, and
+  Documents that can't show (a turned-off module, a list filter) no longer
+  take up room in the results. Documents filed before this release are
+  worked through by a new `DOCUMENT_TEXT_BACKFILL` job, 25 at a time, at
+  startup and then hourly until none are left. Background jobs now have a
+  priority: the backfill runs below everything else, so a Reminder check or
+  backup waits at most for the one extraction already running, and
+  `POST /api/cron` only runs normal-priority jobs. Without the extraction
+  tools a Document is retried once they're installed; one that keeps
+  failing ends `FAILED` with the error in the job's `lastError`; one left
+  `PENDING` with nothing queued is picked up again. Server-only; the
+  standalone shell has no text extraction. Rolling back: README → Searching
+  inside documents.
+- **Manage your push devices (#375, part 2).** Settings → My account lists
+  your other devices with push on, each with when it last got a Reminder
+  (or why its last push failed) and a Remove button for a lost or old one;
+  a removed device stays removed even if it's still signed in. Signing out
+  removes that browser's push subscription, and so does reaching the
+  sign-in page after a session ends any other way (password change,
+  expiry), so the next person to use it doesn't get your Reminders. If the
+  sign-in page can't reach the server to confirm the session is over, it
+  keeps trying while it's open. Whatever happens there, a browser only shows
+  a Reminder's content while it last saw the member it's for signed in
+  there; otherwise it shows a plain "Open Hearth to see it" notice, and
+  drops its subscription once it's clear the session is over (signed out,
+  someone else signed in, or the session ran out over a week ago).
+  Changing or resetting your password turns push off on all your devices,
+  though a push already queued at the push service can still arrive.
+  Members only ever see and remove their own devices, and Settings gets
+  only a hash of each device's push endpoint. Email stays a per-account
+  choice and ntfy stays household-wide.
+- **Web Push reminders (#375, part 1).** Settings → My account has a
+  "Notify this device" button: Reminders then arrive as notifications on
+  that browser, with no SMTP, ntfy or other account. Push is a fourth
+  Reminder channel with the same date-keyed sent log; tapping a
+  notification opens the record. VAPID keys are generated on first use and
+  kept in app settings (private key encrypted with `ENCRYPTION_KEY` when
+  that's set); `VAPID_SUBJECT` optionally sets the contact push services
+  see, otherwise `APP_URL` when it's https, otherwise the first admin's
+  email. A device the push service reports gone, or that has failed for 30
+  days, is dropped, and Reminder delivery health
+  shows how many devices have push on and how many are failing. Per-user
+  channel preferences and the guided setup screen follow in later parts.
+  Server-only for now; the iOS and Android shell is unchanged. Push goes to
+  every member's devices, read-only members included, like ntfy. Rolling
+  back below this release needs the `PUSH` rows deleted from
+  `notification_logs` first (README → Notifications).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
@@ -180,6 +235,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   to the real client address, as does the mTLS example config.
 
 ### Changed
+
+- **Search shows one result per Document, not one per version.** A
+  re-uploaded file and the version it replaced usually match the same words,
+  and used to show as two identical rows. Search now shows the latest
+  version, the way the record's page does (walking past versions in Trash).
+  When only an older version matches, it's shown, with "Older version" at
+  the start of its subtitle.
 
 - **A form's validation error shows under the field it's about (#406).**
   When saving fails on one field (an end date before the start date, a
