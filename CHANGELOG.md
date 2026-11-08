@@ -399,6 +399,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **The current page is marked by more than colour in the nav (#558).**
+  The active sidebar entry, phone tab and More-sheet tile differed from the
+  rest by hue alone (accent against muted text is about 1.0:1), failing WCAG
+  1.4.1. They now carry an accent bar (down the left edge in the sidebar,
+  along the top on phones) and `aria-current="page"`, so screen readers
+  announce the current page too.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only

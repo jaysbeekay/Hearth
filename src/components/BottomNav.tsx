@@ -10,7 +10,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
-import { sheetClass, buttonClass } from "@/lib/ui";
+import { sheetClass, buttonClass, tabActiveClass } from "@/lib/ui";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -43,9 +43,10 @@ function MoreLink({
     <Link
       href={href}
       aria-label={ariaLabel}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
-        active ? "bg-accent/10 text-accent" : "text-muted hover:bg-hover",
+        active ? cn(tabActiveClass, "bg-accent/10") : "text-muted hover:bg-hover",
       )}
     >
       <span className="relative">
@@ -107,9 +108,10 @@ export function BottomNav({
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-xs font-medium",
-                active ? "text-accent" : "text-muted",
+                active ? tabActiveClass : "text-muted",
               )}
             >
               <span className="relative">
@@ -129,7 +131,7 @@ export function BottomNav({
           aria-expanded={moreOpen}
           className={cn(
             "flex min-w-0 flex-1 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-xs font-medium",
-            overflowActive ? "text-accent" : "text-muted",
+            overflowActive ? tabActiveClass : "text-muted",
           )}
         >
           <span className="relative">

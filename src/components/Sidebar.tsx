@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Flame, Settings, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sidebarActiveClass } from "@/lib/ui";
 import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -59,10 +60,11 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -81,10 +83,11 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -104,11 +107,12 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               aria-label={documents ? inboxLinkLabel(label, inboxCount) : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -123,10 +127,11 @@ export function Sidebar({
       <div className="border-t border-border px-3 py-3">
         <Link
           href={FOOTER_NAV.settings.href}
+          aria-current={isActive("/settings", pathname) ? "page" : undefined}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             isActive("/settings", pathname)
-              ? "bg-accent/10 text-accent"
+              ? sidebarActiveClass
               : "text-muted hover:bg-hover",
           )}
         >
@@ -135,10 +140,11 @@ export function Sidebar({
         </Link>
         <Link
           href={FOOTER_NAV.help.href}
+          aria-current={isActive("/help", pathname) ? "page" : undefined}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             isActive("/help", pathname)
-              ? "bg-accent/10 text-accent"
+              ? sidebarActiveClass
               : "text-muted hover:bg-hover",
           )}
         >
