@@ -87,18 +87,18 @@ export function notificationsFor(reminders: DeviceReminder[], now: Date): LocalN
       const [y, m, d] = r.day.split("-").map(Number);
       const at = new Date(y, m - 1, d, REMINDER_HOUR, 0, 0);
       if (!(at.getTime() > now.getTime())) return [];
-      return [
-        {
-          id: notificationId(`server:${r.key}`),
-          title: r.title,
-          body: r.body,
-          schedule: { at, allowWhileIdle: true },
-          channelId: CHANNEL_ID,
-          extra: { source: "hearth-server", url: r.url },
-        },
-      ];
+      return [{ r, at }];
     })
-    .slice(0, DEVICE_REMINDER_LIMIT);
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .slice(0, DEVICE_REMINDER_LIMIT)
+    .map(({ r, at }) => ({
+      id: notificationId(`server:${r.key}`),
+      title: r.title,
+      body: r.body,
+      schedule: { at, allowWhileIdle: true },
+      channelId: CHANNEL_ID,
+      extra: { source: "hearth-server", url: r.url },
+    }));
 }
 
 /**
@@ -107,17 +107,42 @@ export function notificationsFor(reminders: DeviceReminder[], now: Date): LocalN
  * so a late answer can't put the previous member's Reminders back.
  */
 let generation = 0;
+/** Syncs started, and the newest one whose schedule finished. */
+let started = 0;
+let committed = 0;
 
-/** The current generation, to pass to scheduleDeviceReminders once the fetch is back. */
-export function deviceRemindersGeneration(): number {
-  return generation;
+/** Taken when a sync's fetch begins; scheduleDeviceReminders checks it once the fetch is back. */
+export interface DeviceReminderSyncTicket {
+  readonly generation: number;
+  readonly seq: number;
 }
 
-/** Thrown when a sync was overtaken by a cancel or turn-off. */
+export function startDeviceReminderSync(): DeviceReminderSyncTicket {
+  return { generation, seq: ++started };
+}
+
+function superseded(ticket: DeviceReminderSyncTicket): boolean {
+  // Cancelled since, or a sync started later has already scheduled newer data.
+  return ticket.generation !== generation || ticket.seq < committed;
+}
+
+/** Thrown when a sync was overtaken by a cancel, a turn-off or a newer sync. */
 export class DeviceRemindersSuperseded extends Error {
   constructor() {
-    super("Reminders on this phone changed while updating. Try again.");
+    super("Reminders on this phone were changed while this update was running.");
   }
+}
+
+/**
+ * Every native schedule and cancel runs one at a time, in the order asked,
+ * so two of them never interleave: an id is never scheduled after the write
+ * that would have tracked it, and a cancel always sees every id put there.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {});
+  return run;
 }
 
 async function cancelIds(ids: number[]): Promise<void> {
@@ -125,11 +150,16 @@ async function cancelIds(ids: number[]): Promise<void> {
 }
 
 /** Cancels what this page scheduled. "On" is kept, so the member's next visit schedules again. */
-export async function cancelDeviceReminders(): Promise<void> {
+export function cancelDeviceReminders(): Promise<void> {
+  // Bumped now, not when its turn comes: a sync scheduling ahead of it in
+  // the queue sees it, and leaves its ids tracked for this cancel to take.
   generation++;
-  if (!deviceRemindersAvailable()) return;
-  await cancelIds(storedIds());
-  write(IDS_KEY, null);
+  if (!deviceRemindersAvailable()) return Promise.resolve();
+  return serial(async () => {
+    await cancelIds(storedIds());
+    // Only once they're gone: if the cancel fails, the ids stay for the next one.
+    write(IDS_KEY, null);
+  });
 }
 
 /** Asks for notification permission. Whether it's granted. */
@@ -141,46 +171,103 @@ export async function allowDeviceNotifications(): Promise<boolean> {
 
 /**
  * Replaces this page's scheduled Reminders with `reminders`, for `userId`,
- * if nothing cancelled them since `startedAt` (deviceRemindersGeneration()
- * when the fetch began). The number scheduled.
+ * unless `ticket` (startDeviceReminderSync() when the fetch began) has been
+ * superseded. The number scheduled.
  *
  * Failure-safe: a Reminder keeps its id from one sync to the next, and
  * scheduling an id again replaces it, so only the ones no longer wanted are
  * cancelled first, then the rest are scheduled over the old. If scheduling
  * fails, what was there stays, and every id is kept for the next cancel.
  */
-export async function scheduleDeviceReminders(
+export function scheduleDeviceReminders(
   userId: string,
   reminders: DeviceReminder[],
-  startedAt: number,
+  ticket: DeviceReminderSyncTicket,
 ): Promise<number> {
-  if (startedAt !== generation) throw new DeviceRemindersSuperseded();
-  const ln = localNotifications();
-  await ln
-    .createChannel({ id: CHANNEL_ID, name: "Hearth reminders", description: "Reminders before things come due.", importance: 4, visibility: 1 })
-    .catch(() => {});
-  const notifications = notificationsFor(reminders, new Date());
-  const ids = notifications.map((n) => n.id);
-  const previous = storedIds();
-  if (startedAt !== generation) throw new DeviceRemindersSuperseded();
-  await cancelIds(previous.filter((id) => !ids.includes(id)));
-  // Until the schedule is done, both sets count as this page's.
-  write(IDS_KEY, JSON.stringify([...new Set([...previous, ...ids])]));
-  if (notifications.length > 0) await ln.schedule({ notifications });
-  if (startedAt !== generation) {
-    // Cancelled while scheduling: take back what this sync put there.
-    await cancelIds(ids);
-    throw new DeviceRemindersSuperseded();
-  }
-  write(IDS_KEY, JSON.stringify(ids));
-  write(USER_KEY, userId);
-  return notifications.length;
+  return serial(async () => {
+    if (superseded(ticket)) throw new DeviceRemindersSuperseded();
+    const ln = localNotifications();
+    await ln
+      .createChannel({ id: CHANNEL_ID, name: "Hearth reminders", description: "Reminders before things come due.", importance: 4, visibility: 1 })
+      .catch(() => {});
+    const notifications = notificationsFor(reminders, new Date());
+    const ids = notifications.map((n) => n.id);
+    const previous = storedIds();
+    if (superseded(ticket)) throw new DeviceRemindersSuperseded();
+    await cancelIds(previous.filter((id) => !ids.includes(id)));
+    // Until the schedule is done, both sets count as this page's.
+    write(IDS_KEY, JSON.stringify([...new Set([...previous, ...ids])]));
+    if (notifications.length > 0) await ln.schedule({ notifications });
+    // Cancelled while scheduling: that cancel is queued behind this and takes
+    // every id tracked, these included.
+    if (superseded(ticket)) throw new DeviceRemindersSuperseded();
+    write(IDS_KEY, JSON.stringify(ids));
+    write(USER_KEY, userId);
+    committed = ticket.seq;
+    return notifications.length;
+  });
 }
 
-/** Turns device Reminders off here. */
+/**
+ * Turns device Reminders off here. If the cancel fails they stay "on", since
+ * they're still scheduled, so Turn off is still offered.
+ */
 export async function turnOffDeviceReminders(): Promise<void> {
   await cancelDeviceReminders();
   write(USER_KEY, null);
+}
+
+/** At most one resync an hour when the app comes back into view. */
+export const RESYNC_MS = 60 * 60 * 1000;
+/** After a failed sync, how soon to try again; doubles each time, up to RESYNC_MS. */
+export const RETRY_MS = 60 * 1000;
+
+/**
+ * Keeps `userId`'s Reminders here current: syncs now, when the app comes
+ * back into view (at most hourly), and soon after a failure, backing off to
+ * hourly. A sync overtaken by a cancel or a newer sync isn't retried. Returns
+ * a stopper.
+ */
+export function keepDeviceRemindersCurrent(
+  userId: string,
+  sync: () => Promise<{ error?: string } | null>,
+): () => void {
+  let last = 0;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  let retryMs = RETRY_MS;
+  let stopped = false;
+  function failed(error?: unknown) {
+    if (error instanceof DeviceRemindersSuperseded) return;
+    // What was scheduled stays (scheduleDeviceReminders); try again soon
+    // rather than in an hour.
+    last = 0;
+    if (stopped || retry) return;
+    retry = setTimeout(() => {
+      retry = undefined;
+      run();
+    }, retryMs);
+    retryMs = Math.min(retryMs * 2, RESYNC_MS);
+  }
+  function run() {
+    if (stopped || Date.now() - last < RESYNC_MS) return;
+    // Turned off or signed out here since: nothing to keep current.
+    if (deviceRemindersUser() !== userId) return;
+    last = Date.now();
+    sync().then((result) => {
+      if (result?.error) failed();
+      else retryMs = RETRY_MS;
+    }, failed);
+  }
+  function onVisible() {
+    if (document.visibilityState === "visible") run();
+  }
+  run();
+  document.addEventListener("visibilitychange", onVisible);
+  return () => {
+    stopped = true;
+    clearTimeout(retry);
+    document.removeEventListener("visibilitychange", onVisible);
+  };
 }
 
 /** Opens a tapped Reminder's record. Returns a remover. */
