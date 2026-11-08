@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { contentDisposition, INLINE_PARAM } from "@/lib/documents/inlineView";
 import { documentStoreFor } from "@/lib/storage";
 import { findServableDocument } from "@/lib/documents/shareLinks";
 
@@ -11,7 +12,7 @@ import { findServableDocument } from "@/lib/documents/shareLinks";
 // The old per-module routes redirect here. Inbox files keep their own
 // route (/api/documents/inbox/[id]).
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
@@ -26,12 +27,12 @@ export async function GET(
   if (!doc) return notFound();
 
   const buffer = await documentStoreFor(doc.kind).read(doc.ownerId, doc.storedName);
-  const safeFilename = doc.filename.replace(/[\r\n"]/g, "_");
+  const inline = request.nextUrl.searchParams.get(INLINE_PARAM) === "1";
 
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": doc.mimeType,
-      "Content-Disposition": `attachment; filename="${safeFilename}"`,
+      "Content-Disposition": contentDisposition(doc.mimeType, doc.filename, inline),
       "Content-Length": String(doc.size),
     },
   });

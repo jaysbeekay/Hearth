@@ -6,6 +6,7 @@ import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { isPreviewable } from "@/lib/documents/documentList";
+import { inlineViewHref } from "@/lib/documents/inlineView";
 import { overlayClass, buttonClass } from "@/lib/ui";
 
 export interface PreviewableDoc {
@@ -28,8 +29,13 @@ export function DocumentPreviewModal({
   const online = useOnlineStatus();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const isPdf = doc.mimeType === "application/pdf";
+  // Online, a PDF is framed straight from its own URL (inlineView.ts):
+  // Safari won't draw one from a blob: URL under the app's CSP.
+  const framesUrl = online && isPdf;
 
   useEffect(() => {
+    if (framesUrl) return;
     let url: string | null = null;
     let cancelled = false;
 
@@ -65,7 +71,7 @@ export function DocumentPreviewModal({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [doc.downloadHref, online]);
+  }, [doc.downloadHref, online, framesUrl]);
 
   return (
     <div
@@ -107,14 +113,19 @@ export function DocumentPreviewModal({
         <div className="flex flex-1 items-center justify-center overflow-auto bg-hover p-4">
           {error ? (
             <p className="text-sm text-muted">Couldn&apos;t load a preview for this file.</p>
+          ) : framesUrl ? (
+            <iframe
+              src={inlineViewHref(doc.downloadHref)}
+              title={doc.filename}
+              className="h-[70vh] w-full border-0"
+            />
           ) : !objectUrl ? (
             <p className="text-sm text-muted">Loading preview…</p>
-          ) : doc.mimeType === "application/pdf" ? (
-            // #229 — <embed type="application/pdf"> is silently blocked by
-            // the app's CSP (object-src 'none', a deliberate hardening
-            // against plugin-injection vectors — not something to relax).
-            // <iframe> renders the browser's built-in PDF viewer the same
-            // way and is governed by frame-src instead (see proxy.ts).
+          ) : isPdf ? (
+            // #229 — <embed type="application/pdf"> is blocked by the app's
+            // CSP (object-src 'none', deliberate). Offline there's only the
+            // cached blob, so it's framed over a blob: URL. Chrome and
+            // Firefox draw that; Safari doesn't (see inlineView.ts).
             <iframe src={objectUrl} title={doc.filename} className="h-[70vh] w-full border-0" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob: URL, not an optimizable remote image

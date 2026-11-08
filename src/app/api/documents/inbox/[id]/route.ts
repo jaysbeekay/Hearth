@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { contentDisposition, INLINE_PARAM } from "@/lib/documents/inlineView";
 import { prisma } from "@/lib/prisma";
 import { readInboxDocument } from "@/lib/storage";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
@@ -19,12 +20,12 @@ export async function GET(
   }
 
   const buffer = await readInboxDocument(doc.storedName);
-  const safeFilename = doc.filename.replace(/[\r\n"]/g, "_");
+  const inline = request.nextUrl.searchParams.get(INLINE_PARAM) === "1";
 
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": doc.mimeType,
-      "Content-Disposition": `attachment; filename="${safeFilename}"`,
+      "Content-Disposition": contentDisposition(doc.mimeType, doc.filename, inline),
       "Content-Length": String(doc.size),
     },
   });

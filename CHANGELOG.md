@@ -399,6 +399,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **PDF preview is no longer blank in Safari.** The eye button's preview
+  framed the PDF over a `blob:` URL, which inherits the app's CSP; Safari
+  checks its PDF viewer against that CSP's `object-src 'none'` and drew
+  nothing. Online, the preview now frames the file's own URL with
+  `?inline=1`, served inline (PDFs only) with a narrow CSP of its own that
+  only this origin may frame. The app's CSP is unchanged. Offline previews
+  still use the cached copy.
+
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
   provider calls were sent to Pipelock's `/fetch` endpoint, which only
