@@ -33,13 +33,28 @@ export function DocumentPreviewModal({
   // Online, a PDF is framed straight from its own URL (inlineView.ts):
   // Safari won't draw one from a blob: URL under the app's CSP.
   const framesUrl = online && isPdf;
+  const [frameReady, setFrameReady] = useState(false);
 
   useEffect(() => {
-    if (framesUrl) return;
     let url: string | null = null;
     let cancelled = false;
 
     async function load() {
+      // A framed URL can't report a failure to the page, so ask first: a
+      // missing file (404), an expired session (redirect to /login, which
+      // refuses to be framed) or an unreachable server shows the message
+      // below instead of an error page inside the dialog.
+      if (framesUrl) {
+        try {
+          const res = await fetch(inlineViewHref(doc.downloadHref), { method: "HEAD" });
+          if (!res.ok || res.redirected) throw new Error("Failed to load preview");
+          if (!cancelled) setFrameReady(true);
+        } catch {
+          if (!cancelled) setError(true);
+        }
+        return;
+      }
+
       // Offline: only the explicitly-downloaded blob is available — there's
       // no network fallback to try.
       if (!online) {
@@ -113,6 +128,8 @@ export function DocumentPreviewModal({
         <div className="flex flex-1 items-center justify-center overflow-auto bg-hover p-4">
           {error ? (
             <p className="text-sm text-muted">Couldn&apos;t load a preview for this file.</p>
+          ) : framesUrl && !frameReady ? (
+            <p className="text-sm text-muted">Loading preview…</p>
           ) : framesUrl ? (
             <iframe
               src={inlineViewHref(doc.downloadHref)}
