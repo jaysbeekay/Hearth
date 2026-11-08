@@ -21,7 +21,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
     entries: [
       {
         q: "What are modules, and can I turn them on or off later?",
-        a: "[[Travel]], [[Properties]], [[Vehicles]], [[Inventory]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
+        a: "[[Inventory]], [[Properties]], [[Travel]], [[Vehicles]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
       },
       {
         q: "How do I invite another household member?",

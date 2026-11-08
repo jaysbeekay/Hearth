@@ -39,12 +39,17 @@ export const FOOTER_NAV = {
   help: { href: "/help", label: "Help" },
 } as const;
 
+// Labels are fixed English strings, so pin the collation: a bare
+// localeCompare follows the server's LANG and the browser's locale, which can
+// disagree and reorder the nav on hydration.
+export const compareLabels = new Intl.Collator("en").compare;
+
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
   const optionalModuleItems = Object.values(MODULE_REGISTRY)
     .filter((module) => enabledModules.has(module.key))
     .map(({ href, label, icon }): NavItem => ({ href, label, icon, group: "modules" }));
-  const moduleItems = [...BASE_NAV_ITEMS.filter((item) => item.group === "modules"), ...optionalModuleItems].sort(
-    (a, b) => a.label.localeCompare(b.label),
+  const moduleItems = [...BASE_NAV_ITEMS.filter((item) => item.group === "modules"), ...optionalModuleItems].sort((a, b) =>
+    compareLabels(a.label, b.label),
   );
 
   return [

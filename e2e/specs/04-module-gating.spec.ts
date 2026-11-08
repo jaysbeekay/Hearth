@@ -31,4 +31,32 @@ test.describe.serial("module-toggle gating", () => {
     await page.goto("/travel");
     await expect(page).toHaveURL(/\/travel$/);
   });
+
+  // Inventory had a hard-coded nav carve-out until #597, so check the real
+  // toggle → layout → sidebar path, not just getNavItems.
+  test("disabling Inventory hides its sidebar link and redirects /inventory", async ({ page }) => {
+    await page.goto("/settings/modules");
+    const row = page.locator("li", { hasText: "Inventory" });
+    await row.getByRole("button", { name: "Disable" }).click();
+    await expect(page.locator("body")).toContainText("Module disabled.");
+
+    await page.goto("/dashboard");
+    await expect(page.getByRole("complementary").getByRole("link", { name: "Inventory", exact: true })).toHaveCount(0);
+
+    await page.goto("/inventory");
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  test("re-enabling Inventory restores its sidebar link and route access", async ({ page }) => {
+    await page.goto("/settings/modules");
+    const row = page.locator("li", { hasText: "Inventory" });
+    await row.getByRole("button", { name: "Enable" }).click();
+    await expect(page.locator("body")).toContainText("Module enabled.");
+
+    await page.goto("/dashboard");
+    await expect(page.getByRole("complementary").getByRole("link", { name: "Inventory", exact: true })).toBeVisible();
+
+    await page.goto("/inventory");
+    await expect(page).toHaveURL(/\/inventory$/);
+  });
 });

@@ -2,7 +2,8 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, ShieldCheck, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
+import { Plus, FileText, ShieldCheck, Home as HomeIcon, Files, X } from "lucide-react";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { buttonClass, dialogPanelClass, cardClass } from "@/lib/ui";
@@ -44,7 +45,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       label: "An item you own",
       description: "Catalogue what you own — no warranty tracking needed.",
       href: "/inventory/new",
-      icon: Boxes,
+      icon: MODULE_REGISTRY.INVENTORY.icon,
     });
   }
 
