@@ -40,7 +40,9 @@ function write(key: string, value: string | null): void {
     if (value == null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
   } catch {
-    // Storage blocked: the Reminders still go; only "on" isn't remembered.
+    // Storage blocked: the Reminders still go, but "on" isn't remembered and
+    // neither are their ids, so a later cancel can't reach them. Rare (the
+    // app's WebView has storage); nothing better to do here.
   }
 }
 
@@ -58,7 +60,11 @@ function storedIds(): number[] {
   }
 }
 
-/** A positive 31-bit id from a Reminder's key (FNV-1a), as both platforms want. */
+/**
+ * A positive 31-bit id from a Reminder's key (FNV-1a), as both platforms want.
+ * Two keys hashing alike would share one notification; at 80 keys a sync
+ * that's a one-in-millions chance, and the loss is one Reminder.
+ */
 export function notificationId(key: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < key.length; i++) {
@@ -177,7 +183,8 @@ export async function allowDeviceNotifications(): Promise<boolean> {
  * Failure-safe: a Reminder keeps its id from one sync to the next, and
  * scheduling an id again replaces it, so only the ones no longer wanted are
  * cancelled first, then the rest are scheduled over the old. If scheduling
- * fails, what was there stays, and every id is kept for the next cancel.
+ * fails, every Reminder still wanted stays as it was, and every id is kept
+ * for the next cancel.
  */
 export function scheduleDeviceReminders(
   userId: string,
@@ -209,12 +216,20 @@ export function scheduleDeviceReminders(
 }
 
 /**
- * Turns device Reminders off here. If the cancel fails they stay "on", since
- * they're still scheduled, so Turn off is still offered.
+ * Turns device Reminders off here. "Off" is written first, so a background
+ * sync can't start while the cancel waits its turn and switch them back on.
+ * If the cancel fails they're put back "on", since they're still scheduled,
+ * so Turn off is still offered.
  */
 export async function turnOffDeviceReminders(): Promise<void> {
-  await cancelDeviceReminders();
+  const owner = deviceRemindersUser();
   write(USER_KEY, null);
+  try {
+    await cancelDeviceReminders();
+  } catch (error) {
+    if (owner && deviceRemindersUser() === null) write(USER_KEY, owner);
+    throw error;
+  }
 }
 
 /** At most one resync an hour when the app comes back into view. */
@@ -232,15 +247,20 @@ export function keepDeviceRemindersCurrent(
   userId: string,
   sync: () => Promise<{ error?: string } | null>,
 ): () => void {
-  let last = 0;
+  /** No sync before this: an hour after a success, the backoff after a failure. */
+  let nextAt = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let retryMs = RETRY_MS;
   let stopped = false;
   function failed(error?: unknown) {
-    if (error instanceof DeviceRemindersSuperseded) return;
+    if (error instanceof DeviceRemindersSuperseded) {
+      // Not a failure: something else changed them. The next view syncs.
+      nextAt = 0;
+      return;
+    }
     // What was scheduled stays (scheduleDeviceReminders); try again soon
-    // rather than in an hour.
-    last = 0;
+    // rather than in an hour, and not sooner on every return to the app.
+    nextAt = Date.now() + retryMs;
     if (stopped || retry) return;
     retry = setTimeout(() => {
       retry = undefined;
@@ -249,10 +269,10 @@ export function keepDeviceRemindersCurrent(
     retryMs = Math.min(retryMs * 2, RESYNC_MS);
   }
   function run() {
-    if (stopped || Date.now() - last < RESYNC_MS) return;
+    if (stopped || Date.now() < nextAt) return;
     // Turned off or signed out here since: nothing to keep current.
     if (deviceRemindersUser() !== userId) return;
-    last = Date.now();
+    nextAt = Date.now() + RESYNC_MS;
     sync().then((result) => {
       if (result?.error) failed();
       else retryMs = RETRY_MS;

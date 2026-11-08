@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { PushDeviceToggle, type PushDevice } from "@/components/PushDeviceToggle";
 import {
   allowDeviceNotifications,
+  DeviceRemindersSuperseded,
   deviceRemindersAvailable,
   deviceRemindersUser,
   scheduleDeviceReminders,
@@ -52,6 +53,12 @@ function DeviceReminderToggle({ userId }: { userId: string }) {
         setState(result);
         if (!result?.error) setOn(true);
       } catch (error) {
+        if (error instanceof DeviceRemindersSuperseded && deviceRemindersUser() === userId) {
+          // A newer sync (the app's own) got there first and scheduled them.
+          setOn(true);
+          setState({ success: "Reminders are on for this phone." });
+          return;
+        }
         setState({ error: error instanceof Error ? error.message : "This phone couldn't schedule reminders." });
       }
     });

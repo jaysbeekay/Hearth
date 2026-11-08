@@ -261,13 +261,50 @@ describe("keepDeviceRemindersCurrent", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("doesn't retry a sync that a cancel or newer sync overtook", async () => {
+  it("doesn't retry a sync that a cancel or newer sync overtook, but syncs on the next view", async () => {
     const sync = vi.fn(async () => {
       throw new native.DeviceRemindersSuperseded();
     });
     const stop = native.keepDeviceRemindersCurrent("u1", sync);
-    await vi.advanceTimersByTimeAsync(native.RESYNC_MS - 1);
+    await vi.advanceTimersByTimeAsync(10 * MIN);
     expect(sync).toHaveBeenCalledTimes(1);
+    listeners.forEach((fn) => fn());
+    expect(sync).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("doesn't sync on every return to the app while backing off", async () => {
+    const sync = vi.fn(async () => ({ error: "offline" }));
+    const stop = native.keepDeviceRemindersCurrent("u1", sync);
+    await vi.advanceTimersByTimeAsync(MIN - 1);
+    listeners.forEach((fn) => fn());
+    listeners.forEach((fn) => fn());
+    expect(sync).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sync).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("can't switch them back on with a retry that fires while Turn off waits its turn", async () => {
+    fetchReminders.mockResolvedValueOnce({ error: "offline" }).mockResolvedValue({ reminders: [reminder("a", 2)] });
+    const stop = native.keepDeviceRemindersCurrent("u1", () => syncDeviceReminders("u1"));
+    await vi.advanceTimersByTimeAsync(0); // failed: retry in a minute
+
+    // An earlier schedule is still going, so Turn off's cancel waits behind it.
+    const gate = deferred();
+    plugin.schedule.mockImplementationOnce(async () => gate.promise);
+    const earlier = native.scheduleDeviceReminders("u1", [reminder("b", 3)], native.startDeviceReminderSync());
+    await vi.waitFor(() => expect(plugin.schedule).toHaveBeenCalled());
+    const off = native.turnOffDeviceReminders();
+    await vi.advanceTimersByTimeAsync(MIN); // the retry fires now
+    gate.release();
+    await expect(earlier).rejects.toBeInstanceOf(native.DeviceRemindersSuperseded);
+    await off;
+    await vi.advanceTimersByTimeAsync(native.RESYNC_MS);
+
+    expect(fetchReminders).toHaveBeenCalledTimes(1);
+    expect(plugin.schedule).toHaveBeenCalledTimes(1);
+    expect(native.deviceRemindersUser()).toBeNull();
     stop();
   });
 
