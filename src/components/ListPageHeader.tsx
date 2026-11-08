@@ -34,24 +34,31 @@ export function ListPageHeader({
 }) {
   const online = action?.online ?? true;
   return (
-    <div className="space-y-3 md:flex md:items-center md:justify-between md:gap-4 md:space-y-0">
-      <div className={cn("flex justify-between gap-2", description ? "items-start" : "items-center")}>
-        <div className="min-w-0">
+    <div
+      className={cn(
+        "space-y-3 md:flex md:justify-between md:gap-4 md:space-y-0",
+        // With a description under it, the buttons line up with the heading
+        // itself rather than the centre of the heading and description.
+        description ? "md:items-start" : "md:items-center",
+      )}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-medium">{title}</h1>
-          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+          {exportPath && (
+            <div className="md:hidden">
+              <DetailOverflowMenu label="More list actions">
+                <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>
+                  Export CSV
+                </a>
+                <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>
+                  Export PDF
+                </a>
+              </DetailOverflowMenu>
+            </div>
+          )}
         </div>
-        {exportPath && (
-          <div className="md:hidden">
-            <DetailOverflowMenu label="More list actions">
-              <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>
-                Export CSV
-              </a>
-              <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>
-                Export PDF
-              </a>
-            </DetailOverflowMenu>
-          </div>
-        )}
+        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
       {(exportPath || action) && (
         <div className={cn("items-center gap-2", action ? "flex" : "hidden md:flex")}>
