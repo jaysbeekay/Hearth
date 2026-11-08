@@ -11,7 +11,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, settingsActionRowClass } from "@/lib/ui";
 import { currencyLabel } from "@/components/CurrencySelect";
 import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 import { isQualifiedSmtpFrom } from "@/lib/smtpFrom";
@@ -100,9 +100,9 @@ export function SmtpForm({
           Testing sends against the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.host && current.user ? (
-          <TestConnectionButton action={testSmtpSettings} label="Send test email" />
+          <TestConnectionButton action={testSmtpSettings} label="Send test email" inRow />
         ) : (
           <span />
         )}
@@ -163,9 +163,9 @@ export function EmailIngestForm({
           them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.host && current.user ? (
-          <TestConnectionButton action={testAction} label="Test connection" />
+          <TestConnectionButton action={testAction} label="Test connection" inRow />
         ) : (
           <span />
         )}
@@ -204,9 +204,9 @@ export function NtfyForm({
           Testing sends against the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.url && current.topic ? (
-          <TestConnectionButton action={testNtfySettings} label="Send test notification" />
+          <TestConnectionButton action={testNtfySettings} label="Send test notification" inRow />
         ) : (
           <span />
         )}
@@ -242,9 +242,9 @@ export function OllamaForm({
           Testing connects using the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.baseUrl ? (
-          <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+          <TestConnectionButton action={testOllamaConnection} label="Test connection" inRow />
         ) : (
           <span />
         )}

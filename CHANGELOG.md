@@ -408,6 +408,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   address. Settings → Reminders warns when the From address isn't fully
   qualified and refuses to save a new one that isn't.
 
+- **A long Test result no longer runs into the Save button.** On the
+  Settings email, ntfy, email-ingestion and Ollama forms, the result of
+  "Send test email"/"Test connection" now gets its own full-width row under
+  both buttons.
+
 - **A password reset email that fails to send is no longer silent.** The
   forgot-password form always shows the same message, so an SMTP error (wrong
   password, blocked port, rejected sender) left no trace anywhere. Settings →
