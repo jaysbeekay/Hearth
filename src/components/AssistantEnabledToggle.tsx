@@ -24,7 +24,7 @@ export function AssistantEnabledToggle({
             ? configured
               ? "Household members can open it from the Assistant page."
               : "Choose a provider below so members can start chatting."
-            : "Nobody in the household sees the assistant. Saved provider settings are kept."}
+            : "Nobody in the household sees the assistant. Saved provider settings are kept. AI document extraction has its own settings above and isn't affected."}
         </p>
       </div>
       <form action={action}>
