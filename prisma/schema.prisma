@@ -1463,6 +1463,8 @@ model BackgroundJob {
   priority        Int       @default(0)
 
   @@index([status, availableAt])
+  // The scheduled-job ticker reads each job type's last run every minute.
+  @@index([type, createdAt])
   @@map("background_jobs")
 }
 

@@ -79,3 +79,16 @@ describe("cronOwed — a run the server slept through still happens", () => {
     expect(await owed("not a cron pattern", null, new Date())).toBe(false);
   });
 });
+
+describe("cronOwed — schedule edits", () => {
+  beforeEach(() => resetCronOwedScans());
+
+  it("starts an edited schedule from the edit, not from the last run", async () => {
+    const lastRun = new Date(2026, 10, 6, 20, 0, 5);
+    expect(await cronOwed("BACKUP_RUN", "0 20 * * *", lastRun, new Date(2026, 10, 7, 10, 0, 0))).toBe(false);
+    // Changed to 08:00 at 10:00: today's 08:00 was never asked for.
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 10, 1, 0))).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 8, 0, 2))).toBe(true);
+  });
+
+});

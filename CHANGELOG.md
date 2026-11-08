@@ -405,7 +405,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   skips a tick the process was asleep or blocked for, so that day's
   Reminders silently never went out. Each now runs once its schedule's next
   time after its last run has come, so a missed 08:00 check runs as soon as
-  the server is back.
+  the server is back, however long it was down. A schedule changed in
+  Settings starts from the change, a time skipped by the clocks springing
+  forward runs just after the jump, and an hour repeated when they fall back
+  runs once.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
