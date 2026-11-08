@@ -83,7 +83,7 @@ const base: ReminderHealth = {
   snoozedUntil: null,
   thresholds: [1, 7, 14, 30],
   nextReminder: { kind: "on", date: new Date("2026-09-20T00:00:00Z"), by: ["EMAIL"] },
-  channels: { email: true, ntfy: false, webhook: false },
+  channels: { email: true, ntfy: false, webhook: false, push: false },
   deliveryReady: true,
   lastSent: null,
   lastFailure: null,
@@ -98,7 +98,7 @@ describe("reminderSummary", () => {
   });
 
   it("names only the channels sending the next one (#516 review)", () => {
-    const both = { ...base, channels: { email: true, ntfy: true, webhook: false } };
+    const both = { ...base, channels: { email: true, ntfy: true, webhook: false, push: false } };
     expect(reminderSummary({ ...both, nextReminder: { ...base.nextReminder!, by: ["NTFY"] } }).text).toBe(
       "Next reminder 20 Sep 2026 by ntfy · thresholds 30/14/7/1",
     );
@@ -108,7 +108,7 @@ describe("reminderSummary", () => {
   });
 
   it("leaves the channel out when none is configured (the card says so once)", () => {
-    const health = { ...base, deliveryReady: false, channels: { email: false, ntfy: false, webhook: false } };
+    const health = { ...base, deliveryReady: false, channels: { email: false, ntfy: false, webhook: false, push: false } };
     expect(reminderSummary(health).text).toMatch(/^Next reminder .* · thresholds 30\/14\/7\/1$/);
     expect(reminderSummary(health).text).not.toContain(" by ");
   });

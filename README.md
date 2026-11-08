@@ -19,7 +19,7 @@ Open `http://localhost:3000` — you'll be sent to `/setup` to create the first 
 | `DATABASE_URL` | SQLite path — defaults to `file:./data/app.db`, i.e. `/app/data/app.db` inside the container |
 | `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
 
-Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications via ntfy (Web Push to members' own browsers needs no setup), `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
 
 ## Deploy
 
@@ -81,7 +81,7 @@ security notes.
 - Attach documents (PDF/images/Word) to contracts or products — uploading a document
   auto-fills fields like provider, dates, and cost via AI/heuristic extraction
 - Configurable reminder thresholds per contract/product (e.g. 30/14/7/1 days before expiry)
-- Reminders via email (SMTP) and/or push notifications ([ntfy](https://ntfy.sh))
+- Reminders via email (SMTP), push notifications ([ntfy](https://ntfy.sh)), and/or Web Push to each member's own browsers and phones
 - Reminder health status per record — enabled, next reminder date, thresholds, delivery
   channel/status, last sent, last failure — plus a one-off "Send test reminder" action
 - Auto-filled fields from a scanned document require an explicit confirmation before
@@ -329,6 +329,9 @@ services:
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
@@ -729,6 +732,36 @@ instance, point `OLLAMA_BASE_URL` at the host's LAN IP or
 fields are ever sent anywhere else — only to the Ollama server you configure,
 or to a cloud AI provider you've explicitly opted into below.
 
+### Searching inside documents
+
+Search also finds a document by a word inside it: Contract documents,
+Warranty invoices, the Inbox, and the documents on Service records,
+Maintenance records, Trip segments, Rental statements and Trades. Inventory
+item documents are found by filename. A Document with several versions
+shows once, as its latest version, or as an older version (saying so) when
+only that one matches. The same local text extraction
+(stage 1 above) runs in the background on each PDF or image when it's
+uploaded; nothing is sent anywhere. Documents filed before this existed are
+worked through by a background catch-up, 25 at a time, when the server
+starts and then every hour until none are left. It runs at a lower priority
+than every other background job, so a Reminder check or backup is at most
+queued behind the one extraction already running, and `POST /api/cron`
+leaves it to the server's own job runner.
+
+Without `pdftotext`, `pdftoppm` and `tesseract` (the Docker image has them)
+documents are still found by filename. One that needed a missing tool is
+picked up again once that tool is installed (for a PDF, once `pdftoppm` and
+`tesseract` are). A document that ran fine but had no text, or kept failing,
+isn't retried.
+
+Rolling back to a release from before this: older builds ignore the new
+columns, and any text-extraction jobs still queued for these record types
+end as failed jobs, which is harmless; upgrading again picks those documents
+up. To remove the columns as well, first drop the five `fts_*_documents_au`
+triggers that mention `extractedText` (or re-create them from
+`20260828000000_add_document_search_fts`), since SQLite won't drop a column
+a trigger uses.
+
 ## Bring your own AI key
 
 An admin can optionally connect the household's own API key for a cloud AI provider —
@@ -1013,6 +1046,7 @@ for the full list with defaults. Notable ones:
 | `SQLITE_JOURNAL_MODE` | Optional. `DELETE` (default) or `WAL`. WAL lets pages keep loading while a large write commits. Only turn it on when `./data` is on a local disk: on a NAS share (NFS/SMB) or a Windows folder under WSL2 (`/mnt/c`) it can corrupt the database or stop the app starting. Under WAL the database also keeps `app.db-wal` and `app.db-shm` files; see the backup notes above. Setting `DELETE` again switches an existing database back on the next start. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
+| `VAPID_SUBJECT` | Optional. The contact (`mailto:…` or `https://…`) Web Push services see on every push. Defaults to `APP_URL` when that's https, otherwise the first admin's email address. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
@@ -1049,6 +1083,36 @@ each configured channel for the soonest threshold that's been crossed and not
 already notified — so adding a contract or product that's already past
 several thresholds only sends one catch-up reminder per channel, not one per
 threshold.
+
+Web Push goes to every device any member has turned it on for, read-only
+members included. That's the same household-wide model as ntfy, and the same
+records every member can already open in the app; the sent log is per record
+and channel, not per device. Removing a device, or a member signing out on
+it, stops the sends after that one, not a send already running: a device can
+still get the notification that was being sent when it was removed.
+Signing out drops the device's row on the server and then unsubscribes the
+browser; if the server delete fails, the unsubscribe still happens and the
+row goes on the next send, when the push service reports the device gone.
+A browser shows a Reminder's content only while it last saw the member it's
+for signed in there, as of their last page load or return to the tab, and
+that session hasn't run out. Otherwise it shows an "Open Hearth to see it"
+notice with none of the Reminder's content. It drops its subscription once
+it's clear the session is over: the sign-in page confirmed nobody is signed
+in, someone else signed in, or the session ran out more than a week ago.
+Opening Hearth after a session ends lands on the sign-in page, which drops
+the subscription as soon as it can reach the server (unless someone has
+signed in again in another tab meanwhile), so push has to be turned on again
+after signing back in. Changing or resetting a password turns push off on
+all of that member's devices, though a push the push service had already queued
+(Hearth asks them to keep one for up to a day) can still arrive and show on
+a browser that hasn't loaded Hearth since. A session ended on the server by
+a role change isn't seen until that browser next loads Hearth either.
+
+Rolling back to a release from before Web Push: delete the push rows from the
+sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
+since older builds don't know that channel and fail reading those rows.
+Leave the `push_subscriptions` table and its `_prisma_migrations` row in
+place: older builds ignore both, and dropping either breaks upgrading again.
 
 ## Security notes
 

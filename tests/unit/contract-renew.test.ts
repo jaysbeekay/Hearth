@@ -224,7 +224,7 @@ describe("renewContractCommand", () => {
       await setAppSetting("household.timezone", "UTC");
       const contract = await newContract({ reminderDaysBefore: "14" });
       // The 14-day Reminder for the old end date (30 Jun) went out on every channel.
-      for (const channel of ["EMAIL", "NTFY", "WEBHOOK"] as const) {
+      for (const channel of ["EMAIL", "NTFY", "WEBHOOK", "PUSH"] as const) {
         await db.prisma.notificationLog.create({
           data: {
             ownerType: "CONTRACT",
@@ -246,7 +246,7 @@ describe("renewContractCommand", () => {
       // Renewed to 2 Jul: 12 days out, so the 14-day threshold is crossed
       // again, for a date it hasn't been sent for.
       await renewContractCommand(contract.id, { endDate: day("2026-07-02") }, actorId);
-      expect((await health()).nextReminder).toEqual({ kind: "next-check", by: ["EMAIL", "NTFY", "WEBHOOK"] });
+      expect((await health()).nextReminder).toEqual({ kind: "next-check", by: ["EMAIL", "NTFY", "WEBHOOK", "PUSH"] });
       const row = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
       const logs = await db.prisma.notificationLog.findMany({ where: { ownerId: contract.id } });
       const plan = reminderPlan(
