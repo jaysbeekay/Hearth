@@ -204,7 +204,7 @@ export async function sendChannelTest(channel: "EMAIL" | "NTFY"): Promise<Action
   if (channel !== "EMAIL" && channel !== "NTFY") return { error: "Unknown reminder channel." };
   if (channel === "EMAIL") {
     if (!user.email) return { error: "Your account has no email address to send a test to." };
-    if (!(await isSmtpConfigured())) return { error: "Email isn't set up for the household yet." };
+    if (!(await isSmtpConfigured())) return { error: "Email isn't set up for the household." };
     try {
       await sendTestEmail(user.email);
       return { success: `Test email sent to ${user.email}.` };
@@ -212,7 +212,7 @@ export async function sendChannelTest(channel: "EMAIL" | "NTFY"): Promise<Action
       return { error: error instanceof Error ? error.message : "Couldn't send the test email." };
     }
   }
-  if (!(await isNtfyConfigured())) return { error: "ntfy isn't set up for the household yet." };
+  if (!(await isNtfyConfigured())) return { error: "ntfy isn't set up for the household." };
   try {
     await sendTestNtfy();
     return { success: "Test notification sent to the household's ntfy topic." };
