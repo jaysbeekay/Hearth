@@ -38,13 +38,42 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
     onRecordWritten: () => router.refresh(),
   });
 
-  // The thread list loads the first time the panel is open, not on every page.
+  const onAssistantPage = pathname === "/assistant";
+  const { threadId: activeThreadId, load: loadChat } = chat;
+
+  // Reload the chat list whenever the panel shows again (opened, or back from
+  // the Assistant page), so chats started or deleted there are picked up. If
+  // the open chat was deleted meanwhile, start a new one rather than sending
+  // into a thread that no longer exists.
   useEffect(() => {
-    if (open && threads === null) void loadAssistantThreads().then(setThreads);
-  }, [open, threads]);
+    if (!open || onAssistantPage) return;
+    let cancelled = false;
+    void loadAssistantThreads().then((list) => {
+      if (cancelled) return;
+      setThreads(list);
+      if (activeThreadId && !list.some((t) => t.id === activeThreadId)) loadChat(null, []);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // activeThreadId is read at reload time only; a chat the panel just
+    // created refreshes the list itself (onThreadCreated).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, onAssistantPage]);
+
+  // Toasts sit bottom-right; while the panel is open they move clear of its
+  // composer (see .toast-stack in globals.css).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (open && !onAssistantPage) root.dataset.assistantPanel = "open";
+    else delete root.dataset.assistantPanel;
+    return () => {
+      delete root.dataset.assistantPanel;
+    };
+  }, [open, onAssistantPage]);
 
   // The full Assistant page is already the same chat.
-  if (pathname === "/assistant") return null;
+  if (onAssistantPage) return null;
 
   function toggle(next: boolean) {
     setOpen(next);
@@ -94,6 +123,7 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
         <button
           type="button"
           onClick={() => void openThread("")}
+          disabled={chat.pending || switching}
           aria-label="New chat"
           title="New chat"
           className={buttonClass("quiet", { icon: true })}

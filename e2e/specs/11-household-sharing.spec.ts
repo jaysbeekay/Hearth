@@ -114,13 +114,19 @@ test("the iCal feed covers the whole household, whichever member's token is used
   const memberPage = await memberContext.newPage();
 
   await memberPage.goto("/settings");
-  await memberPage
-    .getByRole("button", { name: /Create calendar feed|Generate new URL/i })
-    .click();
 
   // Only stored as a hash, so the URL appears exactly once — right here.
   const feedInput = memberPage.locator('section:has-text("Calendar feed") input[readonly]');
-  await expect(feedInput).toBeVisible();
+  // A click that lands before the page hydrates submits the form natively,
+  // and the one-time URL (held in client state) is lost with the reload; on a
+  // slow CI runner that happened often enough to fail both attempts. Click
+  // again until the URL shows: each click only mints a fresh token.
+  await expect(async () => {
+    await memberPage
+      .getByRole("button", { name: /Create calendar feed|Generate new URL/i })
+      .click();
+    await expect(feedInput).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
   const feedUrl = await feedInput.inputValue();
   expect(feedUrl).toContain("/api/ical?token=");
 

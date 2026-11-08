@@ -75,7 +75,7 @@ export function ToastContainer() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6 md:items-end md:pr-6"
+      className="toast-stack fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6 md:items-end md:pr-6"
     >
       {toasts.map((toast) => {
         const Icon = ICONS[toast.variant ?? "success"];

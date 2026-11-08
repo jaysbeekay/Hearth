@@ -67,6 +67,21 @@ test("assistant side panel opens beside any page, chats, and remembers open/clos
     await expect(panel).toBeVisible();
     await expect(panel.locator("#assistantPanelThread option", { hasText: "What renews next month?" })).toHaveCount(1);
 
+    // A chat deleted on the full page leaves the panel's list, and the panel
+    // starts a new chat instead of sending into the deleted one.
+    await page.goto("/assistant");
+    const row = page.locator("div.group", { has: page.getByRole("link", { name: "What renews next month?" }) });
+    await row.getByRole("button", { name: "Delete conversation" }).click({ force: true });
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete conversation" }).click();
+    await expect(page.getByRole("link", { name: "What renews next month?" })).toHaveCount(0);
+    await page.goto("/contracts");
+    await expect(panel.locator("#assistantPanelThread option", { hasText: "What renews next month?" })).toHaveCount(0);
+    await expect(panel.getByText("Hello from the panel.")).toHaveCount(0);
+    await panel.locator("textarea").fill("And after that?");
+    await page.keyboard.press("Enter");
+    await expect(panel.getByText("Hello from the panel.")).toBeVisible();
+    await expect(panel.getByText("Conversation not found.")).toHaveCount(0);
+
     await panel.getByRole("button", { name: "Close assistant panel" }).click();
     await expect(panel).toHaveCount(0);
     await page.reload();
