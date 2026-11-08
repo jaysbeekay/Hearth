@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, Bot, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FileText, ShieldCheck, CalendarDays, TrendingUp, Files, Bot, type LucideIcon } from "lucide-react";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // "dashboard" stands alone (not part of either group); "modules" are
@@ -25,7 +25,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   // src/app/api/search/route.ts, and the /contracts, /products routes and
   // Contract/Product model names are untouched.
   { href: "/contracts", label: "Contracts", icon: FileText, group: "modules" },
-  { href: "/products", label: "Warranties", icon: Package, group: "modules" },
+  { href: "/products", label: "Warranties", icon: ShieldCheck, group: "modules" },
   { href: "/documents", label: "Documents", icon: Files, group: "tools" },
   { href: "/assistant", label: "Assistant", icon: Bot, group: "tools" },
   { href: "/calendar", label: "Upcoming", icon: CalendarDays, group: "tools" },

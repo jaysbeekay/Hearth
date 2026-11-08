@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import {
   FileText,
-  Package,
+  ShieldCheck,
   Car,
   Home,
   Plane,
@@ -69,7 +69,7 @@ const DOMAIN_META: Record<
   { label: string; icon: LucideIcon; restore: (id: string) => Promise<unknown>; permanentlyDelete: (id: string) => Promise<unknown> }
 > = {
   contract: { label: "Contract", icon: FileText, restore: restoreContract, permanentlyDelete: permanentlyDeleteContract },
-  product: { label: "Warranty", icon: Package, restore: restoreProduct, permanentlyDelete: permanentlyDeleteProduct },
+  product: { label: "Warranty", icon: ShieldCheck, restore: restoreProduct, permanentlyDelete: permanentlyDeleteProduct },
   vehicle: { label: "Vehicle", icon: Car, restore: restoreVehicle, permanentlyDelete: permanentlyDeleteVehicle },
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },

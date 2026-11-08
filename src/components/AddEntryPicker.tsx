@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
+import { Plus, FileText, ShieldCheck, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { buttonClass, dialogPanelClass, cardClass } from "@/lib/ui";
@@ -35,7 +35,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       label: "A warranty",
       description: "Something you bought, tracked by its warranty end date.",
       href: "/products/new",
-      icon: Package,
+      icon: ShieldCheck,
     },
   ];
 
