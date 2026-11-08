@@ -23,6 +23,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   health is at the bottom. Email and ntfy still need an admin's server
   settings, which stay in Settings → Reminders & channels; the screen links
   there for admins.
+- **Search finds Documents of every record type by their contents (#398).**
+  Documents on Service records, Maintenance records, Trip segments, Rental
+  statements and Trades now get their text extracted in the background
+  (pdftotext, then OCR; PDFs and images only), like Contract documents and
+  Warranty invoices already did, so Search can find a receipt by a word
+  inside it. Inventory item documents are still found by filename. These
+  hits name the record they're attached to, with its date ("Logbook service
+  · 12 Mar 2024 · Corolla"), and say when only the contents matched;
+  Documents of every kind are now ranked together, best match first, and
+  Documents that can't show (a turned-off module, a list filter) no longer
+  take up room in the results. Documents filed before this release are
+  worked through by a new `DOCUMENT_TEXT_BACKFILL` job, 25 at a time, at
+  startup and then hourly until none are left. Background jobs now have a
+  priority: the backfill runs below everything else, so a Reminder check or
+  backup waits at most for the one extraction already running, and
+  `POST /api/cron` only runs normal-priority jobs. Without the extraction
+  tools a Document is retried once they're installed; one that keeps
+  failing ends `FAILED` with the error in the job's `lastError`; one left
+  `PENDING` with nothing queued is picked up again. Server-only; the
+  standalone shell has no text extraction. Rolling back: README → Searching
+  inside documents.
 - **Manage your push devices (#375, part 2).** Settings → My account lists
   your other devices with push on, each with when it last got a Reminder
   (or why its last push failed) and a Remove button for a lost or old one;
@@ -187,6 +208,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   to the real client address, as does the mTLS example config.
 
 ### Changed
+
+- **Search shows one result per Document, not one per version.** A
+  re-uploaded file and the version it replaced usually match the same words,
+  and used to show as two identical rows. Search now shows the latest
+  version, the way the record's page does (walking past versions in Trash).
+  When only an older version matches, it's shown, with "Older version" at
+  the start of its subtitle.
 
 - **A form's validation error shows under the field it's about (#406).**
   When saving fails on one field (an end date before the start date, a

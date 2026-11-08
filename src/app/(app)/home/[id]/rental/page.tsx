@@ -90,7 +90,7 @@ export default async function RentalOverviewPage({
         rentalAgreements: { where: { deletedAt: null }, include: { contract: true }, orderBy: { createdAt: "desc" } },
         rentalStatements: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           orderBy: { periodStart: "desc" },
         },
       },
