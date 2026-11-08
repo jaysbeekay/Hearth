@@ -64,7 +64,7 @@ describe("requestPasswordReset", () => {
   });
 
   it("logs a throttled request and sends nothing", async () => {
-    vi.mocked(consumeRateLimit).mockReturnValueOnce({ allowed: false, retryAfterSeconds: 60 });
+    vi.mocked(consumeRateLimit).mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterSeconds: 60 });
 
     expect(await requestPasswordReset(null, form(email))).toEqual(GENERIC);
 
