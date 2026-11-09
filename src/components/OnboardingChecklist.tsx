@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, Circle, FileUp, Plus, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
-import { buttonClass, cardClass } from "@/lib/ui";
+import { buttonClass, cardClass, sectionHeadingClass } from "@/lib/ui";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // #345 — set when the "Review optional modules" step is followed, so a
@@ -51,7 +51,7 @@ export function OnboardingChecklist({
       </button>
 
       <div className="space-y-1">
-        <h2 className="text-base font-medium">Add your first document</h2>
+        <h2 className={sectionHeadingClass()}>Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">
           Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
         </p>
