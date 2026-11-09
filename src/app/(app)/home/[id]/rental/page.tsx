@@ -13,6 +13,7 @@ import {
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { SubmitButton } from "@/components/SubmitButton";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailField as Detail } from "@/components/DetailField";
 import { AddDocumentButton } from "@/components/AddDocumentButton";
@@ -281,12 +282,9 @@ export default async function RentalOverviewPage({
                         {canWrite && (
                           <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
                             <input type="hidden" name="contractId" value="" />
-                            <button
-                              type="submit"
-                              className={buttonClass("secondary")}
-                            >
+                            <SubmitButton variant="secondary" pendingText="Unlinking…">
                               Unlink
-                            </button>
+                            </SubmitButton>
                           </form>
                         )}
                       </div>
@@ -311,12 +309,9 @@ export default async function RentalOverviewPage({
                             ))}
                           </select>
                         </SelectWrapper>
-                        <button
-                          type="submit"
-                          className={buttonClass("secondary")}
-                        >
+                        <SubmitButton variant="secondary" pendingText="Linking…">
                           Link
-                        </button>
+                        </SubmitButton>
                       </form>
                     )}
                   </div>

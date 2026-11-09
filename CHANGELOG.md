@@ -501,6 +501,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **A click that lands before a page has loaded is no longer lost (#609).**
+  Clicking a form's button before the page finished loading sent the form
+  without the app's script, which the server refused, so the click did
+  nothing useful; on the calendar feed it meant the new feed URL was never
+  shown. Form buttons now stay disabled for that moment and work on the first
+  click once the page is ready.
+
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a
