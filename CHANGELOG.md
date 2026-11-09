@@ -222,6 +222,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   an insurance policy belongs under Contracts. The name itself stays
   Contracts (`GLOSSARY.md`, #362).
 
+- **Auto-fill confirmations moved from record pages to the Security log.**
+  Contract and Warranty pages no longer say "Auto-filled details confirmed
+  {date}". Instead, each confirmation is an admin-only Security log entry
+  (Settings > Household > Security log) naming who confirmed which record and
+  the fields the scan had filled. Only a confirmation that reviewed auto-filled
+  fields is logged, and confirmations get their own 100-entry window on the
+  page, so they can't push sign-in and role events out of view. Confirmations
+  saved before this release are copied into the log on upgrade, naming the
+  confirmer only when one person reviewed every field at the confirmation
+  time. Logging is best-effort: the entry is written after the confirmation
+  is saved, and if that write fails the confirmation still succeeds and the
+  entry is missing from the log. Needs review works as before.
+
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
   and used to show as two identical rows. Search now shows the latest
@@ -437,6 +450,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   file could neither be previewed nor downloaded. The name is now sent as
   UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox, Item and
   share link routes.
+
+- **The current page is marked by more than colour in the nav (#558).**
+  The active sidebar entry, phone tab and More-sheet tile differed from the
+  rest by hue alone (accent against muted text is about 1.0:1), failing WCAG
+  1.4.1. They now carry an accent bar (down the left edge in the sidebar,
+  along the top on phones) and `aria-current`, so screen readers announce
+  it too: "page" on the link to the page you're on, "true" on a section
+  link above it (Contracts on a contract, Settings on a Settings section),
+  so the sidebar never claims a different current page than the Settings
+  tabs. `e2e/specs/57-nav-current.spec.ts` covers both.
 
 - **Every record page names itself in the browser tab (#558).** About 30
   pages (record detail, edit, renew and add pages for Contracts, Warranties,

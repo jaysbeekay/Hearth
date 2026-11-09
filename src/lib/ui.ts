@@ -269,6 +269,19 @@ export function pageShellClass(width: PageWidth, className?: string) {
   return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
 
+// ── Navigation ──────────────────────────────────────────────────────────
+
+// The current nav entry is marked by a bar as well as the accent colour:
+// accent and muted text differ in hue alone (about 1.0:1), so colour can't
+// be the only cue (WCAG 1.4.1, #558). Pair it with aria-current="page".
+const NAV_BAR = "relative before:absolute before:rounded-full before:bg-accent before:content-['']";
+
+/** The current entry in the sidebar: a tint and a bar down its left edge. */
+export const sidebarActiveClass = `${NAV_BAR} bg-accent/10 text-accent before:inset-y-2 before:left-0 before:w-0.5`;
+
+/** The current tab in the phone tab bar or its More sheet: a bar along its top edge. */
+export const tabActiveClass = `${NAV_BAR} text-accent before:inset-x-3 before:top-0 before:h-0.5`;
+
 // A settings form's Test button on the left and Save on the right, with the
 // test's result on a full-width row beneath (TestConnectionButton inRow).
 export const settingsActionRowClass = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2";
