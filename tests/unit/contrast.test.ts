@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { checkContrast, parseThemes, readGlobalsCss } from "../../scripts/check-contrast.mjs";
 
 // #408: every text token pairing in globals.css stays >= 4.5:1 and borders
-// stay visible (>= 1.4:1), in both themes.
+// stay visible (>= 1.4:1), and control borders meet WCAG 1.4.11 (>= 3:1,
+// #558), in both themes.
 describe("colour token contrast", () => {
   const rows = checkContrast(readGlobalsCss());
 
