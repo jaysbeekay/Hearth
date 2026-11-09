@@ -12,7 +12,11 @@
   --foreground: #1c1b19;
   --muted: #5f5d58;
   --surface: #ffffff;
+  /* Decorative lines: card edges, dividers. */
   --border: #cfccc6;
+  /* The edge of a control (input, select, textarea, secondary button, chip):
+     >=3:1 on background and surface (WCAG 1.4.11, #558). */
+  --border-control: #8a8780;
   --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   /* Solid hover for controls on a filled surface that float over content or
      a tint, where the translucent --hover would let what's behind show through. */
@@ -34,6 +38,7 @@
   --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-border-control: var(--border-control);
   --color-hover: var(--hover);
   --color-hover-surface: var(--hover-surface);
   --color-accent: var(--accent);
@@ -55,6 +60,7 @@
     --muted: #a3a19c;
     --surface: #1d1d1c;
     --border: #45443f;
+    --border-control: #6e6c67;
     --accent: #7eaaf2;
     --accent-foreground: #141414;
     --success: #5fc48a;

@@ -37,6 +37,12 @@ import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("product", id, detailTitle("product"), "Warranty");
+}
 
 export default async function ProductDetailPage({
   params,

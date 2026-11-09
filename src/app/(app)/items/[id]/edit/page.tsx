@@ -9,6 +9,12 @@ import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 import { updateCatalogItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { inTrashLabel } from "@/lib/trashWording";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("item", id, (name) => `Edit ${name}`, "Edit Item");
+}
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   if (process.env.ITEMS_PREVIEW !== "1" || !(await itemCutoverReadiness()).ready) redirect("/products");
