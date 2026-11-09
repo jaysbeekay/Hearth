@@ -68,13 +68,24 @@ test("assistant side panel opens beside any page, chats, and remembers open/clos
     await expect(panel.locator("#assistantPanelThread option", { hasText: "What renews next month?" })).toHaveCount(1);
 
     // A chat deleted on the full page leaves the panel's list, and the panel
-    // starts a new chat instead of sending into the deleted one.
-    await page.goto("/assistant");
+    // starts a new chat instead of sending into the deleted one. Everything
+    // from here is in-app navigation, so the panel keeps its state (its open
+    // chat) the whole way, as it does for a user; a marker on window proves
+    // no full reload slipped in.
+    await panel.locator("#assistantPanelThread").selectOption({ label: "What renews next month?" });
+    await expect(panel.getByText("Hello from the panel.")).toBeVisible();
+    await page.evaluate(() => {
+      (window as unknown as { __sameDocument?: boolean }).__sameDocument = true;
+    });
+    await panel.getByRole("link", { name: "Open full Assistant page" }).click();
+    await expect(page).toHaveURL(/\/assistant\?thread=/);
     const row = page.locator("div.group", { has: page.getByRole("link", { name: "What renews next month?" }) });
     await row.getByRole("button", { name: "Delete conversation" }).click({ force: true });
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete conversation" }).click();
     await expect(page.getByRole("link", { name: "What renews next month?" })).toHaveCount(0);
-    await page.goto("/contracts");
+    await page.getByRole("complementary", { name: "Sidebar" }).getByRole("link", { name: "Contracts", exact: true }).click();
+    await expect(page).toHaveURL(/\/contracts$/);
+    expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
     await expect(panel.locator("#assistantPanelThread option", { hasText: "What renews next month?" })).toHaveCount(0);
     await expect(panel.getByText("Hello from the panel.")).toHaveCount(0);
     await panel.locator("textarea").fill("And after that?");

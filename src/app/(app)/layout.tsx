@@ -70,6 +70,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       {assistant.available && (
         <AssistantPanel
+          // Chats are private: a different account signing in on the same
+          // browser gets a fresh panel, never the previous one's chat state.
+          key={session.user.id}
           initialOpen={isAssistantPanelOpen(cookieStore.get(ASSISTANT_PANEL_COOKIE)?.value)}
         />
       )}

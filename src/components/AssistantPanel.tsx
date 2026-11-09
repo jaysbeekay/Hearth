@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Maximize2, PanelRightClose, Plus } from "lucide-react";
 import { ChatMessageList } from "@/components/ChatMessageList";
 import { ChatComposer } from "@/components/ChatComposer";
@@ -28,6 +28,12 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
   const [open, setOpen] = useState(initialOpen);
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
   const [switching, setSwitching] = useState(false);
+  // Opening or closing swaps the rail for the panel (or back), removing the
+  // button that had focus; move focus to its counterpart so keyboard and
+  // screen-reader users aren't dropped onto <body>.
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const moveFocus = useRef(false);
 
   const chat = useAssistantChat({
     initialThreadId: null,
@@ -72,10 +78,17 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
     };
   }, [open, onAssistantPage]);
 
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    (open ? closeButtonRef : openButtonRef).current?.focus();
+  }, [open]);
+
   // The full Assistant page is already the same chat.
   if (onAssistantPage) return null;
 
   function toggle(next: boolean) {
+    moveFocus.current = true;
     setOpen(next);
     rememberOpen(next);
   }
@@ -100,6 +113,7 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
     return (
       <div className="sticky top-0 hidden h-screen w-12 shrink-0 self-start flex-col items-center border-l border-border bg-surface py-4 xl:flex">
         <button
+          ref={openButtonRef}
           type="button"
           onClick={() => toggle(true)}
           aria-label="Open assistant panel"
@@ -139,6 +153,7 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
           <Maximize2 size={16} />
         </Link>
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={() => toggle(false)}
           aria-label="Close assistant panel"
@@ -181,7 +196,7 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
         onActionResolved={chat.resolveAction}
       />
       {chat.error && (
-        <p className="border-t border-border bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="border-t border-border bg-danger/10 px-4 py-2 text-sm text-danger">
           {chat.error}
         </p>
       )}

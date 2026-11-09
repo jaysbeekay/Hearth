@@ -25,8 +25,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   a docked panel beside whatever you're looking at, the same chat as the
   Assistant page (streaming, your private chat history, confirm-before-write
   cards). The conversation stays put as you move between pages, and each
-  browser remembers whether the panel is open. Phones and narrower windows
-  keep using the Assistant page.
+  browser remembers whether the panel is open. Opening or closing it moves
+  keyboard focus into the panel or back to the rail, chat errors are
+  announced to screen readers (on the Assistant page too), and a different
+  account signing in on the same browser starts with a fresh panel. Phones
+  and narrower windows keep using the Assistant page.
 
 - **Search finds Documents of every record type by their contents (#398).**
   Documents on Service records, Maintenance records, Trip segments, Rental

@@ -57,7 +57,7 @@ export function AssistantClient({
           onActionResolved={resolveAction}
         />
         {error && (
-          <p className="border-t border-border bg-danger/10 px-4 py-2 text-sm text-danger">
+          <p role="alert" className="border-t border-border bg-danger/10 px-4 py-2 text-sm text-danger">
             {error}
           </p>
         )}
