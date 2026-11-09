@@ -2,6 +2,8 @@
 // Contract and Product commands (#393, ADR 0003).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
+import { setAppSetting } from "@/lib/appSettings";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 import {
   createContractCommand,
   updateContractCommand,
@@ -51,6 +53,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   actorId = (await createTestUser()).id;
   signInAs("MEMBER");
+
+  // The confirm-card writes refuse while the household has the assistant off.
+  await setAppSetting(ASSISTANT_ENABLED_KEY, "true");
 });
 
 function signInAs(role: "ADMIN" | "MEMBER" | "READONLY") {

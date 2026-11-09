@@ -18,6 +18,8 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
   LOGIN_FAILED: "Failed sign-in",
   LOGIN_THROTTLED: "Sign-in throttled",
   PASSWORD_CHANGED: "Password changed",
+  PASSWORD_RESET_REQUESTED: "Password reset requested",
+  PASSWORD_RESET_EMAIL_FAILED: "Password reset email failed to send",
   PASSWORD_RESET_COMPLETED: "Password reset completed",
   TOTP_DISABLED: "Two-factor authentication disabled",
   ROLE_CHANGED: "Role changed",
@@ -36,6 +38,7 @@ const CONCERNING_EVENTS = new Set<SecurityEventType>([
   "LOGIN_THROTTLED",
   "MCP_AUTH_FAILED",
   "MCP_THROTTLED",
+  "PASSWORD_RESET_EMAIL_FAILED",
 ]);
 
 // Auto-fill confirmations get their own 100-entry window, so a busy Quick
@@ -74,9 +77,9 @@ export default async function SecurityLogPage() {
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
         Security and audit events across the household — failed and throttled sign-ins and MCP
-        requests, password and role changes, two-factor disablement, account removal, Documents shared by link,
-        and who confirmed a record&apos;s auto-filled details. The most recent 100 security events and
-        100 auto-fill confirmations.
+        requests, password reset requests and email failures, password and role changes, two-factor
+        disablement, account removal, Documents shared by link, and who confirmed a record&apos;s
+        auto-filled details. The most recent 100 security events and 100 auto-fill confirmations.
       </p>
 
       {/* #374 — links that open a Document without signing in, until they expire. */}
