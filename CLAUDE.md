@@ -226,6 +226,115 @@ for the full list and defaults before assuming a feature is unconfigured or misb
 - CHANGELOG.md follows Keep a Changelog; see the "Releasing" section of README.md for the
   full release process (bump `[Unreleased]` → version section, bump `package.json`, tag).
 
+## Engineering rules and Definition of Done
+
+These apply to every agent (Claude Code, Codex, others) and every change. Most of
+Hearth's escaped bugs were in fixes, in families of the same mistake, or in places no
+unit test reaches (layout, Safari, Docker, time zones), so the rules aim there first.
+
+### Workflow
+
+- **Bugs before enhancements** when picking work.
+- **Defects**: first decide whether the report really is a defect. If it is, log an issue
+  (see Issue logging) with scope, blast radius, what success looks like and the evidence,
+  then start the PR. If it isn't, explain why and stop.
+- **PRs**: open as **draft**, keep to about 500 changed lines (split larger work), link
+  the issue (`Closes #N` / `Refs #N`). Before marking ready, an independent reviewer
+  (a fresh agent, not the author) reviews it; its findings and their fixes go with the
+  PR. Never merge without the maintainer's go-ahead.
+- **No AI-tool attribution** on commits, PRs, issues or comments: no `Co-Authored-By`
+  for an AI, no session links, no "Generated with ..." footers.
+- **Risk class**: state one in the PR body. It sets how hard the reviewer looks.
+  - `security`: auth, sessions, roles, uploads, `/api/cron`, `/api/mcp`, sync,
+    backups, secrets. Needs an adversarial review and the negative-path tests below.
+  - `data-loss`: deletion, trash, purge, migrations, offline sync replay, imports.
+  - `logic`: everything else that changes behaviour.
+  - `cosmetic`: copy and styling only.
+
+### Before writing code
+
+- Search for an existing helper, component or command (`src/lib/`, `src/components/`,
+  `src/lib/commands/`) and extend it rather than copy it. Several bug families
+  (writes bypassing the record-command layer, near-identical extract routes) began as
+  copies.
+- **Bug fixes are test-first.** Write a test that reproduces the bug and fails on
+  `main`, then fix it. Use a Vitest test for logic, or a Playwright step when only the
+  UI shows the bug. In the PR body, name the test and say you saw it fail without the
+  fix.
+- **Sibling sweep.** After finding a bug's cause, search for the same pattern elsewhere
+  (other record kinds, other routes, the mobile shell) and list what you checked in
+  the PR. Fix the siblings in the same PR if they fit, otherwise log them as issues.
+
+### While writing code
+
+- Parse untrusted input with the Zod schemas in `src/lib/validation/`. Server-side
+  writes go through the domain's `requireUser()` (which blocks `READONLY`). Opt-in
+  module code calls `requireModuleEnabled`. API routes that take uploads use
+  `readValidatedUploadDetails` and the shared rate limiter. Never use `createdById` for
+  authorization (#151).
+- Keep functions small: prefer guard clauses and extracted pure functions over deep
+  nesting or new abstraction layers. If a function grows hard to follow, split it in
+  the same PR.
+- **Fail loudly.** A background or outbound path (email, push, webhooks, scheduled
+  jobs, backups) must record or surface its failure where an admin can see it, and the
+  failure path needs a test. Several past bugs were features that silently did nothing
+  (#596, #598).
+- Never log passwords, tokens, API keys, reset links or document contents.
+- Dates: anything that compares or labels dates needs a test with a fixed clock, and
+  across a day or year boundary, in the household's time zone (#381, #382, #402, #476).
+
+### Quality gates are constraints, not tasks to bypass
+
+To make a check pass, do not:
+- lower coverage thresholds in `vitest.config.ts`
+- add `.codacy.yml` excludes
+- add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, or coverage-ignore
+  comments
+- skip, delete or weaken a test or an assertion
+- add retries to hide a flaky test
+
+If a finding is a genuine false positive, leave it visible. Explain it under
+**Justification:** in the PR body for the reviewer to accept or reject.
+
+A flaky test is a bug. Log it with the failing run's link; don't paper over it. CI's
+single Playwright retry is there to keep main green, and a test that only passes on
+retry still needs an issue.
+
+### Security changes: negative-path tests
+
+For any `security` change, test the paths that should be refused, not just the one
+that works. Cover each of these that applies:
+- signed out → 401 or redirect to `/login`
+- `READONLY` attempting a write → refused
+- `MEMBER` on an admin action → refused
+- disabled module → 404/403
+- malformed id, and an id that doesn't exist
+- oversized file, or a file whose bytes don't match its type
+- rate limit reached → 429
+- the gating env var (`CRON_SECRET`, `MCP_TOKEN`, `APP_URL` for passkeys) unset →
+  endpoint disabled
+
+### Definition of Done
+
+Copy this into the PR body and mark each line pass, fail or n/a. A task is not done
+because it builds. The reviewer checks the evidence (CI runs, test names), not the ticks.
+
+```markdown
+- [ ] Issue's success criteria met; issue linked
+- [ ] Risk class stated
+- [ ] Bug fix: regression test named, seen failing without the fix
+- [ ] Sibling sweep done (what was checked)
+- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:coverage` pass; coverage did not drop
+- [ ] New or changed logic in `src/lib` / `src/app/api` has unit tests, including failure paths
+- [ ] Relevant e2e spec(s) pass; security negative paths tested (if `security`)
+- [ ] No new suppressions, threshold changes or skipped tests (or a Justification:)
+- [ ] No existing helper duplicated
+- [ ] Mobile shell parity considered (`ios-shell/www/app.js`) for cross-cutting changes
+- [ ] Screenshots regenerated if the UI changed (see Screenshots)
+- [ ] CHANGELOG `[Unreleased]` updated for user-visible changes
+- [ ] Draft PR, ~500 lines or fewer, independent review done, no AI attribution
+```
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.

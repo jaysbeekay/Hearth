@@ -1,88 +1,27 @@
-```markdown
-# Hearth Development Patterns
+---
+name: Hearth
+description: Working conventions for the Hearth repo. Use before writing, fixing, testing or reviewing code in Hearth.
+---
 
-> Auto-generated skill from repository analysis
+# Hearth development
 
-## Overview
-This skill teaches the core development patterns and conventions used in the Hearth codebase, a TypeScript project built with the Next.js framework. You'll learn how to structure files, write imports and exports, and follow commit message practices. Testing patterns and suggested commands for common workflows are also included.
+`CLAUDE.md` at the repo root is the source of truth. This skill only points into it,
+so the two can't drift apart.
 
-## Coding Conventions
+Before changing code, read these sections of `CLAUDE.md`:
+- **Engineering rules and Definition of Done**: workflow, risk class, test-first bug
+  fixes, sibling sweep, quality-gate rules, security negative-path tests, and the DoD
+  checklist that goes in every PR body.
+- **Architecture** and **Conventions**: server actions, auth and roles, opt-in
+  modules, storage, and the mobile shell parity rule.
+- **Commands**: type-check, lint, unit tests with coverage, e2e and the standalone
+  suite.
 
-### File Naming
-- Use **camelCase** for file names.
-  - Example: `userProfile.ts`, `apiRoutes.ts`
-
-### Import Style
-- Use **alias imports** for modules.
-  - Example:
-    ```typescript
-    import { getUser } from '@/services/userService'
-    ```
-
-### Export Style
-- Use **named exports**.
-  - Example:
-    ```typescript
-    // In userService.ts
-    export function getUser(id: string) { ... }
-    export function updateUser(user: User) { ... }
-    ```
-
-### Commit Messages
-- Commit messages are **freeform** with no strict type or prefix.
-- Average length is about 35 characters.
-  - Example:  
-    ```
-    Add user profile endpoint
-    ```
-
-## Workflows
-
-### Adding a New Feature
-**Trigger:** When implementing a new feature or component  
-**Command:** `/add-feature`
-
-1. Create a new file using camelCase naming.
-2. Write your component or function using TypeScript.
-3. Use alias imports for dependencies.
-4. Export your functions or components using named exports.
-5. Add or update tests in a corresponding `.test.ts` file.
-6. Commit your changes with a clear, concise message.
-
-### Refactoring Code
-**Trigger:** When improving or restructuring existing code  
-**Command:** `/refactor`
-
-1. Identify files to refactor (ensure camelCase naming).
-2. Update import statements to use aliases if not already.
-3. Refactor exports to use named exports.
-4. Update related tests as needed.
-5. Commit with a message describing the refactor.
-
-### Writing Tests
-**Trigger:** When adding or updating tests  
-**Command:** `/write-test`
-
-1. Create or update a test file with the pattern `*.test.ts`.
-2. Write tests for your functions or components.
-3. Run the test suite (framework unknown; use your standard test runner).
-4. Commit your test changes.
-
-## Testing Patterns
-
-- Unit tests: Vitest, under `tests/unit/*.test.ts` — run with `npm run test:unit`.
-- E2E tests: Playwright, under `e2e/specs/*.spec.ts` — run with `npm run test:e2e`
-  (full suite) or `npx playwright test e2e/specs/<file>` (single spec). These run
-  against a real dev server and a seeded SQLite DB, not mocks.
-- There is no dedicated unit test for every module — `tsc --noEmit`, `eslint`,
-  and the Playwright e2e suite are the primary correctness checks; add a
-  Vitest unit test for pure logic (e.g. cost-basis math, cron matching) where
-  it's cheaper than spinning up e2e coverage.
-
-## Commands
-| Command        | Purpose                                 |
-|----------------|-----------------------------------------|
-| /add-feature   | Start workflow for adding a new feature |
-| /refactor      | Begin code refactoring workflow         |
-| /write-test    | Start writing or updating tests         |
-```
+Tests:
+- Unit: Vitest, in `tests/unit/**/*.test.ts`. Run with `npm run test:unit` or
+  `npm run test:coverage`. For real database writes, use `setupTestDb()` from
+  `tests/helpers/testDb.ts`.
+- E2E: Playwright, in `e2e/specs/*.spec.ts`. Run with `npm run test:e2e`, or one spec
+  with `npx playwright test e2e/specs/<file>`.
+- Logic in `src/lib` and `src/app/api` gets unit tests, including failure paths. UI
+  behaviour gets Playwright coverage. Neither one replaces the other.
