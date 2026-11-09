@@ -183,6 +183,8 @@ test("previewing an image document from the Documents page renders it", async ({
   const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("img")).toBeVisible();
+  // #617 — the alt names the Document and its record, never the filename.
+  await expect(dialog.locator("img")).toHaveAttribute("alt", "Preview of document for Preview Image Regression Contract");
 });
 
 // #374 — Preview, Share and Download from a record's own Documents section.

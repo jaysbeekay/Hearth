@@ -141,6 +141,26 @@ test("swiping a contract card left reveals a delete action, which still uses the
   await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });
 
+// #617 — under reduced motion a swipe row moves without a transition.
+test("swipe rows have no transition under reduced motion", async ({ page }) => {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill("Reduced Motion Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
+  await page.locator("#provider").fill("Motion Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/contracts");
+  const row = page.locator("div.touch-pan-y", { hasText: "Reduced Motion Contract" });
+  await expect(row).toBeAttached();
+  expect(await row.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe("none");
+
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  expect(await row.evaluate((el) => getComputedStyle(el).transitionProperty)).toContain("transform");
+});
+
 // How many lines a control's own text runs over. Text inside an
 // aria-hidden badge (the Inbox count sits on the icon, a line above the
 // label) is left out. A label that wraps returns 2 or more.

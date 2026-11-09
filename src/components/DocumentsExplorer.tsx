@@ -11,7 +11,7 @@ import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { documentFileHref } from "@/lib/documents/kinds";
 
 import { humanFileSize } from "@/lib/utils";
-import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, documentCategoryLabel, type DocumentCategory } from "@/lib/documents/categories";
 import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
@@ -289,7 +289,12 @@ export function DocumentsExplorer({
 
       {preview && (
         <DocumentPreviewModal
-          doc={{ ...preview, id: shareable(preview) ? preview.id : undefined }}
+          doc={{
+            ...preview,
+            id: shareable(preview) ? preview.id : undefined,
+            typeLabel: documentCategoryLabel(preview.category),
+            ownerName: preview.parentTitle,
+          }}
           onClose={() => {
             setPreview(null);
           }}

@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Onboarding has an ending, motion respects your settings, and previews
+  are described (#617).** Once every getting-started step is done, the
+  dashboard's checklist shows a short "You're set up" note with a Dismiss
+  button instead of a list of struck-through steps. With the system's reduce
+  motion setting on, the Assistant chat jumps to the newest message instead
+  of scrolling smoothly, and swipe-to-delete rows move without animating.
+  A previewed image's alt text now names the Document type and the record it
+  belongs to ("Preview of invoice for Home insurance") rather than its
+  filename.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order

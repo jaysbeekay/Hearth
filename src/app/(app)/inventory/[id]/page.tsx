@@ -147,7 +147,7 @@ export default async function InventoryItemPage({
 
       <Card as="section">
         <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
-        <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+        <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} ownerName={item.label} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
