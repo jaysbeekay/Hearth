@@ -490,6 +490,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Going Back to the sign-in page no longer signs out your other tabs
+  (#576).** After a password sign-in the sign-in page stays in history, and
+  going Back to it while still signed in cleared this browser's offline
+  data and reloaded every other open tab as if you'd signed out. It now
+  asks the server first and leaves everything alone while you're signed in.
+  After Sign out, an expired session, or when the server can't be reached,
+  it clears as before.
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a
