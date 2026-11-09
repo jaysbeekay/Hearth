@@ -32,6 +32,16 @@ test.describe("desktop sidebar", () => {
       page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Household" }),
     ).toHaveAttribute("aria-current", "page");
     await expect(page.locator('aside [aria-current="page"]')).toHaveCount(0);
+    // Across the whole page, sidebar and Settings tabs together, one link
+    // claims to be the current page.
+    await expect(page.locator('[aria-current="page"]:visible')).toHaveCount(1);
+  });
+
+  test("a record page claims no current page in the nav", async ({ page }) => {
+    await page.goto("/contracts/new");
+    const contracts = page.locator("aside").getByRole("link", { name: "Contracts", exact: true });
+    await expect(contracts).toHaveAttribute("aria-current", "true");
+    await expect(page.locator('[aria-current="page"]:visible')).toHaveCount(0);
   });
 
   test("marks nothing on a page outside the nav", async ({ page }) => {
