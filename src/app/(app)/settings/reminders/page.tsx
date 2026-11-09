@@ -61,7 +61,8 @@ export default async function ReminderSettingsPage() {
               port: smtp.port,
               secure: smtp.secure,
               user: smtp.user,
-              from: smtp.from,
+              from: smtp.configuredFrom,
+              sentFrom: smtp.from,
               passwordIsSet: smtpPasswordIsSet,
             }}
             appUrlConfigured={isAppUrlConfigured()}
