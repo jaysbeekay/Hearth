@@ -17,6 +17,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Turn on reminders" };
 
@@ -31,7 +32,7 @@ function Step({ n, title, hint, children }: { n: number; title: string; hint: st
           {n}
         </span>
         <div>
-          <h2 id={`step-${n}`} className="font-medium">
+          <h2 id={`step-${n}`} className={sectionHeadingClass()}>
             {title}
           </h2>
           <p className="mt-0.5 text-xs text-muted">{hint}</p>
