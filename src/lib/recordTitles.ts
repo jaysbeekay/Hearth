@@ -3,10 +3,13 @@
 // Hearth" rather than a bare "Hearth". The root layout's title template adds
 // the " · Hearth" suffix.
 //
-// The lookups select one column. A record in a disabled module gets no name,
-// so its title can't reveal what the page itself would refuse to show; the
-// page then redirects as usual (requireModuleEnabled).
+// The lookups select one column. A title never names a record the page itself
+// would refuse to show: there is no name without a signed-in session (the
+// proxy and the (app) layout already redirect, this is the same check again),
+// for a record in a disabled module (the page redirects, requireModuleEnabled),
+// or for a missing or trashed record (the page 404s).
 import type { Metadata } from "next";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
@@ -22,30 +25,47 @@ export type TitledRecord =
   | "property"
   | "homeItem";
 
-const RECORD_MODULE: Partial<Record<TitledRecord, ModuleKey>> = {
-  trip: "TRAVEL",
-  tripSegment: "TRAVEL",
-  vehicle: "VEHICLES",
-  vehicleItem: "VEHICLES",
-  property: "HOME",
-  homeItem: "HOME",
-};
+/** The opt-in module a record kind belongs to, if any. */
+function recordModule(kind: TitledRecord): ModuleKey | null {
+  switch (kind) {
+    case "trip":
+    case "tripSegment":
+      return "TRAVEL";
+    case "vehicle":
+    case "vehicleItem":
+      return "VEHICLES";
+    case "property":
+    case "homeItem":
+      return "HOME";
+    default:
+      return null;
+  }
+}
 
 /** The nav label each record kind's pages sit under. */
-export const RECORD_SECTION: Record<TitledRecord, string> = {
-  contract: "Contracts",
-  product: "Warranties",
-  item: "Items",
-  trip: MODULE_REGISTRY.TRAVEL.label,
-  tripSegment: MODULE_REGISTRY.TRAVEL.label,
-  vehicle: MODULE_REGISTRY.VEHICLES.label,
-  vehicleItem: MODULE_REGISTRY.VEHICLES.label,
-  property: MODULE_REGISTRY.HOME.label,
-  homeItem: MODULE_REGISTRY.HOME.label,
-};
+export function recordSection(kind: TitledRecord): string {
+  switch (kind) {
+    case "contract":
+      return "Contracts";
+    case "product":
+      return "Warranties";
+    case "item":
+      return "Items";
+    case "trip":
+    case "tripSegment":
+      return MODULE_REGISTRY.TRAVEL.label;
+    case "vehicle":
+    case "vehicleItem":
+      return MODULE_REGISTRY.VEHICLES.label;
+    case "property":
+    case "homeItem":
+      return MODULE_REGISTRY.HOME.label;
+  }
+}
 
 async function lookupName(kind: TitledRecord, id: string): Promise<string | null> {
-  const select = { where: { id } } as const;
+  // deletedAt: null, so a trashed record has no name, as its page 404s.
+  const select = { where: { id, deletedAt: null } } as const;
   switch (kind) {
     case "contract":
       return (await prisma.contract.findUnique({ ...select, select: { title: true } }))?.title ?? null;
@@ -69,11 +89,13 @@ async function lookupName(kind: TitledRecord, id: string): Promise<string | null
 }
 
 /**
- * The record's display name, or null when it doesn't exist, its module is
- * off, or the name is blank.
+ * The record's display name, or null when there is no session, the record
+ * doesn't exist or is trashed, its module is off, or the name is blank.
  */
 export async function recordName(kind: TitledRecord, id: string): Promise<string | null> {
-  const moduleKey = RECORD_MODULE[kind];
+  const session = await auth();
+  if (!session?.user) return null;
+  const moduleKey = recordModule(kind);
   if (moduleKey && !(await isModuleEnabled(moduleKey))) return null;
   const name = (await lookupName(kind, id))?.trim();
   return name ? name : null;
@@ -97,5 +119,5 @@ export async function recordMetadata(
 
 /** "Netflix · Contracts": a record's detail page. */
 export function detailTitle(kind: TitledRecord) {
-  return (name: string) => `${name} · ${RECORD_SECTION[kind]}`;
+  return (name: string) => `${name} · ${recordSection(kind)}`;
 }

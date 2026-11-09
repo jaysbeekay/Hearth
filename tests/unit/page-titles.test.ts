@@ -1,8 +1,11 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
+import { auth } from "@/lib/auth";
 import { detailTitle, recordMetadata, recordName } from "@/lib/recordTitles";
+
+vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
 // #558 (WCAG 2.4.2): every page under (app) names itself in the browser tab,
 // instead of falling back to the root layout's bare "Hearth".
@@ -40,6 +43,10 @@ describe("page titles", () => {
 describe("recordName", () => {
   const db = setupTestDb();
 
+  beforeEach(() => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: "u1", role: "MEMBER" } } as never);
+  });
+
   it("names a record and builds its titles", async () => {
     const user = await createTestUser();
     const contract = await db.prisma.contract.create({
@@ -62,5 +69,31 @@ describe("recordName", () => {
     await setModuleEnabled("TRAVEL", false);
     expect(await recordName("trip", trip.id)).toBeNull();
     expect(await recordMetadata("trip", trip.id, (name) => `Edit ${name}`, "Edit trip")).toEqual({ title: "Edit trip" });
+  });
+
+  it("gives no name without a signed-in session", async () => {
+    const user = await createTestUser();
+    const contract = await db.prisma.contract.create({
+      data: { title: "Netflix", provider: "Netflix", category: "SUBSCRIPTION", createdById: user.id },
+    });
+    vi.mocked(auth).mockResolvedValue(null as never);
+    expect(await recordName("contract", contract.id)).toBeNull();
+    expect(await recordMetadata("contract", contract.id, detailTitle("contract"), "Contract")).toEqual({
+      title: "Contract",
+    });
+  });
+
+  it("gives no name for a missing or trashed record", async () => {
+    const user = await createTestUser();
+    expect(await recordName("product", "missing")).toBeNull();
+    const product = await db.prisma.product.create({
+      data: { description: "Dishwasher", createdById: user.id },
+    });
+    expect(await recordName("product", product.id)).toBe("Dishwasher");
+    await db.prisma.product.update({ where: { id: product.id }, data: { deletedAt: new Date() } });
+    expect(await recordName("product", product.id)).toBeNull();
+    expect(await recordMetadata("product", product.id, detailTitle("product"), "Warranty")).toEqual({
+      title: "Warranty",
+    });
   });
 });
