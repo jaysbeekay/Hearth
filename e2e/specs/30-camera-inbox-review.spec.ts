@@ -90,7 +90,10 @@ test("capturing a document saves it to the Inbox, and classifying it after editi
   await expect(page.locator("body")).toContainText(policyTitle);
   await expect(page.getByText(/Needs review/)).toHaveCount(0);
   await expect(page.getByText("Confirm reviewed details")).toHaveCount(0);
-  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+  // Who confirmed it is admin audit detail, not shown on the record page.
+  await expect(page.getByText(/Auto-filled details confirmed/)).toHaveCount(0);
+  await page.goto("/settings/security");
+  await expect(page.locator("main")).toContainText(`Contract "${policyTitle}"`);
 });
 
 // These run as the member: document extraction is rate limited per user
@@ -133,7 +136,6 @@ test.describe("scanning on the contract form", () => {
     ]);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
     await expect(page.getByText(/Needs review/)).toHaveCount(0);
-    await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
   });
 
   test("Save for later review keeps a scanned contract in Needs review with its review panel", async ({ page }) => {
@@ -153,7 +155,7 @@ test.describe("scanning on the contract form", () => {
     await page.locator('input[id="reviewField:endDate"]').fill("2027-08-15");
     await page.getByRole("button", { name: "Confirm reviewed details" }).click();
     await expect(page.getByText("Confirm reviewed details")).not.toBeVisible();
-    await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+    await expect(page.getByText(/Needs review/)).toHaveCount(0);
     const endDateRow = page.locator("dt", { hasText: "End date" }).locator("xpath=following-sibling::dd[1]");
     await expect(endDateRow).toHaveText(/15 Aug(ust)? 2027/);
   });
@@ -167,7 +169,7 @@ test.describe("scanning on the contract form", () => {
     await scanIntoContractForm(page, title);
     await Promise.all([page.waitForURL(/\/contracts\/(?!new$)[^/?]+/), page.locator("#title").press("Enter")]);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
-    await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+    await expect(page.getByText(/Needs review/)).toHaveCount(0);
   });
 
   test("a scripted submit counts as Save unless Save for later review is the submitter", async ({ page }) => {
@@ -178,7 +180,7 @@ test.describe("scanning on the contract form", () => {
       page.waitForURL(/\/contracts\/(?!new$)[^/?]+/),
       page.locator("form:has(#title)").evaluate((form: HTMLFormElement) => form.requestSubmit()),
     ]);
-    await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+    await expect(page.getByText(/Needs review/)).toHaveCount(0);
 
     const later = `Scan Script Later ${Date.now()}`;
     await scanIntoContractForm(page, later);

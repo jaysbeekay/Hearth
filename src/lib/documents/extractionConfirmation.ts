@@ -25,6 +25,30 @@ export function extractionFieldsFromForm(formData: FormData): {
     : { extractionPending: true, extractionConfirmedAt: null };
 }
 
+/**
+ * The names of the auto-filled fields a form submitted as provenance
+ * ("extractionReviewFields"), for the Security log entry when the save
+ * confirmed them. Empty when the form didn't send any.
+ */
+export function autoFilledFieldNamesFromForm(formData: FormData): string[] {
+  const raw = formData.get("extractionReviewFields");
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .slice(0, 100)
+      .map((field: unknown) =>
+        field != null && typeof field === "object" && "fieldName" in field && typeof field.fieldName === "string"
+          ? field.fieldName.trim().slice(0, 100)
+          : "",
+      )
+      .filter((name) => name.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 // Mirrors fieldExtraction.ts's LOW_CONFIDENCE_THRESHOLD: a scan that found
 // fewer fields than this is a weak read of the document.
 const LOW_CONFIDENCE_FIELD_COUNT = 2;

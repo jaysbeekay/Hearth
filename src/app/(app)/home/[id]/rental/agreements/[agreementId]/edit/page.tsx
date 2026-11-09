@@ -9,6 +9,12 @@ import { BackLink } from "@/components/BackLink";
 import { getReminderConfig } from "@/lib/appSettings";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string; agreementId: string }> }) {
+  const { id } = await params;
+  return recordMetadata("property", id, (name) => `Edit tenancy · ${name}`, "Edit tenancy");
+}
 
 export default async function EditRentalAgreementPage({
   params,
