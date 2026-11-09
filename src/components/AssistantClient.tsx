@@ -20,7 +20,7 @@ export function AssistantClient({
   initialMessages: DisplayMessage[];
 }) {
   const router = useRouter();
-  const { threadId, messages, pending, toolStatus, error, send, resolveAction } = useAssistantChat({
+  const { threadId, messages, pending, toolStatus, error, send, stop, resolveAction } = useAssistantChat({
     initialThreadId: activeThreadId,
     initialMessages,
     onThreadCreated: (id) => {
@@ -61,7 +61,7 @@ export function AssistantClient({
             {error}
           </p>
         )}
-        <ChatComposer onSend={send} disabled={pending} />
+        <ChatComposer onSend={send} onStop={stop} pending={pending} />
       </div>
 
       {threadsOpen && (

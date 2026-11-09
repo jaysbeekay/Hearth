@@ -88,6 +88,8 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
   if (onAssistantPage) return null;
 
   function toggle(next: boolean) {
+    // Closing the panel stops a reply that's still streaming.
+    if (!next) chat.stop();
     moveFocus.current = true;
     setOpen(next);
     rememberOpen(next);
@@ -137,7 +139,7 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
         <button
           type="button"
           onClick={() => void openThread("")}
-          disabled={chat.pending || switching}
+          disabled={switching}
           aria-label="New chat"
           title="New chat"
           className={buttonClass("quiet", { icon: true })}
@@ -200,7 +202,12 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
           {chat.error}
         </p>
       )}
-      <ChatComposer onSend={chat.send} disabled={chat.pending || switching} />
+      <ChatComposer
+        onSend={chat.send}
+        onStop={chat.stop}
+        pending={chat.pending}
+        disabled={switching}
+      />
     </aside>
   );
 }

@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { consumeLayeredRateLimit } from "@/lib/rateLimit";
@@ -6,9 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { sendChatMessageSchema } from "@/lib/validation/chat";
 import { callChatCompletion, getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
-import { MAX_TOOL_CALL_ROUNDS, type ChatTurn } from "@/lib/ai/chat/types";
+import type { ChatTurn } from "@/lib/ai/chat/types";
 import { ASSISTANT_OFF_MESSAGE, isAssistantEnabled } from "@/lib/assistant/enablement";
 import { getAvailableTools, runTool, type ToolContext } from "@/lib/chat/tools";
+import { runChatTurn } from "@/lib/chat/chatTurn";
+import type { ChatStreamEvent } from "@/lib/chat/streamEvents";
 import type { ChatMessageModel } from "@/generated/prisma/models";
 
 // How much of a thread's history is replayed to the provider on each turn.
@@ -50,33 +51,7 @@ function rowToTurn(row: ChatMessageModel): ChatTurn {
   };
 }
 
-// One SSE event, JSON-encoded on the `data:` line. `delta` events carry
-// incremental text as it's generated (across every round, including any
-// preamble text a round produces before invoking a tool — previously that
-// text was silently discarded since only the final round's full text ever
-// reached the client). `tool_call` is purely informational, so the UI can
-// show which tool is being used. `proposed_action` carries a guarded write
-// the model wants to make — the client renders it as a confirm/cancel card;
-// nothing is written to the database until the user confirms it there.
-// `error`/`done` mirror the old plain-JSON response's `error`/`message` fields.
-type ChatStreamEvent =
-  | { type: "delta"; text: string }
-  | { type: "tool_call"; name: string }
-  | {
-      type: "proposed_action";
-      id: string;
-      entity: "contract" | "product";
-      operation: "create" | "update";
-      entityId?: string;
-      label?: string;
-      data: Record<string, unknown>;
-      displayValues?: Record<string, string>;
-      currentValues?: Record<string, unknown>;
-      warnings?: Record<string, string[]>;
-    }
-  | { type: "error"; message: string }
-  | { type: "done"; threadId: string };
-
+// Each event is JSON-encoded on its own SSE `data:` line; see ChatStreamEvent.
 function sseFrame(event: ChatStreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
@@ -155,111 +130,50 @@ export async function POST(request: NextRequest) {
   const tools = getAvailableTools(session.user.role, enabledModules);
   const ctx: ToolContext = { userId: session.user.id, role: session.user.role, enabledModules };
 
+  // Aborts when the user stops the reply, closes the panel or leaves: the
+  // request's own signal fires when the client disconnects, and the stream's
+  // cancel() when the reader gives up on it.
+  const stop = new AbortController();
+  const forwardRequestAbort = () => {
+    stop.abort();
+  };
+  request.signal.addEventListener("abort", forwardRequestAbort, { once: true });
+  let closed = false;
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      let finalText: string | null = null;
-      let providerErrorMessage: string | null = null;
-
-      for (let round = 0; round < MAX_TOOL_CALL_ROUNDS; round++) {
-        const result = await callChatCompletion(chatUser, SYSTEM_PROMPT, messages, tools, (delta) => {
-          controller.enqueue(sseFrame({ type: "delta", text: delta }));
-        });
-
-        if (!result.ok) {
-          providerErrorMessage = result.message;
-          break;
+      const emit = (event: ChatStreamEvent) => {
+        if (closed) return;
+        try {
+          controller.enqueue(sseFrame(event));
+        } catch {
+          // The client went away between the check and the write.
+          closed = true;
         }
+      };
 
-        if (result.toolCalls.length === 0) {
-          finalText = result.text ?? "";
-          await prisma.chatMessage.create({
-            data: { threadId: thread.id, role: "ASSISTANT", content: finalText },
-          });
-          break;
-        }
-
-        const assistantContent = result.text ?? "";
-        await prisma.chatMessage.create({
-          data: {
-            threadId: thread.id,
-            role: "ASSISTANT",
-            content: assistantContent,
-            toolCalls: JSON.stringify(result.toolCalls),
-          },
+      try {
+        emit({ type: "thread", threadId: thread.id });
+        await runChatTurn({
+          threadId: thread.id,
+          messages,
+          signal: stop.signal,
+          emit,
+          callProvider: (turns, onDelta, signal) =>
+            callChatCompletion(chatUser, SYSTEM_PROMPT, turns, tools, onDelta, signal),
+          runTool: (name, input) => runTool(name, input, ctx),
         });
-        messages.push({ role: "assistant", content: assistantContent, toolCalls: result.toolCalls });
-
-        for (const call of result.toolCalls) {
-          controller.enqueue(sseFrame({ type: "tool_call", name: call.name }));
-          const toolResult = await runTool(call.name, call.input, ctx);
-          await prisma.chatMessage.create({
-            data: {
-              threadId: thread.id,
-              role: "TOOL",
-              content: toolResult,
-              toolCallId: call.id,
-              toolName: call.name,
-            },
-          });
-          messages.push({ role: "tool", toolCallId: call.id, name: call.name, content: toolResult });
-
-          const parsedResult: unknown = JSON.parse(toolResult);
-          if (
-            parsedResult &&
-            typeof parsedResult === "object" &&
-            "proposed" in parsedResult &&
-            (parsedResult as { proposed?: boolean }).proposed
-          ) {
-            const proposal = parsedResult as unknown as {
-              entity: "contract" | "product";
-              operation: "create" | "update";
-              entityId?: string;
-              label?: string;
-              data: Record<string, unknown>;
-              displayValues?: Record<string, string>;
-              currentValues?: Record<string, unknown>;
-              warnings?: Record<string, string[]>;
-            };
-            controller.enqueue(
-              sseFrame({
-                type: "proposed_action",
-                id: randomUUID(),
-                entity: proposal.entity,
-                operation: proposal.operation,
-                entityId: proposal.entityId,
-                label: proposal.label,
-                data: proposal.data,
-                displayValues: proposal.displayValues,
-                currentValues: proposal.currentValues,
-                warnings: proposal.warnings,
-              }),
-            );
-          }
+      } finally {
+        request.signal.removeEventListener("abort", forwardRequestAbort);
+        if (!closed) {
+          closed = true;
+          controller.close();
         }
       }
-
-      if (providerErrorMessage) {
-        controller.enqueue(sseFrame({ type: "error", message: providerErrorMessage }));
-        controller.close();
-        return;
-      }
-
-      if (finalText === null) {
-        finalText =
-          "I wasn't able to finish that within the allowed number of steps — try asking something narrower.";
-        controller.enqueue(sseFrame({ type: "delta", text: finalText }));
-        await prisma.chatMessage.create({
-          data: { threadId: thread.id, role: "ASSISTANT", content: finalText },
-        });
-      }
-
-      await prisma.chatThread.update({
-        where: { id: thread.id },
-        data: { updatedAt: new Date() },
-      });
-
-      controller.enqueue(sseFrame({ type: "done", threadId: thread.id }));
-      controller.close();
+    },
+    cancel() {
+      closed = true;
+      stop.abort();
     },
   });
 

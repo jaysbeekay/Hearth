@@ -1,31 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
 import type { ProposedAction } from "@/components/ProposedActionCard";
 import type { DisplayMessage } from "@/components/ChatMessageList";
-
-type ChatStreamEvent =
-  | { type: "delta"; text: string }
-  | { type: "tool_call"; name: string }
-  | {
-      type: "proposed_action";
-      id: string;
-      entity: "contract" | "product";
-      operation: "create" | "update";
-      entityId?: string;
-      label?: string;
-      data: Record<string, unknown>;
-      displayValues?: Record<string, string>;
-      currentValues?: Record<string, unknown>;
-      warnings?: Record<string, string[]>;
-    }
-  | { type: "error"; message: string }
-  | { type: "done"; threadId: string };
+import { markReplyStopped, type ChatStreamEvent } from "@/lib/chat/streamEvents";
 
 // One Assistant conversation: sends to /api/chat, streams the reply into
 // `messages`, and tracks the thread the server created. Shared by the full
 // Assistant page and the side panel so both behave the same way.
+//
+// A reply can be stopped while pending (`stop()`); switching thread and
+// unmounting stop it too. A stopped reply keeps the text already streamed,
+// marked as stopped, with no error banner — the server saves the same.
 export function useAssistantChat({
   initialThreadId,
   initialMessages,
@@ -44,9 +31,27 @@ export function useAssistantChat({
   const [pending, setPending] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The in-flight request, if any. A request that is no longer this one was
+  // superseded (by load) and must leave the chat state alone.
+  const requestRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      requestRef.current?.abort();
+    },
+    [],
+  );
+
+  /** Stop the pending reply, keeping what has streamed so far. */
+  function stop() {
+    requestRef.current?.abort();
+  }
 
   /** Switch to another thread (or a new one, with null) without a navigation. */
   function load(nextThreadId: string | null, nextMessages: DisplayMessage[]) {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setPending(false);
     setThreadId(nextThreadId);
     setMessages(nextMessages);
     setError(null);
@@ -64,6 +69,11 @@ export function useAssistantChat({
     ]);
     setPending(true);
 
+    requestRef.current?.abort();
+    const request = new AbortController();
+    requestRef.current = request;
+    const isCurrent = () => requestRef.current === request;
+
     let sawError = false;
     let newThreadId: string | null = null;
 
@@ -72,6 +82,7 @@ export function useAssistantChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threadId, message: text }),
+        signal: request.signal,
       });
 
       // Falls back to the plain-JSON error shape the route still returns
@@ -94,7 +105,9 @@ export function useAssistantChat({
           return;
         }
 
-        if (event.type === "delta") {
+        if (event.type === "thread") {
+          newThreadId = event.threadId;
+        } else if (event.type === "delta") {
           setToolStatus(null);
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + event.text } : m)),
@@ -129,6 +142,7 @@ export function useAssistantChat({
         }
       });
 
+      if (!isCurrent()) return;
       if (sawError) {
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       } else {
@@ -136,17 +150,31 @@ export function useAssistantChat({
           prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
         );
       }
-
-      if (newThreadId && newThreadId !== threadId) {
-        setThreadId(newThreadId);
-        onThreadCreated?.(newThreadId);
-      }
     } catch {
-      setError("Couldn't reach the assistant. Check your connection and try again.");
-      setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+      if (!isCurrent()) return;
+      if (request.signal.aborted) {
+        // Stopped: keep what streamed, marked as stopped; drop an empty reply.
+        setMessages((prev) =>
+          prev.flatMap((m) => {
+            if (m.id !== assistantId) return [m];
+            if (!m.content.trim()) return [];
+            return [{ ...m, content: markReplyStopped(m.content), streaming: false }];
+          }),
+        );
+      } else {
+        setError("Couldn't reach the assistant. Check your connection and try again.");
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+      }
     } finally {
-      setToolStatus(null);
-      setPending(false);
+      if (isCurrent()) {
+        requestRef.current = null;
+        setToolStatus(null);
+        setPending(false);
+        if (newThreadId && newThreadId !== threadId) {
+          setThreadId(newThreadId);
+          onThreadCreated?.(newThreadId);
+        }
+      }
     }
   }
 
@@ -170,5 +198,5 @@ export function useAssistantChat({
     if (result.success) onRecordWritten?.();
   }
 
-  return { threadId, messages, pending, toolStatus, error, send, resolveAction, load };
+  return { threadId, messages, pending, toolStatus, error, send, stop, resolveAction, load };
 }
