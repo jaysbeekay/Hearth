@@ -10,7 +10,7 @@ import {
 import { humanFileSize } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
 import { Card } from "@/components/ui/Card";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, sectionHeadingClass } from "@/lib/ui";
 
 export function OfflineDocumentsPanel() {
   const [docs, setDocs] = useState<OfflineDocument[] | null>(null);
@@ -40,7 +40,7 @@ export function OfflineDocumentsPanel() {
   return (
     <Card as="section">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-medium">Downloaded documents</h2>
+        <h2 className={sectionHeadingClass()}>Downloaded documents</h2>
         {docs.length > 0 && (
           <button
             type="button"
