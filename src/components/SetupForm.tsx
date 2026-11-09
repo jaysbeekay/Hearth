@@ -9,8 +9,8 @@ import { inputClass } from "@/components/SelectWrapper";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // Setup-screen-only ordering: Travel last, since it's the module most new
-// households defer. Doesn't touch MODULE_REGISTRY's own order, which also
-// drives nav grouping and the Settings > Modules list.
+// households defer. The nav and Settings > Modules sort by label instead, so
+// MODULE_REGISTRY's own order doesn't drive any list.
 const SETUP_MODULE_ORDER: ModuleKey[] = ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"];
 
 export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?: boolean }) {
