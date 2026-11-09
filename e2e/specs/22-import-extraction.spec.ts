@@ -150,7 +150,7 @@ test.describe("bulk document import and extraction", () => {
       ]),
     });
 
-    const typeSelect = page.getByLabel(`File ${filename} as`);
+    const typeSelect = page.getByRole("combobox", { name: `File as ${filename}` });
     await expect(typeSelect).toHaveValue("PRODUCT", { timeout: 30_000 });
     await expect(page.locator('input[id$="-manufacturer"]')).toHaveValue("Bosch");
     expect(scans).toBe(1);
@@ -182,7 +182,7 @@ test.describe("bulk document import and extraction", () => {
       })),
     );
     for (const name of names) {
-      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("PRODUCT", { timeout: 30_000 });
+      await expect(page.getByRole("combobox", { name: `File as ${name}` })).toHaveValue("PRODUCT", { timeout: 30_000 });
     }
 
     const bulk = page.getByLabel("Apply to selected files");
@@ -191,7 +191,7 @@ test.describe("bulk document import and extraction", () => {
     await bulk.getByLabel("Contract category").selectOption("CAR_INSURANCE");
     await bulk.getByRole("button", { name: "Apply to selected" }).click();
     for (const name of names) {
-      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("CONTRACT");
+      await expect(page.getByRole("combobox", { name: `File as ${name}` })).toHaveValue("CONTRACT");
     }
     for (const i of [0, 1]) {
       await expect(page.locator('select[id$="-category"]').nth(i)).toHaveValue("CAR_INSURANCE");
@@ -237,30 +237,60 @@ test.describe("bulk document import and extraction", () => {
     const detectedNote = page.getByText("Detected as a warranty", { exact: true });
     const fallbackNote = page.getByText("Couldn't tell what this is. Pick a type.", { exact: true });
     for (const name of detected) {
-      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("PRODUCT", { timeout: 30_000 });
+      await expect(page.getByRole("combobox", { name: `File as ${name}` })).toHaveValue("PRODUCT", { timeout: 30_000 });
     }
-    const unknownSelect = page.getByLabel(`File ${unknown} as`);
+    const unknownSelect = page.getByRole("combobox", { name: `File as ${unknown}` });
     await expect(unknownSelect).toHaveValue("CONTRACT", { timeout: 30_000 });
     await expect(detectedNote).toHaveCount(2);
     await expect(fallbackNote).toHaveCount(1);
     // The row's own visible "File as" label is tied to its select.
     const unknownLabel = page.locator(`label[for="${await unknownSelect.getAttribute("id")}"]`);
     await expect(unknownLabel).toBeVisible();
-    await expect(unknownLabel).toContainText("File");
+    await expect(unknownLabel).toHaveText("File as");
+    // The note describes the select while it shows.
+    await expect(unknownSelect).toHaveAccessibleDescription("Couldn't tell what this is. Pick a type.");
 
     // A per-row change clears that row's note.
     await unknownSelect.selectOption("PRODUCT");
     await expect(fallbackNote).toHaveCount(0);
     await expect(detectedNote).toHaveCount(2);
+    await expect(unknownSelect).toHaveAccessibleDescription("");
 
-    // A bulk "File as" change clears the selected rows' notes.
+    // A bulk apply of only a category leaves the type, and its note, alone.
     const bulk = page.getByLabel("Apply to selected files");
     await page.getByLabel(`Select ${detected[0]}`).check();
+    await bulk.getByLabel("Contract category").selectOption("CAR_INSURANCE");
+    await bulk.getByRole("button", { name: "Apply to selected" }).click();
+    await expect(detectedNote).toHaveCount(2);
+    await bulk.getByLabel("Contract category").selectOption("");
     await bulk.getByLabel("File as").selectOption("CONTRACT");
     await bulk.getByRole("button", { name: "Apply to selected" }).click();
-    await expect(page.getByLabel(`File ${detected[0]} as`)).toHaveValue("CONTRACT");
+    await expect(page.getByRole("combobox", { name: `File as ${detected[0]}` })).toHaveValue("CONTRACT");
     await expect(page.getByText(/^Detected as/)).toHaveCount(1);
     await expect(detectedNote).toHaveCount(1);
+  });
+
+  // #604 — on a phone the type picker wraps under the file name instead of
+  // squeezing it to nothing or pushing past the card.
+  test("queued rows fit a 360px screen with the file name still showing", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 360, height: 800 });
+    const stamp = Date.now();
+    const names = [`a-fairly-long-receipt-name-${stamp}.pdf`, `second-${stamp}.pdf`];
+    await page.goto("/import");
+    await page.locator('input[type="file"]').setInputFiles(
+      names.map((name) => ({ name, mimeType: "application/pdf", buffer: pdfBytes() })),
+    );
+    for (const name of names) {
+      await expect(page.getByRole("combobox", { name: `File as ${name}` })).toHaveValue("CONTRACT", { timeout: 30_000 });
+    }
+    await page.getByRole("combobox", { name: `File as ${names[0]}` }).selectOption("INBOX");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    for (const name of names) {
+      const box = await page.getByText(name, { exact: true }).boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThan(40);
+    }
   });
 
   test("import page is reachable from the dashboard", async ({ page }) => {

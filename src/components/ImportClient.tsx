@@ -10,7 +10,7 @@ import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 import { extractionReviewedOnSave } from "@/lib/documents/extractionConfirmation";
-import { scannedRowType, typeSourceNote, type TypeSource } from "@/lib/documents/uploadTypeSource";
+import { scannedRowType, typeSourceNote, type TypeSource, type UploadRowType } from "@/lib/documents/uploadTypeSource";
 import { buttonClass, pillClass, inputClass, inlineLinkClass, reviewFieldClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
@@ -26,7 +26,6 @@ const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY" | "INBOX";
 type RowStatus = "scanning" | "ready" | "saving" | "saved" | "error";
 type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
@@ -55,7 +54,7 @@ interface InventoryFields {
 }
 
 interface BulkPatch {
-  type: EntityType | "";
+  type: UploadRowType | "";
   category: string;
   /** "property:<id>", "vehicle:<id>", "none:" to clear, or "" for no change. */
   link: string;
@@ -66,7 +65,7 @@ const EMPTY_BULK: BulkPatch = { type: "", category: "", link: "" };
 interface Row {
   id: string;
   file: File;
-  type: EntityType;
+  type: UploadRowType;
   /** #604 — whether `type` came from the scan's guess, the fallback, or the person. */
   typeSource: TypeSource;
   status: RowStatus;
@@ -82,8 +81,8 @@ interface Row {
   edited?: boolean;
   // #358 — the one scan's source and message for each type the row could be
   // filed as, so switching type never scans again.
-  sources: Partial<Record<EntityType, ExtractionSource>>;
-  scanMessages: Partial<Record<EntityType, string>>;
+  sources: Partial<Record<UploadRowType, ExtractionSource>>;
+  scanMessages: Partial<Record<UploadRowType, string>>;
   /** #358 — ticked for "Apply to selected". */
   selected?: boolean;
   /** Bumped by "Apply to selected" so the (uncontrolled) Linked to field shows the new link. */
@@ -135,7 +134,7 @@ export function reviewScreenHref(added: number) {
 }
 
 /** A scanned type's entry, read without indexing by a runtime key. */
-function forType<T>(byType: Partial<Record<EntityType, T>>, type: EntityType): T | undefined {
+function forType<T>(byType: Partial<Record<UploadRowType, T>>, type: UploadRowType): T | undefined {
   switch (type) {
     case "CONTRACT":
       return byType.CONTRACT;
@@ -149,7 +148,7 @@ function forType<T>(byType: Partial<Record<EntityType, T>>, type: EntityType): T
 }
 
 /** The row filed as `type`: that type's scan source, message and auto-filled state (#358). */
-function withType(row: Row, type: EntityType): Row {
+function withType(row: Row, type: UploadRowType): Row {
   const autoFilled =
     type === "CONTRACT"
       ? row.contractAutoFilled
@@ -590,390 +589,409 @@ export function ImportClient({
           )}
 
           <div className="space-y-3">
-            {rows.map((row) => (
-              <Card key={row.id}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {pendingRows.length > 1 && (row.status === "ready" || row.status === "error") && (
-                      <input
-                        type="checkbox"
-                        checked={row.selected === true}
-                        onChange={(e) => {
-                          updateRow(row.id, { selected: e.target.checked });
-                        }}
-                        aria-label={`Select ${row.file.name}`}
-                      />
-                    )}
-                    <FileText size={16} className="shrink-0 text-muted" />
-                    <span className="min-w-0 truncate text-sm font-medium">{row.file.name}</span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {row.status === "saved" ? (
-                      <span className="flex items-center gap-1 text-xs text-success">
-                        <Check size={16} /> Saved
+            {rows.map((row) => {
+              // #604 — whether the type was detected or fell back; gone once the person picks one.
+              const typeNote =
+                row.status === "ready" || row.status === "saving" || row.status === "error"
+                  ? typeSourceNote(row.type, row.typeSource)
+                  : null;
+              return (
+                <Card key={row.id}>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 basis-48 items-center gap-2">
+                      {pendingRows.length > 1 && (row.status === "ready" || row.status === "error") && (
+                        <input
+                          type="checkbox"
+                          checked={row.selected === true}
+                          onChange={(e) => {
+                            updateRow(row.id, { selected: e.target.checked });
+                          }}
+                          aria-label={`Select ${row.file.name}`}
+                        />
+                      )}
+                      <FileText size={16} className="shrink-0 text-muted" />
+                      <span id={`${row.id}-name`} className="min-w-0 truncate text-sm font-medium">
+                        {row.file.name}
                       </span>
-                    ) : (
-                      <>
-                        <label htmlFor={`${row.id}-type`} className="whitespace-nowrap text-xs font-medium text-muted">
-                          File <span className="sr-only">{row.file.name}</span> as
-                        </label>
-                        <select
-                          id={`${row.id}-type`}
-                          value={row.type}
-                          disabled={row.status === "scanning" || row.status === "saving"}
-                          onChange={(e) => {
-                            // #358 — the scan already covered every type.
-                            const type = e.target.value as EntityType;
-                            setRows((prev) =>
-                              prev.map((r) => (r.id === row.id ? { ...withType(r, type), typeSource: "user" } : r)),
-                            );
-                          }}
-                          className={inputClass}
-                        >
-                          <option value="CONTRACT">Contract</option>
-                          <option value="PRODUCT">Warranty</option>
-                          {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
-                          <option value="INBOX">Save to review later</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => removeRow(row.id)}
-                          aria-label={`Remove ${row.file.name} from queue`}
-                          className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
-                        >
-                          <X size={16} />
-                        </button>
-                      </>
-                    )}
+                    </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      {row.status === "saved" ? (
+                        <span className="flex items-center gap-1 text-xs text-success">
+                          <Check size={16} /> Saved
+                        </span>
+                      ) : (
+                        <>
+                          <label
+                            id={`${row.id}-type-label`}
+                            htmlFor={`${row.id}-type`}
+                            className="whitespace-nowrap text-xs font-medium text-muted"
+                          >
+                            File as
+                          </label>
+                          <select
+                            id={`${row.id}-type`}
+                            aria-labelledby={`${row.id}-type-label ${row.id}-name`}
+                            aria-describedby={typeNote ? `${row.id}-type-note` : undefined}
+                            value={row.type}
+                            disabled={row.status === "scanning" || row.status === "saving"}
+                            onChange={(e) => {
+                              // #358 — the scan already covered every type.
+                              const type = e.target.value as UploadRowType;
+                              setRows((prev) =>
+                                prev.map((r) => (r.id === row.id ? { ...withType(r, type), typeSource: "user" } : r)),
+                              );
+                            }}
+                            className={inputClass}
+                          >
+                            <option value="CONTRACT">Contract</option>
+                            <option value="PRODUCT">Warranty</option>
+                            {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                            <option value="INBOX">Save to review later</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => removeRow(row.id)}
+                            aria-label={`Remove ${row.file.name} from queue`}
+                            className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
+                          >
+                            <X size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {row.status === "scanning" && (
-                  <p role="status" className="flex items-center gap-2 text-sm text-muted">
-                    <Loader2 size={16} className="animate-spin" /> Scanning…
-                  </p>
-                )}
-
-                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
-                  typeSourceNote(row.type, row.typeSource) && (
-                    <p className="mb-1 text-xs">{typeSourceNote(row.type, row.typeSource)}</p>
-                  )}
-
-                {row.scanMessage && row.status !== "scanning" && (
-                  <p role="status" aria-live="polite" className="mb-2 text-xs text-muted">
-                    {row.scanMessage}
-                  </p>
-                )}
-
-                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
-                  row.type === "CONTRACT" && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Title" htmlFor={`${row.id}-title`} autoFilled={row.contractAutoFilled.title}>
-                        <input
-                          id={`${row.id}-title`}
-                          value={row.contract.title}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, title: e.target.value },
-                              contractAutoFilled: { ...row.contractAutoFilled, title: false },
-                            });
-                          }}
-                          className={fieldClass(row.contractAutoFilled.title)}
-                        />
-                      </RowField>
-                      <RowField label="Provider" htmlFor={`${row.id}-provider`} autoFilled={row.contractAutoFilled.provider}>
-                        <input
-                          id={`${row.id}-provider`}
-                          value={row.contract.provider}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, provider: e.target.value },
-                              contractAutoFilled: { ...row.contractAutoFilled, provider: false },
-                            });
-                          }}
-                          className={fieldClass(row.contractAutoFilled.provider)}
-                        />
-                      </RowField>
-                      <RowField label="Category" htmlFor={`${row.id}-category`}>
-                        <select
-                          id={`${row.id}-category`}
-                          value={row.contract.category}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, category: e.target.value },
-                            });
-                          }}
-                          className={fieldClass(false)}
-                        >
-                          {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </RowField>
-                      <RowField label="Cost" htmlFor={`${row.id}-cost`} autoFilled={row.contractAutoFilled.cost}>
-                        <input
-                          id={`${row.id}-cost`}
-                          value={row.contract.cost}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, cost: e.target.value },
-                              contractAutoFilled: { ...row.contractAutoFilled, cost: false },
-                            });
-                          }}
-                          inputMode="decimal"
-                          className={fieldClass(row.contractAutoFilled.cost)}
-                        />
-                      </RowField>
-                      <RowField label="Start date" htmlFor={`${row.id}-startDate`} autoFilled={row.contractAutoFilled.startDate}>
-                        <input
-                          id={`${row.id}-startDate`}
-                          type="date"
-                          value={row.contract.startDate}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, startDate: e.target.value },
-                              contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
-                            });
-                          }}
-                          className={fieldClass(row.contractAutoFilled.startDate)}
-                        />
-                      </RowField>
-                      <RowField label="End date" htmlFor={`${row.id}-endDate`} autoFilled={row.contractAutoFilled.endDate}>
-                        <input
-                          id={`${row.id}-endDate`}
-                          type="date"
-                          value={row.contract.endDate}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              contract: { ...row.contract, endDate: e.target.value },
-                              contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
-                            });
-                          }}
-                          className={fieldClass(row.contractAutoFilled.endDate)}
-                        />
-                      </RowField>
-                      <LinkedToField
-                        key={`${row.id}-contractLink-${row.linkVersion}`}
-                        defaultValue={{ propertyId: row.contractPropertyId, vehicleId: row.contractVehicleId }}
-                        id={`${row.id}-contractLink`}
-                        properties={properties}
-                        vehicles={vehicles}
-                        homeEnabled={homeEnabled}
-                        vehiclesEnabled={vehiclesEnabled}
-                        recordNoun="contract"
-                        disabled={row.status === "saving"}
-                        onChange={({ propertyId, vehicleId }) => {
-                          editRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId });
-                        }}
-                        hintLinksInNewTab
-                        wrapperClassName={ROW_FIELD_WRAPPER}
-                        labelClassName={ROW_FIELD_LABEL}
-                        selectClassName={fieldClass(false)}
-                      />
-                    </div>
-                  )}
-
-                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
-                  row.type === "PRODUCT" && (
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <RowField label="Description" htmlFor={`${row.id}-description`} autoFilled={row.productAutoFilled.description}>
-                        <input
-                          id={`${row.id}-description`}
-                          value={row.product.description}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              product: { ...row.product, description: e.target.value },
-                              productAutoFilled: { ...row.productAutoFilled, description: false },
-                            });
-                          }}
-                          className={fieldClass(row.productAutoFilled.description)}
-                        />
-                      </RowField>
-                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`} autoFilled={row.productAutoFilled.manufacturer}>
-                        <input
-                          id={`${row.id}-manufacturer`}
-                          value={row.product.manufacturer}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              product: { ...row.product, manufacturer: e.target.value },
-                              productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
-                            });
-                          }}
-                          className={fieldClass(row.productAutoFilled.manufacturer)}
-                        />
-                      </RowField>
-                      <RowField label="Price" htmlFor={`${row.id}-price`} autoFilled={row.productAutoFilled.price}>
-                        <input
-                          id={`${row.id}-price`}
-                          value={row.product.price}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              product: { ...row.product, price: e.target.value },
-                              productAutoFilled: { ...row.productAutoFilled, price: false },
-                            });
-                          }}
-                          inputMode="decimal"
-                          className={fieldClass(row.productAutoFilled.price)}
-                        />
-                      </RowField>
-                      <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`} autoFilled={row.productAutoFilled.purchaseDate}>
-                        <input
-                          id={`${row.id}-purchaseDate`}
-                          type="date"
-                          value={row.product.purchaseDate}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              product: { ...row.product, purchaseDate: e.target.value },
-                              productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
-                            });
-                          }}
-                          className={fieldClass(row.productAutoFilled.purchaseDate)}
-                        />
-                      </RowField>
-                      <RowField label="Warranty end date" htmlFor={`${row.id}-warrantyEndDate`}>
-                        <input
-                          id={`${row.id}-warrantyEndDate`}
-                          type="date"
-                          value={row.product.warrantyEndDate}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              product: { ...row.product, warrantyEndDate: e.target.value },
-                            });
-                          }}
-                          className={fieldClass(false)}
-                        />
-                      </RowField>
-                      <LinkedToField
-                        key={`${row.id}-productLink-${row.linkVersion}`}
-                        defaultValue={{ propertyId: row.productPropertyId }}
-                        id={`${row.id}-productLink`}
-                        properties={properties}
-                        homeEnabled={homeEnabled}
-                        recordNoun="warranty"
-                        disabled={row.status === "saving"}
-                        onChange={({ propertyId }) => {
-                          editRow(row.id, { productPropertyId: propertyId });
-                        }}
-                        hintLinksInNewTab
-                        wrapperClassName={ROW_FIELD_WRAPPER}
-                        labelClassName={ROW_FIELD_LABEL}
-                        selectClassName={fieldClass(false)}
-                      />
-                    </div>
-                  )}
-
-                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
-                  row.type === "INVENTORY" && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Label" htmlFor={`${row.id}-label`} autoFilled={row.inventoryAutoFilled.label}>
-                        <input
-                          id={`${row.id}-label`}
-                          value={row.inventory.label}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              inventory: { ...row.inventory, label: e.target.value },
-                              inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
-                            });
-                          }}
-                          className={fieldClass(row.inventoryAutoFilled.label)}
-                        />
-                      </RowField>
-                      <RowField label="Brand" htmlFor={`${row.id}-brand`} autoFilled={row.inventoryAutoFilled.brand}>
-                        <input
-                          id={`${row.id}-brand`}
-                          value={row.inventory.brand}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              inventory: { ...row.inventory, brand: e.target.value },
-                              inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
-                            });
-                          }}
-                          className={fieldClass(row.inventoryAutoFilled.brand)}
-                        />
-                      </RowField>
-                      <RowField label="Category" htmlFor={`${row.id}-inv-category`} autoFilled={row.inventoryAutoFilled.category}>
-                        <select
-                          id={`${row.id}-inv-category`}
-                          value={row.inventory.category}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              inventory: { ...row.inventory, category: e.target.value },
-                              inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
-                            });
-                          }}
-                          className={fieldClass(row.inventoryAutoFilled.category)}
-                        >
-                          {INVENTORY_ITEM_CATEGORIES.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {INVENTORY_CATEGORY_LABELS[cat] ?? cat}
-                            </option>
-                          ))}
-                        </select>
-                      </RowField>
-                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`} autoFilled={row.inventoryAutoFilled.purchasePrice}>
-                        <input
-                          id={`${row.id}-purchasePrice`}
-                          value={row.inventory.purchasePrice}
-                          disabled={row.status === "saving"}
-                          onChange={(e) => {
-                            editRow(row.id, {
-                              inventory: { ...row.inventory, purchasePrice: e.target.value },
-                              inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
-                            });
-                          }}
-                          inputMode="decimal"
-                          className={fieldClass(row.inventoryAutoFilled.purchasePrice)}
-                        />
-                      </RowField>
-                    </div>
-                  )}
-
-                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
-                  row.type === "INBOX" && (
-                    <p className="text-sm text-muted">
-                      Saved to the Inbox as-is — say whether it&apos;s a contract, warranty or other
-                      record later from{" "}
-                      <a href="/documents/inbox" className={inlineLinkClass}>
-                        Inbox
-                      </a>
-                      .
+                  {row.status === "scanning" && (
+                    <p role="status" className="flex items-center gap-2 text-sm text-muted">
+                      <Loader2 size={16} className="animate-spin" /> Scanning…
                     </p>
                   )}
 
-                {row.error && <p className="mt-2 text-xs text-danger">{row.error}</p>}
+                  {typeNote && (
+                    <p
+                      id={`${row.id}-type-note`}
+                      className={row.typeSource === "scan" ? "mb-1 text-xs text-muted" : "mb-1 text-xs"}
+                    >
+                      {typeNote}
+                    </p>
+                  )}
 
-                {(row.status === "ready" || row.status === "error") && (
-                  <button
-                    type="button"
-                    onClick={() => saveRow(row)}
-                    className={`mt-3 ${buttonClass("secondary")}`}
-                  >
-                    Save
-                  </button>
-                )}
-                {row.status === "saved" && row.href && (
-                  <a href={row.href} className="mt-2 inline-block text-xs text-accent hover:underline">
-                    View →
-                  </a>
-                )}
-              </Card>
-            ))}
+                  {row.scanMessage && row.status !== "scanning" && (
+                    <p role="status" aria-live="polite" className="mb-2 text-xs text-muted">
+                      {row.scanMessage}
+                    </p>
+                  )}
+
+                  {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                    row.type === "CONTRACT" && (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <RowField label="Title" htmlFor={`${row.id}-title`} autoFilled={row.contractAutoFilled.title}>
+                          <input
+                            id={`${row.id}-title`}
+                            value={row.contract.title}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, title: e.target.value },
+                                contractAutoFilled: { ...row.contractAutoFilled, title: false },
+                              });
+                            }}
+                            className={fieldClass(row.contractAutoFilled.title)}
+                          />
+                        </RowField>
+                        <RowField label="Provider" htmlFor={`${row.id}-provider`} autoFilled={row.contractAutoFilled.provider}>
+                          <input
+                            id={`${row.id}-provider`}
+                            value={row.contract.provider}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, provider: e.target.value },
+                                contractAutoFilled: { ...row.contractAutoFilled, provider: false },
+                              });
+                            }}
+                            className={fieldClass(row.contractAutoFilled.provider)}
+                          />
+                        </RowField>
+                        <RowField label="Category" htmlFor={`${row.id}-category`}>
+                          <select
+                            id={`${row.id}-category`}
+                            value={row.contract.category}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, category: e.target.value },
+                              });
+                            }}
+                            className={fieldClass(false)}
+                          >
+                            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </RowField>
+                        <RowField label="Cost" htmlFor={`${row.id}-cost`} autoFilled={row.contractAutoFilled.cost}>
+                          <input
+                            id={`${row.id}-cost`}
+                            value={row.contract.cost}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, cost: e.target.value },
+                                contractAutoFilled: { ...row.contractAutoFilled, cost: false },
+                              });
+                            }}
+                            inputMode="decimal"
+                            className={fieldClass(row.contractAutoFilled.cost)}
+                          />
+                        </RowField>
+                        <RowField label="Start date" htmlFor={`${row.id}-startDate`} autoFilled={row.contractAutoFilled.startDate}>
+                          <input
+                            id={`${row.id}-startDate`}
+                            type="date"
+                            value={row.contract.startDate}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, startDate: e.target.value },
+                                contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
+                              });
+                            }}
+                            className={fieldClass(row.contractAutoFilled.startDate)}
+                          />
+                        </RowField>
+                        <RowField label="End date" htmlFor={`${row.id}-endDate`} autoFilled={row.contractAutoFilled.endDate}>
+                          <input
+                            id={`${row.id}-endDate`}
+                            type="date"
+                            value={row.contract.endDate}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                contract: { ...row.contract, endDate: e.target.value },
+                                contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
+                              });
+                            }}
+                            className={fieldClass(row.contractAutoFilled.endDate)}
+                          />
+                        </RowField>
+                        <LinkedToField
+                          key={`${row.id}-contractLink-${row.linkVersion}`}
+                          defaultValue={{ propertyId: row.contractPropertyId, vehicleId: row.contractVehicleId }}
+                          id={`${row.id}-contractLink`}
+                          properties={properties}
+                          vehicles={vehicles}
+                          homeEnabled={homeEnabled}
+                          vehiclesEnabled={vehiclesEnabled}
+                          recordNoun="contract"
+                          disabled={row.status === "saving"}
+                          onChange={({ propertyId, vehicleId }) => {
+                            editRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId });
+                          }}
+                          hintLinksInNewTab
+                          wrapperClassName={ROW_FIELD_WRAPPER}
+                          labelClassName={ROW_FIELD_LABEL}
+                          selectClassName={fieldClass(false)}
+                        />
+                      </div>
+                    )}
+
+                  {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                    row.type === "PRODUCT" && (
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <RowField label="Description" htmlFor={`${row.id}-description`} autoFilled={row.productAutoFilled.description}>
+                          <input
+                            id={`${row.id}-description`}
+                            value={row.product.description}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                product: { ...row.product, description: e.target.value },
+                                productAutoFilled: { ...row.productAutoFilled, description: false },
+                              });
+                            }}
+                            className={fieldClass(row.productAutoFilled.description)}
+                          />
+                        </RowField>
+                        <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`} autoFilled={row.productAutoFilled.manufacturer}>
+                          <input
+                            id={`${row.id}-manufacturer`}
+                            value={row.product.manufacturer}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                product: { ...row.product, manufacturer: e.target.value },
+                                productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
+                              });
+                            }}
+                            className={fieldClass(row.productAutoFilled.manufacturer)}
+                          />
+                        </RowField>
+                        <RowField label="Price" htmlFor={`${row.id}-price`} autoFilled={row.productAutoFilled.price}>
+                          <input
+                            id={`${row.id}-price`}
+                            value={row.product.price}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                product: { ...row.product, price: e.target.value },
+                                productAutoFilled: { ...row.productAutoFilled, price: false },
+                              });
+                            }}
+                            inputMode="decimal"
+                            className={fieldClass(row.productAutoFilled.price)}
+                          />
+                        </RowField>
+                        <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`} autoFilled={row.productAutoFilled.purchaseDate}>
+                          <input
+                            id={`${row.id}-purchaseDate`}
+                            type="date"
+                            value={row.product.purchaseDate}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                product: { ...row.product, purchaseDate: e.target.value },
+                                productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
+                              });
+                            }}
+                            className={fieldClass(row.productAutoFilled.purchaseDate)}
+                          />
+                        </RowField>
+                        <RowField label="Warranty end date" htmlFor={`${row.id}-warrantyEndDate`}>
+                          <input
+                            id={`${row.id}-warrantyEndDate`}
+                            type="date"
+                            value={row.product.warrantyEndDate}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                product: { ...row.product, warrantyEndDate: e.target.value },
+                              });
+                            }}
+                            className={fieldClass(false)}
+                          />
+                        </RowField>
+                        <LinkedToField
+                          key={`${row.id}-productLink-${row.linkVersion}`}
+                          defaultValue={{ propertyId: row.productPropertyId }}
+                          id={`${row.id}-productLink`}
+                          properties={properties}
+                          homeEnabled={homeEnabled}
+                          recordNoun="warranty"
+                          disabled={row.status === "saving"}
+                          onChange={({ propertyId }) => {
+                            editRow(row.id, { productPropertyId: propertyId });
+                          }}
+                          hintLinksInNewTab
+                          wrapperClassName={ROW_FIELD_WRAPPER}
+                          labelClassName={ROW_FIELD_LABEL}
+                          selectClassName={fieldClass(false)}
+                        />
+                      </div>
+                    )}
+
+                  {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                    row.type === "INVENTORY" && (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <RowField label="Label" htmlFor={`${row.id}-label`} autoFilled={row.inventoryAutoFilled.label}>
+                          <input
+                            id={`${row.id}-label`}
+                            value={row.inventory.label}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                inventory: { ...row.inventory, label: e.target.value },
+                                inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
+                              });
+                            }}
+                            className={fieldClass(row.inventoryAutoFilled.label)}
+                          />
+                        </RowField>
+                        <RowField label="Brand" htmlFor={`${row.id}-brand`} autoFilled={row.inventoryAutoFilled.brand}>
+                          <input
+                            id={`${row.id}-brand`}
+                            value={row.inventory.brand}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                inventory: { ...row.inventory, brand: e.target.value },
+                                inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
+                              });
+                            }}
+                            className={fieldClass(row.inventoryAutoFilled.brand)}
+                          />
+                        </RowField>
+                        <RowField label="Category" htmlFor={`${row.id}-inv-category`} autoFilled={row.inventoryAutoFilled.category}>
+                          <select
+                            id={`${row.id}-inv-category`}
+                            value={row.inventory.category}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                inventory: { ...row.inventory, category: e.target.value },
+                                inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
+                              });
+                            }}
+                            className={fieldClass(row.inventoryAutoFilled.category)}
+                          >
+                            {INVENTORY_ITEM_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {INVENTORY_CATEGORY_LABELS[cat] ?? cat}
+                              </option>
+                            ))}
+                          </select>
+                        </RowField>
+                        <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`} autoFilled={row.inventoryAutoFilled.purchasePrice}>
+                          <input
+                            id={`${row.id}-purchasePrice`}
+                            value={row.inventory.purchasePrice}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              editRow(row.id, {
+                                inventory: { ...row.inventory, purchasePrice: e.target.value },
+                                inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
+                              });
+                            }}
+                            inputMode="decimal"
+                            className={fieldClass(row.inventoryAutoFilled.purchasePrice)}
+                          />
+                        </RowField>
+                      </div>
+                    )}
+
+                  {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                    row.type === "INBOX" && (
+                      <p className="text-sm text-muted">
+                        Saved to the Inbox as-is — say whether it&apos;s a contract, warranty or other
+                        record later from{" "}
+                        <a href="/documents/inbox" className={inlineLinkClass}>
+                          Inbox
+                        </a>
+                        .
+                      </p>
+                    )}
+
+                  {row.error && <p className="mt-2 text-xs text-danger">{row.error}</p>}
+
+                  {(row.status === "ready" || row.status === "error") && (
+                    <button
+                      type="button"
+                      onClick={() => saveRow(row)}
+                      className={`mt-3 ${buttonClass("secondary")}`}
+                    >
+                      Save
+                    </button>
+                  )}
+                  {row.status === "saved" && row.href && (
+                    <a href={row.href} className="mt-2 inline-block text-xs text-accent hover:underline">
+                      View →
+                    </a>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </>
       )}
