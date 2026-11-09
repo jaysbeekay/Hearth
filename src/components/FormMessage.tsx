@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { showToast } from "@/components/Toast";
 import { bannerClass } from "@/lib/ui";
+import { addDescribedBy, dropDescribedBy } from "@/lib/describedBy";
 
 /**
  * The control named `field` in `form`, or null. A radio group gives its first
@@ -46,6 +47,14 @@ export function isNewMessage(
   last: { message: string | null; attempt: unknown },
 ): boolean {
   return message !== last.message || (attempt !== undefined && attempt !== last.attempt);
+}
+
+/**
+ * #615 — "Error:" ahead of the message for screen readers. The red text says
+ * it visually; read aloud, the message alone could pass for a hint.
+ */
+function ErrorPrefix() {
+  return <span className="sr-only">Error: </span>;
 }
 
 export function FormMessage({
@@ -92,13 +101,13 @@ export function FormMessage({
     setSlot(target);
     const control = target && field ? fieldControl(form, field) : null;
     if (!control) return;
-    const describedBy = control.getAttribute("aria-describedby");
+    // #615 — the error is listed first, ahead of the Field's hint, and only
+    // its own id is taken out again, so ids added meanwhile are kept.
     control.setAttribute("aria-invalid", "true");
-    control.setAttribute("aria-describedby", describedBy ? `${describedBy} ${errorId}` : errorId);
+    control.setAttribute("aria-describedby", addDescribedBy(control.getAttribute("aria-describedby"), errorId, true));
     return () => {
       control.removeAttribute("aria-invalid");
-      if (describedBy) control.setAttribute("aria-describedby", describedBy);
-      else control.removeAttribute("aria-describedby");
+      dropDescribedBy(control, errorId);
     };
   }, [error, field, errorId, attempt]);
 
@@ -127,6 +136,7 @@ export function FormMessage({
   if (error && slot) {
     return createPortal(
       <p key={alertKey} id={errorId} ref={errorRef} role="alert" className="text-xs text-danger">
+        <ErrorPrefix />
         {error}
       </p>,
       slot,
@@ -136,6 +146,7 @@ export function FormMessage({
   if (error) {
     return (
       <p key={alertKey} ref={errorRef} role="alert" className={bannerClass("danger")}>
+        <ErrorPrefix />
         {error}
       </p>
     );

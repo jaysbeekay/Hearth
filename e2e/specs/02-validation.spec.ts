@@ -83,3 +83,28 @@ test("XSS-shaped input is escaped, not executed", async ({ page }) => {
   expect(await page.content()).not.toContain("<script>alert(1)</script>");
   expect(dialogFired).toBe(false);
 });
+
+test("a field's hint and its error are both linked to the control, error first", async ({ page }) => {
+  // #615 — the SMTP From address has a hint, and the save action names it
+  // when the address is refused.
+  await page.goto("/settings/reminders");
+  const from = page.locator("#smtpFrom");
+  const hint = page.locator("#smtpFrom-hint");
+  await expect(hint).toHaveText("Blank sends as the username, if it's an email address");
+  await expect(from).toHaveAttribute("aria-describedby", "smtpFrom-hint");
+  await expect(from).toHaveAccessibleDescription("Blank sends as the username, if it's an email address");
+  // A field without a hint references nothing.
+  await expect(page.locator("#smtpHost")).not.toHaveAttribute("aria-describedby", /./);
+
+  await from.fill("no-reply@localhost");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  const fromField = page.locator("[data-field]", { has: from });
+  const alert = fromField.getByRole("alert");
+  await expect(alert).toContainText("real domain");
+  await expect(alert).toHaveText(/^Error: /);
+  await expect(from).toHaveAttribute("aria-invalid", "true");
+  const errorId = await alert.getAttribute("id");
+  expect(errorId).toBeTruthy();
+  await expect(from).toHaveAttribute("aria-describedby", `${errorId} smtpFrom-hint`);
+  await expect(from).toHaveAccessibleDescription(/^Error: .*real domain.*Blank sends as the username/);
+});
