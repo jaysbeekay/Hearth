@@ -97,7 +97,7 @@ export function SnoozeButton({
                 name="days"
                 value={preset.days}
                 disabled={pending}
-                className={`${buttonClass("secondary")} disabled:opacity-50`}
+                className={buttonClass("secondary")}
               >
                 {preset.label}
               </button>
@@ -114,7 +114,7 @@ export function SnoozeButton({
               <button
                 type="submit"
                 disabled={pending}
-                className={`${buttonClass("primary")} disabled:opacity-50`}
+                className={buttonClass("primary")}
               >
                 Snooze until date
               </button>
@@ -130,7 +130,7 @@ export function SnoozeButton({
               type="button"
               onClick={close}
               disabled={pending}
-              className={`${buttonClass("quiet")} disabled:opacity-50`}
+              className={buttonClass("quiet")}
             >
               Cancel
             </button>
@@ -192,7 +192,7 @@ export function SnoozedNotice({
             void unsnooze();
           }}
           disabled={pending}
-          className={`${buttonClass("secondary")} disabled:opacity-50`}
+          className={buttonClass("secondary")}
         >
           {pending ? "Working…" : "Unsnooze"}
         </button>
