@@ -1786,7 +1786,7 @@ test("standalone Renew keeps the current Term as history and pre-fills the next 
   // No start date to measure from, so a year from the day after the end date.
   await expect(page.locator('input[name="startDate"]')).toHaveValue("2099-07-01");
   await expect(page.locator('input[name="endDate"]')).toHaveValue("2100-06-30");
-  await expect(page.locator('input[name="cost"]')).toHaveValue("89");
+  await expect(page.locator('input[name="cost"]')).toHaveValue("89.00");
   await page.locator('input[name="cost"]').fill("95");
   await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
   await expect(page.locator("#standalone-status")).toContainText("Saved");
