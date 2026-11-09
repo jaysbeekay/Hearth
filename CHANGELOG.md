@@ -20,6 +20,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   warranty card that was left open, and deleting a conversation. Households that had
   already saved an assistant provider are switched on by the migration, so
   nothing changes for them.
+- **Assistant side panel.** With the assistant on, wide windows (1280px and
+  up) get a slim rail on the right of every page; it opens the assistant as
+  a docked panel beside whatever you're looking at, the same chat as the
+  Assistant page (streaming, your private chat history, confirm-before-write
+  cards). The conversation stays put as you move between pages, and each
+  browser remembers whether the panel is open. Opening or closing it moves
+  keyboard focus into the panel or back to the rail, chat errors are
+  announced to screen readers (on the Assistant page too), and a different
+  account signing in on the same browser starts with a fresh panel. Phones
+  and narrower windows keep using the Assistant page.
 
 - **Search finds Documents of every record type by their contents (#398).**
   Documents on Service records, Maintenance records, Trip segments, Rental
@@ -427,6 +437,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   file could neither be previewed nor downloaded. The name is now sent as
   UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox, Item and
   share link routes.
+
+- **Every record page names itself in the browser tab (#558).** About 30
+  pages (record detail, edit, renew and add pages for Contracts, Warranties,
+  Travel, Vehicles, Properties and Items) fell back to a bare "Hearth"
+  title, failing WCAG 2.4.2. They now read like "Netflix · Contracts ·
+  Hearth", "Edit Netflix · Hearth" or "Add a contract · Hearth", matching
+  each page's heading. A record in a turned-off module gets the generic
+  title, so the tab never shows what the page itself won't. A unit test
+  fails if a new page under `(app)` ships without a title.
 
 - **Form fields, secondary buttons and filter chips have a visible edge
   (#558).** Their border used the same faint `--border` as card edges and

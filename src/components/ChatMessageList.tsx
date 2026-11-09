@@ -26,10 +26,13 @@ export function ChatMessageList({
   toolStatus: string | null;
   onActionResolved: (messageId: string, actionId: string, result: { success: boolean; message: string }) => void;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
+  // Scrolls this list only: scrollIntoView would also scroll the page behind
+  // the side panel.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = listRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [messages, toolStatus]);
 
   if (messages.length === 0) {
@@ -41,7 +44,7 @@ export function ChatMessageList({
   }
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-4">
+    <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto p-4">
       {messages.map((message) => (
         <div
           key={message.id}
@@ -74,7 +77,6 @@ export function ChatMessageList({
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 }

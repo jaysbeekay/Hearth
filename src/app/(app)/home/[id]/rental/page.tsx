@@ -28,6 +28,7 @@ import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
 
 function reconcile(
   periodStart: Date | null,
@@ -72,6 +73,12 @@ function findActiveAgreement(
         (!a.leaseEnd || a.leaseEnd >= refDate),
     ) ?? agreements[0]
   );
+}
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("property", id, (name) => `Tenancy · ${name}`, "Tenancy");
 }
 
 export default async function RentalOverviewPage({
