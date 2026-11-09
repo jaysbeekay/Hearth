@@ -70,15 +70,29 @@ export function findLabeledValue(
 }
 
 // An amount after a currency sign or code: "$1,234.56", "€1.234,56",
-// "R 1 234,56", "¥12,000", "AUD 5101.00". The number is either grouped in
-// threes by one consistent thousands separator (comma, dot, space, or a thin /
-// non-breaking space), with an optional decimal part, or a plain digit run with
-// an optional decimal part. "R" only counts when a digit follows it (after an
-// optional space), and the amount mustn't run on into more digits.
+// "R 1 234,56", "¥12,000", "AUD 5101.00". The sign and number are on one line,
+// and the number takes one of three forms:
+// - grouped in threes by one consistent comma, dot, non-breaking space or thin
+//   space, with an optional decimal part;
+// - grouped in threes by plain spaces, but only with a decimal part or at the
+//   end of the line / before punctuation, so "$50 100 items" reads as 50;
+// - a plain digit run with an optional decimal part.
+// "R" only counts when a digit follows it (after an optional space), and the
+// amount mustn't run on into more digits.
 const AMOUNT_PATTERN =
-  /(\b(?:AUD|USD|NZD|GBP|EUR|JPY|ZAR)|[$£€¥]|\bR(?=\s?\d))\s*(\d{1,3}([,.    ])\d{3}(?:\3\d{3})*(?:(?!\3)[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d)/g;
+  /(\b(?:AUD|USD|NZD|GBP|EUR|JPY|ZAR)|[$£€¥]|\bR(?=[^\S\r\n]?\d))[^\S\r\n]*(\d{1,3}([,.\u00A0\u2009\u202F])\d{3}(?:\3\d{3})*(?:(?!\3)[.,]\d+)?|\d{1,3} \d{3}(?: \d{3})*(?:[.,]\d+|(?=[^\S\r\n]*(?:[\r\n]|$|[^\w\s])))|\d+(?:[.,]\d+)?)(?!\d)/g;
 
-const SPACES = /[    ]/g;
+const SPACES = /[ \u00A0\u2009\u202F]/g;
+
+// An amount cut short by a malformed grouping ("$1.234.56", "$12,34,567").
+const MALFORMED_TAIL = /[.,]\d/y;
+// "R2D2", "R2 D2": a reference, not an amount in rand.
+const REFERENCE_TAIL = /[A-Za-z]|[^\S\r\n]?[A-Za-z]\d/y;
+
+function followedBy(pattern: RegExp, text: string, at: number): boolean {
+  pattern.lastIndex = at;
+  return pattern.test(text);
+}
 
 // Turns a matched number into a plain decimal string ("1.234,56" → "1234.56").
 // With both "." and "," the last one is the decimal separator. With one kind
@@ -96,7 +110,9 @@ function normaliseNumber(raw: string, wholeUnitsOnly: boolean): string {
     fraction = digits.slice(decimalAt + 1);
   } else if (lastDot >= 0 || lastComma >= 0) {
     const parts = digits.split(/[.,]/);
-    const grouped = parts.length > 2 || (parts[0].length <= 3 && parts[1].length === 3);
+    // "0.500" is a decimal: a thousands group never follows a lone 0.
+    const grouped =
+      parts.length > 2 || (parts[0] !== "0" && parts[0].length <= 3 && parts[1].length === 3);
     if (grouped) {
       whole = parts.join("");
     } else {
@@ -112,16 +128,23 @@ function normaliseNumber(raw: string, wholeUnitsOnly: boolean): string {
 }
 
 // The first currency-marked amount in the text, as a plain decimal string
-// ("Total €1.234,56" → "1234.56"), or undefined if there isn't one. A
-// reference like "R2D2" isn't read: an "R" amount mustn't run on into letters.
+// ("Total €1.234,56" → "1234.56"), or undefined if there isn't one. An "R"
+// amount is only used when nothing else in the text is an amount ("Unit R2
+// total $500" → 500), and never when it looks like a reference ("R2D2", "R2
+// D2") or starts with a 0 ("R 0412 345 678"). A malformed grouping
+// ("$1.234.56") is skipped rather than read as its first part.
 export function parseAmount(text: string): string | undefined {
+  let randAmount: string | undefined;
   for (const match of text.matchAll(AMOUNT_PATTERN)) {
     const prefix = match[1];
+    const number = match[2];
     const end = (match.index ?? 0) + match[0].length;
-    if (prefix === "R" && /^[A-Za-z]/.test(text.slice(end))) continue;
-    return normaliseNumber(match[2], prefix === "¥" || prefix === "JPY");
+    if (followedBy(MALFORMED_TAIL, text, end)) continue;
+    if (prefix !== "R") return normaliseNumber(number, prefix === "¥" || prefix === "JPY");
+    if (randAmount !== undefined || /^0\d/.test(number) || followedBy(REFERENCE_TAIL, text, end)) continue;
+    randAmount = normaliseNumber(number, false);
   }
-  return undefined;
+  return randAmount;
 }
 
 // The first amount on a line matching `labels` ("Weekly rent £1,200.00").
