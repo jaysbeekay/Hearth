@@ -16,6 +16,7 @@ import { formToContractInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { logExtractionConfirmedFromForm } from "@/lib/documents/extractionAudit";
 import {
   saveExtractionReviewFieldsFromForm,
   contractReviewCorrectionsFromForm,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/commands/contracts";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { issueState } from "@/lib/validation/issues";
+import { ASSISTANT_OFF_MESSAGE, isAssistantEnabled } from "@/lib/assistant/enablement";
 
 export type ActionState = {
   error?: string;
@@ -127,6 +129,7 @@ export async function createContract(
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
   }
   await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
+  await logExtractionConfirmedFromForm("CONTRACT", contract.id, user.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (file instanceof File && file.size > 0) {
@@ -177,6 +180,7 @@ export async function updateContract(
       user.id,
     );
     await saveExtractionReviewFieldsFromForm("CONTRACT", contractId, formData);
+    await logExtractionConfirmedFromForm("CONTRACT", contractId, user.id, formData);
   } catch (error) {
     // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
@@ -313,6 +317,8 @@ export async function createContractFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
+  // A confirm card left open after an admin turned the assistant off.
+  if (!(await isAssistantEnabled())) return { success: false, error: ASSISTANT_OFF_MESSAGE };
 
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
@@ -330,6 +336,8 @@ export async function updateContractFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
+  // A confirm card left open after an admin turned the assistant off.
+  if (!(await isAssistantEnabled())) return { success: false, error: ASSISTANT_OFF_MESSAGE };
 
   // Only the fields the Assistant named are written (#420); the rest of the
   // record stays as it is. `data` comes back from the client, so it's

@@ -44,6 +44,12 @@ import { buttonClass, menuItemClass, cardClass, inlineLinkClass, sectionHeadingC
 import { Banner } from "@/components/ui/Banner";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, detailTitle("contract"), "Contract");
+}
 
 export default async function ContractDetailPage({
   params,
@@ -426,7 +432,6 @@ export default async function ContractDetailPage({
         updatedByName={contract.updatedBy?.name}
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
-        extractionConfirmedAt={contract.extractionConfirmedAt}
         memberCount={memberCount}
       />
     </PageShell>

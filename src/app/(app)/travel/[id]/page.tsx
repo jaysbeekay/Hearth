@@ -33,12 +33,19 @@ import { buttonClass, menuItemClass, emptyStateClass, cardClass, sectionHeadingC
 import { Pill } from "@/components/ui/Pill";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
   LODGING: BedDouble,
   ACTIVITY: Ticket,
 };
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("trip", id, detailTitle("trip"), "Trip");
+}
 
 export default async function TripDetailPage({
   params,

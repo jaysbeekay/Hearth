@@ -4,6 +4,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
 import { isCurrencyCode } from "@/lib/currencyCodes";
 import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay, type DueContext } from "@/lib/duePolicy";
+import { envSmtpFromFallback, resolveSmtpFrom } from "@/lib/smtpFrom";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -121,7 +122,7 @@ export async function getSmtpConfig() {
       "smtp.secure": String(env.smtp.secure),
       "smtp.user": env.smtp.user,
       "smtp.password": env.smtp.pass,
-      "smtp.from": env.smtp.from,
+      "smtp.from": envSmtpFromFallback(env.smtp.from),
     },
   );
   return {
@@ -130,7 +131,12 @@ export async function getSmtpConfig() {
     secure: s["smtp.secure"] === "true",
     user: s["smtp.user"],
     pass: s["smtp.password"],
-    from: s["smtp.from"] || "Hearth <no-reply@localhost>",
+    // What an admin entered (shown in Settings) and what is actually sent.
+    configuredFrom: s["smtp.from"],
+    // Last resort: SMTP_FROM from .env even when unqualified (left out of the
+    // form above), which a lenient relay may still accept. Sending with no
+    // From at all never works.
+    from: resolveSmtpFrom(s["smtp.from"], s["smtp.user"]) || env.smtp.from.trim(),
   };
 }
 

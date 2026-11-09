@@ -19,6 +19,8 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
   LOGIN_FAILED: "Failed sign-in",
   LOGIN_THROTTLED: "Sign-in throttled",
   PASSWORD_CHANGED: "Password changed",
+  PASSWORD_RESET_REQUESTED: "Password reset requested",
+  PASSWORD_RESET_EMAIL_FAILED: "Password reset email failed to send",
   PASSWORD_RESET_COMPLETED: "Password reset completed",
   TOTP_DISABLED: "Two-factor authentication disabled",
   ROLE_CHANGED: "Role changed",
@@ -27,6 +29,7 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
   MCP_THROTTLED: "MCP requests throttled",
   DOCUMENT_SHARE_LINK_CREATED: "Document shared by link",
   DOCUMENT_SHARE_LINK_REVOKED: "Share link revoked",
+  AUTOFILL_CONFIRMED: "Auto-filled details confirmed",
 };
 
 // Events a household member should notice, not just an admin auditing the
@@ -36,7 +39,26 @@ const CONCERNING_EVENTS = new Set<SecurityEventType>([
   "LOGIN_THROTTLED",
   "MCP_AUTH_FAILED",
   "MCP_THROTTLED",
+  "PASSWORD_RESET_EMAIL_FAILED",
 ]);
+
+// Auto-fill confirmations get their own 100-entry window, so a busy Quick
+// check or Import can't push sign-in and role events out of view.
+async function recentEvents() {
+  const [security, audit] = await Promise.all([
+    prisma.securityEventLog.findMany({
+      where: { type: { not: "AUTOFILL_CONFIRMED" } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.securityEventLog.findMany({
+      where: { type: "AUTOFILL_CONFIRMED" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+  ]);
+  return [...security, ...audit].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
 
 export default async function SecurityLogPage() {
   const session = await auth();
@@ -45,7 +67,7 @@ export default async function SecurityLogPage() {
   }
 
   const [events, { dateFormat, displayTimeZone }, shareLinks] = await Promise.all([
-    prisma.securityEventLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    recentEvents(),
     getUserPreferences(),
     listActiveShareLinks(),
   ]);
@@ -55,9 +77,10 @@ export default async function SecurityLogPage() {
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
-        Auth-relevant events across the household — failed and throttled sign-ins and MCP
-        requests, password and role changes, two-factor disablement, account removal, and Documents shared by
-        link. The most recent 100 events.
+        Security and audit events across the household — failed and throttled sign-ins and MCP
+        requests, password reset requests and email failures, password and role changes, two-factor
+        disablement, account removal, Documents shared by link, and who confirmed a record&apos;s
+        auto-filled details. The most recent 100 security events and 100 auto-fill confirmations.
       </p>
 
       {/* #374 — links that open a Document without signing in, until they expire. */}
@@ -99,7 +122,7 @@ export default async function SecurityLogPage() {
                   >
                     {EVENT_LABELS[event.type]}
                   </p>
-                  <p className="truncate text-xs text-muted">
+                  <p className="break-words text-xs text-muted">
                     {event.email ?? (event.userId ? `user ${event.userId}` : "—")}
                     {event.detail ? ` · ${event.detail}` : ""}
                   </p>
