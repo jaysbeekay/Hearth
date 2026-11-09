@@ -461,6 +461,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   field outside it no longer pulls focus back to the menu's button, so the
   field you clicked keeps it.
 
+- **Money amounts keep two decimals in edit forms (#601).** A saved 510.10 came
+  back as 510.1 because amounts are stored as numbers. Edit and Renew forms,
+  trade fees, the scan's "Needs review" panel and Quick check, web and
+  standalone app, now show it as 510.10. Zero-decimal currencies stay whole
+  (JPY 50000) and three-decimal ones get three (KWD 1.500). This is display
+  only and never rounds: an amount with more decimals than its currency
+  (12.345 in AUD) is shown as stored, so saving a form untouched never changes
+  a stored amount.
+- **Document scans read amounts without a thousands comma (#601).** "$5101.00"
+  was read as 510. Rental-statement amounts with a comma ("$2,600.00") no
+  longer come back blank, and a labelled line's money is preferred over a
+  statement number, account number or date on the same line ("Rental
+  Statement #20241108" isn't read as the rent).
+
 - **PDF preview is no longer blank in Safari (#599).** The eye button's preview
   framed the PDF over a `blob:` URL, which inherits the app's CSP; Safari
   checks its PDF viewer against that CSP's `object-src 'none'` and drew

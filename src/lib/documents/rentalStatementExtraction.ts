@@ -31,17 +31,29 @@ const FIELD_KEYS = [
   "netAmount",
 ] as const;
 
-const AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
+// An amount after a currency sign or code: "$2,600.00", "AUD 2600".
+const CURRENCY_AMOUNT_PATTERN = /(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
+// A bare amount must have cents ("2600.00"), so a statement number, account
+// number or date on the labelled line isn't read as money.
+const DECIMAL_AMOUNT_PATTERN = /(?<![\d.,])((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})(?![\d.])/;
 
-function heuristicExtract(text: string): ExtractedRentalStatementFields {
+// Strip thousands commas ("2,600.00" → "2600.00"): the form's number inputs
+// would otherwise blank the value out.
+function labeledAmount(text: string, label: RegExp): string | undefined {
+  const value =
+    findLabeledValue(text, label, CURRENCY_AMOUNT_PATTERN) ?? findLabeledValue(text, label, DECIMAL_AMOUNT_PATTERN);
+  return value?.replace(/,/g, "");
+}
+
+export function heuristicExtract(text: string): ExtractedRentalStatementFields {
   return {
     statementDate: findLabeledDate(text, /(statement date|invoice date|date|issued)/i),
     periodStart: findLabeledDate(text, /(period (from|start)|from|rental period start)/i),
     periodEnd: findLabeledDate(text, /(period (to|end)|to|rental period end)/i),
-    grossRent: findLabeledValue(text, /(gross rent|rent received|rental income|rent)/i, AMOUNT_PATTERN),
-    managementFee: findLabeledValue(text, /(management fee|mgmt fee|management commission)/i, AMOUNT_PATTERN),
-    otherDeductions: findLabeledValue(text, /(other deductions?|deductions?|repairs?|water|council)/i, AMOUNT_PATTERN),
-    netAmount: findLabeledValue(text, /(net (amount|proceeds|remittance)|amount (payable|remitted)|total payable)/i, AMOUNT_PATTERN) ?? findCost(text),
+    grossRent: labeledAmount(text, /(gross rent|rent received|rental income|\brent\b)/i),
+    managementFee: labeledAmount(text, /(management fee|mgmt fee|management commission)/i),
+    otherDeductions: labeledAmount(text, /(other deductions?|deductions?|repairs?|water|council)/i),
+    netAmount: labeledAmount(text, /(net (amount|proceeds|remittance)|amount (payable|remitted)|total payable)/i) ?? findCost(text),
   };
 }
 

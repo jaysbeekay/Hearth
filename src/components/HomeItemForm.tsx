@@ -9,7 +9,7 @@ import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { HOME_ITEM_TYPES } from "@/lib/validation/home";
-import { HOME_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { HOME_ITEM_TYPE_LABELS, moneyInputValue } from "@/lib/utils";
 import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -184,7 +184,7 @@ export function HomeItemForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.cost ?? item?.cost ?? ""}
+            defaultValue={state?.values?.cost ?? moneyInputValue(item?.cost, item?.currency)}
             className={inputClass}
           />
         </Field>
