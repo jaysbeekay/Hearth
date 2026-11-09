@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Settings, ScrollText, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { navCurrent } from "@/lib/navCurrent";
 import { SignOutButton } from "@/components/SignOutButton";
 import { FOOTER_NAV } from "@/components/nav-items";
 import { accountCurrentClass, avatarClass, menuItemClass, overlayClass } from "@/lib/ui";
@@ -114,7 +115,7 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
           <Link
             href={settings.href}
             onClick={close}
-            aria-current={settingsActive ? "page" : undefined}
+            aria-current={navCurrent(settings.href, pathname)}
             className={menuItemClass({}, settingsActive ? accountCurrentClass : undefined)}
           >
             <Settings size={16} className={settingsActive ? undefined : "text-muted"} />

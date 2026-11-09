@@ -20,6 +20,7 @@ import { createProductCommand } from "@/lib/commands/products";
 import { createInventoryItemCommand } from "@/lib/commands/inventory";
 import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { logExtractionConfirmedFromForm } from "@/lib/documents/extractionAudit";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
 import { issueState } from "@/lib/validation/issues";
@@ -73,6 +74,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
     throw error;
   }
   await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
+  await logExtractionConfirmedFromForm("CONTRACT", contract.id, user.id, formData);
 
   if (file instanceof File && file.size > 0) {
     await addDocumentCommand("CONTRACT", contract.id, {
@@ -105,6 +107,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
     throw error;
   }
   await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
+  await logExtractionConfirmedFromForm("PRODUCT", product.id, user.id, formData);
 
   if (file instanceof File && file.size > 0) {
     await addDocumentCommand("PRODUCT", product.id, {

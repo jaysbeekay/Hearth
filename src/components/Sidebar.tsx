@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Flame, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { navCurrent } from "@/lib/navCurrent";
 import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { AccountMenu } from "@/components/AccountMenu";
-import { accountCurrentClass, buttonClass } from "@/lib/ui";
+import { accountCurrentClass, buttonClass, sidebarActiveClass } from "@/lib/ui";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 
@@ -39,7 +40,7 @@ export function Sidebar({
   // Pinned to the viewport, so the account menu stays at the bottom-left
   // however long the page is; z-30 keeps its popover above the page.
   return (
-    <aside className="sticky top-0 z-30 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
+    <aside aria-label="Sidebar" className="sticky top-0 z-30 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-4">
         <Flame size={20} className="text-accent" />
         <span className="text-xl font-medium">Hearth</span>
@@ -64,10 +65,11 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={navCurrent(href, pathname)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -86,10 +88,11 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={navCurrent(href, pathname)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -109,11 +112,12 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              aria-current={navCurrent(href, pathname)}
               aria-label={documents ? inboxLinkLabel(label, inboxCount) : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-accent/10 text-accent"
+                  ? sidebarActiveClass
                   : "text-muted hover:bg-hover",
               )}
             >
@@ -132,7 +136,7 @@ export function Sidebar({
         <Link
           href={FOOTER_NAV.help.href}
           aria-label={FOOTER_NAV.help.label}
-          aria-current={helpActive ? "page" : undefined}
+          aria-current={navCurrent(FOOTER_NAV.help.href, pathname)}
           className={buttonClass("quiet", { icon: true }, helpActive ? accountCurrentClass : "text-muted")}
         >
           <HelpCircle size={20} />

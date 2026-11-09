@@ -155,7 +155,7 @@ const HIT_AREA_BORDERED = "before:-inset-[5px]";
 
 const BUTTON_VARIANT = new Map<ButtonVariant, string>([
   ["primary", `${HIT_AREA} bg-accent text-accent-foreground hover:bg-accent/90`],
-  ["secondary", `${HIT_AREA_BORDERED} border border-border bg-surface hover:bg-hover-surface`],
+  ["secondary", `${HIT_AREA_BORDERED} border border-border-control bg-surface hover:bg-hover-surface`],
   ["quiet", `${HIT_AREA} hover:bg-hover`],
   ["danger", `${HIT_AREA} bg-danger text-danger-foreground hover:bg-danger/90`],
 ]);
@@ -199,7 +199,7 @@ export function chipClass(active: boolean, className?: string) {
       BUTTON_BASE,
       HIT_AREA_BORDERED,
       "border",
-      active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
+      active ? "border-accent bg-accent/10 text-accent" : "border-border-control bg-surface text-muted hover:bg-hover-surface",
     ),
     className,
   );
@@ -255,7 +255,7 @@ const INPUT_SHAPE =
  * The one input / select / textarea look: 36px tall, rounded-lg, 1px border.
  * The border turns danger while FormMessage marks the field invalid (#406).
  */
-export const inputClass = cn(INPUT_SHAPE, "border-border bg-background aria-invalid:border-danger");
+export const inputClass = cn(INPUT_SHAPE, "border-border-control bg-background aria-invalid:border-danger");
 
 /**
  * #406 — a field on an Import / Inbox review row: the input look, tinted
@@ -264,7 +264,7 @@ export const inputClass = cn(INPUT_SHAPE, "border-border bg-background aria-inva
  */
 export function reviewFieldClass(fill: "none" | "extracted" | "ai" = "none") {
   if (fill === "ai") return cn(INPUT_SHAPE, "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60");
-  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent/40 bg-accent/5 ring-1 ring-accent/40");
+  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent bg-accent/5 ring-1 ring-accent/40");
   return inputClass;
 }
 
@@ -273,7 +273,7 @@ export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-60";
+  "w-full rounded-lg border border-border-control bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-60";
 
 // ── Page widths ─────────────────────────────────────────────────────────
 
@@ -290,6 +290,23 @@ const PAGE_WIDTH = new Map<PageWidth, string>([
 export function pageShellClass(width: PageWidth, className?: string) {
   return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
+
+// ── Navigation ──────────────────────────────────────────────────────────
+
+// The current nav entry is marked by a bar as well as the accent colour:
+// accent and muted text differ in hue alone (about 1.0:1), so colour can't
+// be the only cue (WCAG 1.4.1, #558). Pair it with aria-current="page".
+const NAV_BAR = "relative before:absolute before:rounded-full before:bg-accent before:content-['']";
+
+/** The current entry in the sidebar: a tint and a bar down its left edge. */
+export const sidebarActiveClass = `${NAV_BAR} bg-accent/10 text-accent before:inset-y-2 before:left-0 before:w-0.5`;
+
+/** The current tab in the phone tab bar or its More sheet: a bar along its top edge. */
+export const tabActiveClass = `${NAV_BAR} text-accent before:inset-x-3 before:top-0 before:h-0.5`;
+
+// A settings form's Test button on the left and Save on the right, with the
+// test's result on a full-width row beneath (TestConnectionButton inRow).
+export const settingsActionRowClass = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2";
 
 // ── Links ───────────────────────────────────────────────────────────────
 

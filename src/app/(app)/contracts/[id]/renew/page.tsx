@@ -12,6 +12,12 @@ import { billingFrequencyText, formatTermCost, nextTermDates, pickTermDocument }
 import { formatDate } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, (name) => `Renew ${name}`, "Renew contract");
+}
 
 // #353 — Renew: adds the Contract's next Term and keeps the current one as
 // history. Reached from the detail page's header, its Due banner and Needs

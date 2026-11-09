@@ -41,6 +41,7 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/contracts", "Contracts"],
   ["/products", "Warranties"],
   ["/travel", "Travel"],
+  ["/inventory", "Inventory"],
   ["/home", "Properties"],
   ["/vehicles", "Vehicles"],
   ["/wealth", "Wealth"],
@@ -52,8 +53,10 @@ const TOP_LEVEL: Array<[string, string]> = [
 ];
 
 // Settings lives in the account menu, behind the sidebar's avatar button.
+// The sidebar is named: with the assistant panel open there's a second
+// complementary landmark (and a third on /assistant).
 async function sidebarLink(page: Page, label: string) {
-  const sidebar = page.getByRole("complementary");
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
   if (label === "Settings") {
     const account = sidebar.getByRole("button", { name: /account menu$/ });
     if ((await account.getAttribute("aria-expanded")) !== "true") await account.click();
@@ -70,7 +73,7 @@ test("all nav items appear together on one page", async ({ page }) => {
 
 test("account menu: Escape returns focus to the avatar, a click on a field keeps it there", async ({ page }) => {
   await page.goto("/contracts/new");
-  const account = page.getByRole("complementary").getByRole("button", { name: /account menu$/ });
+  const account = page.getByRole("complementary", { name: "Sidebar" }).getByRole("button", { name: /account menu$/ });
   await account.click();
   await expect(page.getByRole("dialog", { name: "Account" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -89,7 +92,7 @@ async function barWidth(locator: Locator) {
 }
 
 test("account footer: the current entry has aria-current and a bar, not just colour", async ({ page }) => {
-  const sidebar = page.getByRole("complementary");
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
   const account = sidebar.getByRole("button", { name: /account menu$/ });
   const help = sidebar.getByRole("link", { name: "Help", exact: true });
 
