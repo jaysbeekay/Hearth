@@ -5,7 +5,6 @@ import { generateIcalToken, revokeIcalToken, type IcalActionState } from "@/lib/
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buttonClass, cardClass, inputClass, sectionHeadingClass } from "@/lib/ui";
-import { useHasMounted } from "@/lib/useHasMounted";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -35,8 +34,6 @@ export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
     null,
   );
   const inputRef = useRef<HTMLInputElement>(null);
-  // Like SubmitButton: no native submit before hydration (#609).
-  const hydrated = useHasMounted();
 
   const justGenerated = genState?.token
     ? `${appUrl}/api/ical?token=${genState.token}`
@@ -101,9 +98,9 @@ export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
           </form>
           {active && (
             <form action={revokeAction}>
-              <button type="submit" disabled={!hydrated} className={buttonClass("secondary", { destructive: true })}>
+              <SubmitButton variant="secondary" destructive pendingText="Revoking…">
                 Revoke feed
-              </button>
+              </SubmitButton>
             </form>
           )}
         </div>

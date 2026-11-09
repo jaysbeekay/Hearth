@@ -21,9 +21,10 @@ export function SubmitButton({
   const { pending } = useFormStatus();
   // Before hydration a click submits the form natively. That POST carries
   // `Origin: null` (the app sends Referrer-Policy: no-referrer), so Next
-  // rejects the server action and the click is lost; and a useActionState
-  // result, like the calendar feed's one-time URL, could never be shown by
-  // a native submit anyway (#609). Enabled once React handles the click.
+  // rejects the server action and the click is lost: on the calendar feed,
+  // the one-time URL never appeared (#609). Enabled once React handles the
+  // click. tests/unit/ui-rules.test.ts keeps other submit buttons from
+  // skipping this guard.
   const hydrated = useHasMounted();
 
   return (
