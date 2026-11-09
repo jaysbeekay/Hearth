@@ -685,6 +685,14 @@ test("standalone shell exposes baseline modules and tools from More", async ({ p
   for (const recordType of ["vehicles", "properties", "inventoryItems", "trips", "portfolios"]) {
     await expect(page.locator(`#mobile-view button[data-record-type="${recordType}"]`)).toBeVisible();
   }
+  // Modules are listed A-Z, matching the web nav (#597).
+  await expect(page.locator("#mobile-view button[data-record-type] h3")).toHaveText([
+    "Inventory",
+    "Properties",
+    "Travel",
+    "Vehicles",
+    "Wealth",
+  ]);
 
   for (const nav of ["search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"]) {
     await expect(page.locator(`#mobile-view button[data-nav="${nav}"]`)).toBeVisible();
