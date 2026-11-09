@@ -1,5 +1,5 @@
 ---
-name: Hearth
+name: hearth
 description: Working conventions for the Hearth repo. Use before writing, fixing, testing or reviewing code in Hearth.
 ---
 

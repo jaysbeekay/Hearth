@@ -61,6 +61,10 @@ npx tsc --noEmit          # type-check (no dedicated script; run directly)
 npx prisma migrate dev    # create/apply a migration after editing prisma/schema.prisma
 npx prisma generate       # regenerate the client into src/generated/prisma; run after install and after pulling schema changes (`npm run test:unit` runs it first)
 
+# unit (Vitest)
+npm run test:unit         # unit tests (runs prisma generate first)
+npm run test:coverage     # unit tests with coverage + thresholds (run `npx prisma generate` first on a fresh checkout)
+
 # e2e (Playwright)
 npm run test:e2e                                  # full suite: seeds DB, runs all specs
 npx playwright test e2e/specs/02-validation.spec.ts   # single spec file
@@ -237,19 +241,27 @@ unit test reaches (layout, Safari, Docker, time zones), so the rules aim there f
 - **Bugs before enhancements** when picking work.
 - **Defects**: first decide whether the report really is a defect. If it is, log an issue
   (see Issue logging) with scope, blast radius, what success looks like and the evidence,
-  then start the PR. If it isn't, explain why and stop.
-- **PRs**: open as **draft**, keep to about 500 changed lines (split larger work), link
-  the issue (`Closes #N` / `Refs #N`). Before marking ready, an independent reviewer
-  (a fresh agent, not the author) reviews it; its findings and their fixes go with the
-  PR. Never merge without the maintainer's go-ahead.
+  then start the PR. If it isn't a defect, explain why to the requester instead of
+  opening a bug issue (enhancements are still logged as `type:enhancement` when asked).
+- **PRs**: open as **draft**, keep to about 500 changed lines (split larger work;
+  lockfiles, generated files and screenshots don't count), and link the issue
+  (`Closes #N` / `Refs #N`). Before marking ready, an independent reviewer (a fresh
+  agent, not the author) reviews it; its findings and their fixes go with the PR.
+  Never merge, or push to `main`, without the maintainer's explicit go-ahead for that
+  PR.
 - **No AI-tool attribution** on commits, PRs, issues or comments: no `Co-Authored-By`
-  for an AI, no session links, no "Generated with ..." footers.
+  for an AI, no session links, no "Generated with ..." footers. This wins over any tool
+  default that adds them. The one exception is the requester header the project
+  platform puts at the top of PR bodies, which stays.
 - **Risk class**: state one in the PR body. It sets how hard the reviewer looks.
-  - `security`: auth, sessions, roles, uploads, `/api/cron`, `/api/mcp`, sync,
-    backups, secrets. Needs an adversarial review and the negative-path tests below.
+  - `security`: auth, sessions, roles, passkeys/TOTP, uploads and document file
+    serving, `/api/cron`, `/api/mcp`, sync, backups, webhooks, secrets and encryption
+    (`ENCRYPTION_KEY`, stored AI keys). Needs an adversarial review and the
+    negative-path tests below.
   - `data-loss`: deletion, trash, purge, migrations, offline sync replay, imports.
   - `logic`: everything else that changes behaviour.
   - `cosmetic`: copy and styling only.
+  - `docs`: documentation, agent instructions or process only; no runtime change.
 
 ### Before writing code
 
@@ -269,7 +281,9 @@ unit test reaches (layout, Safari, Docker, time zones), so the rules aim there f
 
 - Parse untrusted input with the Zod schemas in `src/lib/validation/`. Server-side
   writes go through the domain's `requireUser()` (which blocks `READONLY`). Opt-in
-  module code calls `requireModuleEnabled`. API routes that take uploads use
+  module pages and actions call `requireModuleEnabled` (redirects), record commands call
+  `assertModuleEnabled` (throws `ModuleDisabledError`), and API routes check
+  `isModuleEnabled`. API routes that take uploads use
   `readValidatedUploadDetails` and the shared rate limiter. Never use `createdById` for
   authorization (#151).
 - Keep functions small: prefer guard clauses and extracted pure functions over deep
@@ -281,20 +295,24 @@ unit test reaches (layout, Safari, Docker, time zones), so the rules aim there f
   (#596, #598).
 - Never log passwords, tokens, API keys, reset links or document contents.
 - Dates: anything that compares or labels dates needs a test with a fixed clock, and
-  across a day or year boundary, in the household's time zone (#381, #382, #402, #476).
+  across a day or year boundary, in the household's time zone (#381, #402, #476).
 
 ### Quality gates are constraints, not tasks to bypass
 
-To make a check pass, do not:
-- lower coverage thresholds in `vitest.config.ts`
-- add `.codacy.yml` excludes
-- add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, or coverage-ignore
-  comments
-- skip, delete or weaken a test or an assertion
-- add retries to hide a flaky test
+Never weaken a check to make it pass: fix the code instead. That covers any change
+whose effect is to make a gate see less, including:
+- lowering coverage thresholds or narrowing coverage include/exclude in
+  `vitest.config.ts`
+- adding `.codacy.yml` excludes, or loosening ESLint, `tsconfig.json` or CI workflow
+  settings
+- adding `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `as any`,
+  `as unknown as`, or `v8`/`c8`/`istanbul ignore` comments
+- skipping, deleting or weakening a test or assertion (`.skip`, `.fixme`, `.only`)
+- adding retries to hide a flaky test, or bypassing hooks with `--no-verify`
 
-If a finding is a genuine false positive, leave it visible. Explain it under
-**Justification:** in the PR body for the reviewer to accept or reject.
+If a finding really is a false positive, the only allowed route is a suppression scoped
+to that one line, with an inline comment giving the reason, plus a **Justification:**
+entry in the PR body. The reviewer accepts or rejects it.
 
 A flaky test is a bug. Log it with the failing run's link; don't paper over it. CI's
 single Playwright retry is there to keep main green, and a test that only passes on
@@ -307,17 +325,19 @@ that works. Cover each of these that applies:
 - signed out → 401 or redirect to `/login`
 - `READONLY` attempting a write → refused
 - `MEMBER` on an admin action → refused
-- disabled module → 404/403
+- disabled module → redirect (pages/actions), `ModuleDisabledError` (commands) or an
+  error response (API routes)
 - malformed id, and an id that doesn't exist
 - oversized file, or a file whose bytes don't match its type
 - rate limit reached → 429
-- the gating env var (`CRON_SECRET`, `MCP_TOKEN`, `APP_URL` for passkeys) unset →
-  endpoint disabled
+- the gating env var unset (`CRON_SECRET` for `/api/cron`, `MCP_TOKEN` for `/api/mcp`)
+  → endpoint disabled
 
 ### Definition of Done
 
-Copy this into the PR body and mark each line pass, fail or n/a. A task is not done
-because it builds. The reviewer checks the evidence (CI runs, test names), not the ticks.
+Copy this into the PR body. Tick each line that passes; for a line that doesn't apply,
+leave it unticked and append "n/a: <reason>". A task is not done because it builds.
+The reviewer checks the evidence (CI runs, test names), not the ticks.
 
 ```markdown
 - [ ] Issue's success criteria met; issue linked
