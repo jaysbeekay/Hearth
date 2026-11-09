@@ -263,7 +263,6 @@ export default async function ProductDetailPage({
         updatedByName={product.updatedBy?.name}
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
-        extractionConfirmedAt={product.extractionConfirmedAt}
         memberCount={memberCount}
       />
     </PageShell>
