@@ -160,7 +160,7 @@ export default async function HouseholdSettingsPage() {
     {
       route: SETTINGS_ROUTES.security,
       icon: History,
-      summary: "Sign-ins and account changes",
+      summary: "Sign-ins, account changes and auto-fill confirmations",
       adminOnly: true,
     },
     {
