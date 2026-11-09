@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
-import { buttonClass, cardClass, inlineLinkClass } from "@/lib/ui";
+import { buttonClass, cardClass, inlineLinkClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 
@@ -12,7 +12,7 @@ export default function HelpPage() {
     <PageShell width="detail">
       <div>
         <h1 className="text-2xl font-medium">{FOOTER_NAV.help.label}</h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className={proseClass("mt-1 text-muted")}>
           Answers to common questions about using Hearth. For the full user
           manual — setup, self-hosting, and every feature in more depth —
           see the{" "}
@@ -45,7 +45,7 @@ export default function HelpPage() {
                     <span className="text-muted transition-colors group-open:rotate-45">+</span>
                   </span>
                 </summary>
-                <p className="mt-2 text-sm text-foreground">
+                <p className={proseClass("mt-2")}>
                   {splitFaqAnswer(entry.a).map((part, i) =>
                     i % 2 === 1 ? <strong key={i} className="font-medium">{part}</strong> : part,
                   )}
@@ -58,7 +58,7 @@ export default function HelpPage() {
 
       <Card as="section">
         <div className="mb-4">
-          <h2 className="font-medium">Share feedback</h2>
+          <h2 className={sectionHeadingClass()}>Share feedback</h2>
           <p className="mt-1 text-sm text-muted">
             Found a bug, or have an idea for an improvement? Report it
             directly on Hearth&apos;s GitHub repository — pick &quot;Bug

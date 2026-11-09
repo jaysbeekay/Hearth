@@ -9,6 +9,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.ingestion.label };
 
@@ -32,7 +33,7 @@ export default async function IngestionSettingsPage() {
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Email ingestion</h2>
+            <h2 className={sectionHeadingClass()}>Email ingestion</h2>
             <p className="text-xs text-muted mt-0.5">
               Forward or email a document to this mailbox and Hearth periodically checks it,
               guesses what type of document it is, and drops it in your Inbox for you to

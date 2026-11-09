@@ -12,6 +12,7 @@ import {
   reminderSummary,
   type ReminderTone,
 } from "@/lib/notifications/reminderSummary";
+import { sectionHeadingClass } from "@/lib/ui";
 
 /** One dated thing a card reports on: a record's single date, or one of a Vehicle's three. */
 export interface ReminderHealthEntry {
@@ -118,7 +119,7 @@ export function ReminderHealthCard({
       {/* #516 review — the heading and lines sit outside <summary>, which
           may only hold phrasing content; "Details" alone is the toggle. */}
       <div className="min-w-0 space-y-1">
-        <h2 className="flex items-center gap-2 font-medium">
+        <h2 className={sectionHeadingClass("flex items-center gap-2")}>
           {anyEnabled ? (
             <BellRing size={16} className="text-muted" aria-hidden />
           ) : (
