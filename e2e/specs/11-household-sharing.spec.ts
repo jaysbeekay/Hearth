@@ -117,10 +117,11 @@ test("the iCal feed covers the whole household, whichever member's token is used
 
   // Only stored as a hash, so the URL appears exactly once — right here.
   const feedInput = memberPage.locator("#calendar-feed input[readonly]");
-  // The button is disabled until the page hydrates (#609), and click() waits
-  // for it to be enabled, so this click always takes the client path that
-  // shows the URL. Click exactly once, so the test mints one token.
+  // The button is disabled until the page hydrates (#609). Once it's enabled,
+  // a click always takes the client path that shows the URL. Click exactly
+  // once, so the test mints one token.
   const createFeed = memberPage.getByRole("button", { name: /Create calendar feed|Generate new URL/i });
+  await expect(createFeed).toBeEnabled({ timeout: 30_000 });
   await createFeed.click();
   await expect(feedInput).toBeVisible();
   const feedUrl = await feedInput.inputValue();

@@ -107,6 +107,9 @@ export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
             </form>
           )}
         </div>
+        <noscript>
+          <p className="text-sm text-muted">Calendar feeds need JavaScript turned on.</p>
+        </noscript>
         <FormMessage attempt={genState} error={genState?.error} success={justGenerated ? undefined : genState?.success} />
         <FormMessage attempt={revokeState} error={revokeState?.error} success={revokeState?.success} />
       </div>

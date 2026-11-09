@@ -18,10 +18,14 @@ const { IcalTokenSection } = await import("@/components/IcalTokenSection");
 // which its typing doesn't count towards the required `children` prop.
 type SubmitButtonProps = ComponentProps<typeof SubmitButton>;
 
+// The opening <button ...> tag of the button labelled `label`, found by plain
+// text search so the label is never read as a pattern.
 function buttonTag(html: string, label: string): string {
-  const match = html.match(new RegExp(`<button[^>]*>${label}</button>`));
-  expect(match, `a "${label}" button is rendered`).not.toBeNull();
-  return match![0];
+  const end = html.indexOf(`>${label}</button>`);
+  expect(end, `a "${label}" button is rendered`).toBeGreaterThan(-1);
+  const start = html.lastIndexOf("<button", end);
+  expect(start, `a "${label}" button is rendered`).toBeGreaterThan(-1);
+  return html.slice(start, end + 1);
 }
 
 describe("SubmitButton before hydration", () => {
@@ -42,6 +46,8 @@ describe("IcalTokenSection before hydration", () => {
   it("server-renders the Create calendar feed button disabled", () => {
     const html = renderToString(createElement(IcalTokenSection, { hasToken: false, appUrl: "https://hearth.test" }));
     expect(buttonTag(html, "Create calendar feed")).toMatch(/\sdisabled=""(\s|>)/);
+    // Without JavaScript the button never enables, so say why.
+    expect(html).toContain("Calendar feeds need JavaScript turned on.");
   });
 
   it("server-renders the Generate new URL button disabled", () => {
