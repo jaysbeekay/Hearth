@@ -10,6 +10,7 @@ import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 import { extractionReviewedOnSave } from "@/lib/documents/extractionConfirmation";
+import { scannedRowType, typeSourceNote, type TypeSource } from "@/lib/documents/uploadTypeSource";
 import { buttonClass, pillClass, inputClass, inlineLinkClass, reviewFieldClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
@@ -66,6 +67,8 @@ interface Row {
   id: string;
   file: File;
   type: EntityType;
+  /** #604 — whether `type` came from the scan's guess, the fallback, or the person. */
+  typeSource: TypeSource;
   status: RowStatus;
   error?: string;
   href?: string;
@@ -241,8 +244,7 @@ export function ImportClient({
     const inv = scan?.results.INVENTORY ?? empty;
     const textUnavailable = scan?.textUnavailable === true;
     const message = (r: ScanResult) => extractionMessage(r.source, Object.keys(r.fields).length, textUnavailable);
-    const guessed = scan?.guessedType === "INVENTORY" && !inventoryEnabled ? "PRODUCT" : scan?.guessedType;
-    const type: EntityType = guessed ?? "CONTRACT";
+    const { type, typeSource } = scannedRowType(scan?.guessedType, inventoryEnabled);
     const sources = { CONTRACT: c.source, PRODUCT: p.source, INVENTORY: inv.source };
     const scanMessages = { CONTRACT: message(c), PRODUCT: message(p), INVENTORY: message(inv) };
     setRows((prev) =>
@@ -251,6 +253,7 @@ export function ImportClient({
         const next: Row = {
           ...r,
           status: "ready",
+          typeSource,
           sources,
           scanMessages,
           contract: {
@@ -306,6 +309,7 @@ export function ImportClient({
         id,
         file,
         type: "CONTRACT",
+        typeSource: "fallback",
         status: "scanning",
         source: "none",
         extractionUsed: false,
@@ -410,7 +414,7 @@ export function ImportClient({
     setRows((prev) =>
       prev.map((r) => {
         if (!r.selected || !(r.status === "ready" || r.status === "error")) return r;
-        let next = bulk.type ? withType(r, bulk.type) : r;
+        let next = bulk.type ? { ...withType(r, bulk.type), typeSource: "user" as const } : r;
         if (bulk.category) next = { ...next, contract: { ...next.contract, category: bulk.category } };
         if (bulk.link) {
           const [kind, id] = bulk.link.split(":");
@@ -610,14 +614,19 @@ export function ImportClient({
                       </span>
                     ) : (
                       <>
+                        <label htmlFor={`${row.id}-type`} className="whitespace-nowrap text-xs font-medium text-muted">
+                          File <span className="sr-only">{row.file.name}</span> as
+                        </label>
                         <select
-                          aria-label={`File ${row.file.name} as`}
+                          id={`${row.id}-type`}
                           value={row.type}
                           disabled={row.status === "scanning" || row.status === "saving"}
                           onChange={(e) => {
                             // #358 — the scan already covered every type.
                             const type = e.target.value as EntityType;
-                            setRows((prev) => prev.map((r) => (r.id === row.id ? withType(r, type) : r)));
+                            setRows((prev) =>
+                              prev.map((r) => (r.id === row.id ? { ...withType(r, type), typeSource: "user" } : r)),
+                            );
                           }}
                           className={inputClass}
                         >
@@ -644,6 +653,11 @@ export function ImportClient({
                     <Loader2 size={16} className="animate-spin" /> Scanning…
                   </p>
                 )}
+
+                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                  typeSourceNote(row.type, row.typeSource) && (
+                    <p className="mb-1 text-xs">{typeSourceNote(row.type, row.typeSource)}</p>
+                  )}
 
                 {row.scanMessage && row.status !== "scanning" && (
                   <p role="status" aria-live="polite" className="mb-2 text-xs text-muted">

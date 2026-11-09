@@ -225,6 +225,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Upload rows say whether their type was detected (#604).** Each queued
+  file on Upload documents now has a visible "File as" label beside its type
+  picker, and a note under the file name: "Detected as a contract" (or a
+  warranty, or an inventory item) when the scan guessed the type, or
+  "Couldn't tell what this is. Pick a type." when it fell back to Contract.
+  The note goes once you pick a type, on the row or through "Apply to
+  selected". Scanning, extraction and saving are unchanged.
 - **Disabled controls all dim to the same 50% (#620, #558).** Disabled
   buttons and fields were 60% from the shared classes, but 13 buttons added
   their own 50%, the locked admin-only settings rows and the sign-in email

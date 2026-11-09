@@ -216,6 +216,53 @@ test.describe("bulk document import and extraction", () => {
     }
   });
 
+  // #604 — each row has a visible "File as" label and says whether its type
+  // was detected or fell back; the note goes once the person picks a type.
+  test("rows say whether their type was detected, and stop once the person picks one", async ({ page }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const detected = [`detected-a-${stamp}.pdf`, `detected-b-${stamp}.pdf`];
+    const unknown = `unknown-${stamp}.pdf`;
+
+    await page.goto("/import");
+    await page.locator('input[type="file"]').setInputFiles([
+      ...detected.map((name) => ({
+        name,
+        mimeType: "application/pdf",
+        buffer: textPdfBytes(["Tax Invoice", "Product: Dishwasher", "Brand: Bosch", "Invoice Date: 2026-05-01"]),
+      })),
+      { name: unknown, mimeType: "application/pdf", buffer: pdfBytes() },
+    ]);
+
+    const detectedNote = page.getByText("Detected as a warranty", { exact: true });
+    const fallbackNote = page.getByText("Couldn't tell what this is. Pick a type.", { exact: true });
+    for (const name of detected) {
+      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("PRODUCT", { timeout: 30_000 });
+    }
+    const unknownSelect = page.getByLabel(`File ${unknown} as`);
+    await expect(unknownSelect).toHaveValue("CONTRACT", { timeout: 30_000 });
+    await expect(detectedNote).toHaveCount(2);
+    await expect(fallbackNote).toHaveCount(1);
+    // The row's own visible "File as" label is tied to its select.
+    const unknownLabel = page.locator(`label[for="${await unknownSelect.getAttribute("id")}"]`);
+    await expect(unknownLabel).toBeVisible();
+    await expect(unknownLabel).toContainText("File");
+
+    // A per-row change clears that row's note.
+    await unknownSelect.selectOption("PRODUCT");
+    await expect(fallbackNote).toHaveCount(0);
+    await expect(detectedNote).toHaveCount(2);
+
+    // A bulk "File as" change clears the selected rows' notes.
+    const bulk = page.getByLabel("Apply to selected files");
+    await page.getByLabel(`Select ${detected[0]}`).check();
+    await bulk.getByLabel("File as").selectOption("CONTRACT");
+    await bulk.getByRole("button", { name: "Apply to selected" }).click();
+    await expect(page.getByLabel(`File ${detected[0]} as`)).toHaveValue("CONTRACT");
+    await expect(page.getByText(/^Detected as/)).toHaveCount(1);
+    await expect(detectedNote).toHaveCount(1);
+  });
+
   test("import page is reachable from the dashboard", async ({ page }) => {
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Upload a document" }).click();
