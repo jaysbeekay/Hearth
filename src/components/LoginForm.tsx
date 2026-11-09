@@ -6,6 +6,7 @@ import { login, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
+import { dimmedClass } from "@/lib/ui";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
 import { GithubSignInButton } from "@/components/GithubSignInButton";
 
@@ -50,7 +51,7 @@ export function LoginForm({
             onChange={(e) => setEmail(e.target.value)}
             readOnly={totpRequired}
             autoComplete="email"
-            className={`${inputClass}${totpRequired ? " opacity-60" : ""}`}
+            className={totpRequired ? `${inputClass} ${dimmedClass}` : inputClass}
           />
         </div>
 

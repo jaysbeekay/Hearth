@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { SettingsDisclosureClient } from "@/components/SettingsDisclosure";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass } from "@/lib/ui";
+import { cardClass, dimmedClass } from "@/lib/ui";
 import { RowLabel, RowSummary, rowClass } from "@/components/settingsRowParts";
 
 // My account and Household settings share one look: a list of rows, each
@@ -32,7 +32,7 @@ export function SettingsLinkRow({
   return (
     <li>
       {locked ? (
-        <div aria-disabled="true" className={cardClass({ padding: "none" }, `${rowClass} text-muted opacity-60`)}>
+        <div aria-disabled="true" className={cardClass({ padding: "none" }, `${rowClass} text-muted ${dimmedClass}`)}>
           <RowLabel icon={icon} label={label} />
           <Pill>Admin only</Pill>
         </div>
