@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
@@ -81,6 +81,31 @@ test("account menu: Escape returns focus to the avatar, a click on a field keeps
   await page.locator("#title").click();
   await expect(page.getByRole("dialog", { name: "Account" })).toBeHidden();
   await expect(page.locator("#title")).toBeFocused();
+});
+
+// The current footer entry has a bar, not only the accent colour (WCAG 1.4.1, #558).
+async function barWidth(locator: Locator) {
+  return locator.evaluate((el) => getComputedStyle(el, "::after").width);
+}
+
+test("account footer: the current entry has aria-current and a bar, not just colour", async ({ page }) => {
+  const sidebar = page.getByRole("complementary");
+  const account = sidebar.getByRole("button", { name: /account menu$/ });
+  const help = sidebar.getByRole("link", { name: "Help", exact: true });
+
+  await page.goto("/help");
+  await expect(help).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(help)).toBe("2px");
+  expect(await barWidth(account)).not.toBe("2px");
+
+  await page.goto("/settings");
+  await expect(help).not.toHaveAttribute("aria-current", "page");
+  expect(await barWidth(help)).not.toBe("2px");
+  expect(await barWidth(account)).toBe("2px");
+  await account.click();
+  const settings = page.getByRole("dialog", { name: "Account" }).getByRole("link", { name: "Settings", exact: true });
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(settings)).toBe("2px");
 });
 
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {

@@ -224,6 +224,17 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
   );
 }
 
+/**
+ * The current entry in the sidebar's account footer: the avatar button while
+ * on Settings, the Help icon on Help, the popover's Settings row. A bar down
+ * its left edge marks it as well as the accent tint, since accent and muted
+ * text differ in hue alone (WCAG 1.4.1, #558); pair it with
+ * aria-current="page". The bar is ::after because buttons use ::before for
+ * their hit area.
+ */
+export const accountCurrentClass =
+  "relative bg-accent/10 text-accent after:pointer-events-none after:absolute after:inset-y-2 after:left-0 after:w-0.5 after:rounded-full after:bg-accent after:content-['']";
+
 /** The round initials avatar on the account menu, at 32px (`md`) or 40px (`lg`). */
 export function avatarClass(size: "md" | "lg" = "md", className?: string) {
   return mergeClasses(

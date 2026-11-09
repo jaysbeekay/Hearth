@@ -220,7 +220,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   menu is always in the corner. The phone More sheet shows the same avatar
   and version. The version is `package.json`'s; the commit comes from git
   at build time, or from the new optional `GIT_SHA` Docker build arg, which
-  the publish workflow sets.
+  the publish workflow sets. On Settings and Help, the avatar, the Help icon
+  and the menu's Settings row are marked by a bar as well as colour.
 
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,

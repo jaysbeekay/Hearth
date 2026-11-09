@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { SignOutButton } from "@/components/SignOutButton";
 import { FOOTER_NAV } from "@/components/nav-items";
-import { avatarClass, menuItemClass, overlayClass } from "@/lib/ui";
+import { accountCurrentClass, avatarClass, menuItemClass, overlayClass } from "@/lib/ui";
 import { CHANGELOG_URL, FEEDBACK_URL, initials, versionLabel } from "@/lib/account";
 
 export function Avatar({ name, email, size = "md" }: { name: string; email: string; size?: "md" | "lg" }) {
@@ -32,7 +32,9 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
   const popoverRef = useRef<HTMLDivElement>(null);
   useFocusTrap(popoverRef, open);
 
-  // Close on navigation (a Settings click, Back).
+  // Close on navigation (a Settings click, Back): React's "adjust state
+  // when a prop changes" pattern, a setState during render guarded by the
+  // previous value, so it runs once per navigation.
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
@@ -60,7 +62,13 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
   };
   const displayName = userName || userEmail;
   const version = versionLabel();
-  const settingsActive = pathname === FOOTER_NAV.settings.href || pathname.startsWith(`${FOOTER_NAV.settings.href}/`);
+  const settings = FOOTER_NAV.settings;
+  const settingsActive = pathname === settings.href || pathname.startsWith(`${settings.href}/`);
+  // The trigger stands for Settings while the menu is closed, so it carries
+  // the current-page bar there; open, it is only tinted.
+  let triggerState = "text-foreground hover:bg-hover";
+  if (settingsActive) triggerState = accountCurrentClass;
+  else if (open) triggerState = "bg-accent/10 text-accent";
 
   return (
     <div ref={ref} className="min-w-0 flex-1">
@@ -74,7 +82,7 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
         aria-expanded={open}
         className={cn(
           "flex w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left text-sm font-medium transition-colors",
-          open || settingsActive ? "bg-accent/10 text-accent" : "text-foreground hover:bg-hover",
+          triggerState,
         )}
       >
         <Avatar name={userName} email={userEmail} />
@@ -104,13 +112,13 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
         )}
         <div className="py-1">
           <Link
-            href={FOOTER_NAV.settings.href}
+            href={settings.href}
             onClick={close}
             aria-current={settingsActive ? "page" : undefined}
-            className={menuItemClass()}
+            className={menuItemClass({}, settingsActive ? accountCurrentClass : undefined)}
           >
-            <Settings size={16} className="text-muted" />
-            {FOOTER_NAV.settings.label}
+            <Settings size={16} className={settingsActive ? undefined : "text-muted"} />
+            {settings.label}
           </Link>
           <a href={CHANGELOG_URL} target="_blank" rel="noreferrer" onClick={close} className={menuItemClass()}>
             <ScrollText size={16} className="text-muted" />

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { AccountMenu } from "@/components/AccountMenu";
-import { buttonClass } from "@/lib/ui";
+import { accountCurrentClass, buttonClass } from "@/lib/ui";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 
@@ -33,6 +33,8 @@ export function Sidebar({
   const dashboardItems = items.filter((item) => item.group === "dashboard");
   const moduleItems = items.filter((item) => item.group === "modules");
   const toolItems = items.filter((item) => item.group === "tools");
+
+  const helpActive = isActive(FOOTER_NAV.help.href, pathname);
 
   // Pinned to the viewport, so the account menu stays at the bottom-left
   // however long the page is; z-30 keeps its popover above the page.
@@ -130,8 +132,8 @@ export function Sidebar({
         <Link
           href={FOOTER_NAV.help.href}
           aria-label={FOOTER_NAV.help.label}
-          aria-current={isActive(FOOTER_NAV.help.href, pathname) ? "page" : undefined}
-          className={buttonClass("quiet", { icon: true }, isActive(FOOTER_NAV.help.href, pathname) ? "text-accent" : "text-muted")}
+          aria-current={helpActive ? "page" : undefined}
+          className={buttonClass("quiet", { icon: true }, helpActive ? accountCurrentClass : "text-muted")}
         >
           <HelpCircle size={20} />
         </Link>
