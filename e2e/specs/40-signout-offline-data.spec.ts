@@ -480,13 +480,22 @@ test.describe("sign-out clears offline data (#424)", () => {
       const headers = { ...route.request().headers() };
       delete headers.cookie;
       const res = await signedOut.get(route.request().url(), { headers, maxRedirects: 0 });
-      await route.fulfill({ status: res.status(), headers: res.headers(), body: await res.body() });
+      // The body comes back decoded, so its encoding and length headers would be wrong.
+      const copied = Object.fromEntries(
+        Object.entries(res.headers()).filter(
+          ([name]) => !["content-encoding", "content-length", "transfer-encoding"].includes(name.toLowerCase()),
+        ),
+      );
+      await route.fulfill({ status: res.status(), headers: copied, body: await res.body() });
     });
+    // Fails here if the cleanup never runs.
+    const checked = page.waitForResponse("**/api/auth/session");
     await page.goBack();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
-    // Give the cleanup's check, and a clear or broadcast were one sent, time to land.
-    await page.waitForTimeout(3_000);
+    await checked;
+    // A short settle, so a clear or broadcast, were one sent, would land.
+    await page.waitForTimeout(1_000);
 
     expect(await cacheNames(page)).toEqual(expect.arrayContaining(["hearth-session", "pages", "apis"]));
     expect((await offlineStoreCounts(page)).pages).toBe(pagesBefore);

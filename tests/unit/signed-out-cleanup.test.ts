@@ -1,49 +1,64 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SessionCheck } from "@/lib/pushClient";
-import { reuseFirstSession, runSignedOutCleanup } from "@/lib/signedOutCleanup";
+import { runSignedOutCleanup } from "@/lib/signedOutCleanup";
 
 // #576 — the sign-in page clears this browser's offline data and signs out
 // the other tabs only once it knows nobody is signed in. Going Back to a
 // cached sign-in page while signed in leaves everything as it was.
 
-function deps(session: SessionCheck | Promise<SessionCheck>) {
+function deps(...answers: (SessionCheck | Error)[]) {
   const calls: string[] = [];
-  return {
+  let left = false;
+  const d = {
     calls,
-    readSession: vi.fn(async () => {
+    leave: () => {
+      left = true;
+    },
+    readSession: vi.fn(async (): Promise<SessionCheck> => {
       calls.push("read");
-      return session;
+      const answer = answers.shift();
+      if (answer instanceof Error) throw answer;
+      return answer ?? null;
     }),
+    hasLeft: () => left,
     clear: vi.fn(async () => {
       calls.push("clear");
     }),
     broadcast: vi.fn(() => {
       calls.push("broadcast");
     }),
-    startPush: vi.fn((first: SessionCheck) => {
-      calls.push(`push:${first === null ? "unknown" : first.signedIn ? "in" : "out"}`);
+    startPush: vi.fn(() => {
+      calls.push("push");
     }),
   };
+  return d;
 }
+
+const signedIn: SessionCheck = { signedIn: true, userId: "u1", expires: Date.now() + 60_000 };
 
 describe("runSignedOutCleanup", () => {
   it("still signed in (Back to a cached sign-in page): clears nothing, tells no tab, leaves push alone", async () => {
-    const d = deps({ signedIn: true, userId: "u1", expires: Date.now() + 60_000 });
+    const d = deps(signedIn);
     expect(await runSignedOutCleanup(d)).toBe("kept");
     expect(d.calls).toEqual(["read"]);
   });
 
-  it("signed out: tells the other tabs, clears, then settles push with the same answer", async () => {
+  it("signed out: tells the other tabs, clears, then starts push", async () => {
     const d = deps({ signedIn: false });
     expect(await runSignedOutCleanup(d)).toBe("cleared");
-    expect(d.calls).toEqual(["read", "broadcast", "clear", "push:out"]);
-    expect(d.readSession).toHaveBeenCalledTimes(1);
+    expect(d.calls).toEqual(["read", "broadcast", "clear", "push"]);
   });
 
-  it("server couldn't be asked (offline): clears as before, and push keeps asking", async () => {
+  it("server couldn't be asked (offline): clears as before", async () => {
     const d = deps(null);
     expect(await runSignedOutCleanup(d)).toBe("cleared");
-    expect(d.calls).toEqual(["read", "broadcast", "clear", "push:unknown"]);
+    expect(d.calls).toEqual(["read", "broadcast", "clear", "push"]);
+  });
+
+  it("a session check that throws counts as couldn't ask, and clears", async () => {
+    const d = deps(new Error("boom"));
+    expect(await runSignedOutCleanup(d)).toBe("cleared");
+    expect(d.calls).toEqual(["read", "broadcast", "clear", "push"]);
   });
 
   it("push waits for the clear, which deletes the marker push may write", async () => {
@@ -52,43 +67,56 @@ describe("runSignedOutCleanup", () => {
     d.clear.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          finish = () => {
-            d.calls.push("clear");
-            resolve();
-          };
+          d.calls.push("clear");
+          finish = resolve;
         }),
     );
     const done = runSignedOutCleanup(d);
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(d.clear).toHaveBeenCalled());
     expect(d.startPush).not.toHaveBeenCalled();
     finish();
     await done;
-    expect(d.calls).toEqual(["read", "broadcast", "clear", "push:out"]);
+    expect(d.calls).toEqual(["read", "broadcast", "clear", "push"]);
   });
 
   it("a clear that fails still goes on to push", async () => {
     const d = deps({ signedIn: false });
     d.clear.mockRejectedValue(new Error("quota"));
     expect(await runSignedOutCleanup(d)).toBe("cleared");
-    expect(d.startPush).toHaveBeenCalledWith({ signedIn: false });
-  });
-});
-
-describe("reuseFirstSession", () => {
-  it("answers the first ask with the known session, then asks the server", async () => {
-    const read = vi.fn(async (): Promise<SessionCheck> => ({ signedIn: true, userId: "u2", expires: 1 }));
-    const ask = reuseFirstSession({ signedIn: false }, read);
-    expect(await ask()).toEqual({ signedIn: false });
-    expect(read).not.toHaveBeenCalled();
-    expect(await ask()).toEqual({ signedIn: true, userId: "u2", expires: 1 });
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(d.startPush).toHaveBeenCalled();
   });
 
-  it("asks the server straight away when the first answer was unknown", async () => {
-    const read = vi.fn(async (): Promise<SessionCheck> => ({ signedIn: false }));
-    const ask = reuseFirstSession(null, read);
-    expect(await ask()).toEqual({ signedIn: false });
-    expect(read).toHaveBeenCalledTimes(1);
+  describe("the page was left before the answer came (signed in from this page meanwhile)", () => {
+    it("asks again, and leaves everything alone if someone is now signed in", async () => {
+      // The first answer comes from the mock below; the second from the list.
+      const d = deps(signedIn);
+      d.readSession.mockImplementationOnce(async () => {
+        d.calls.push("read");
+        d.leave();
+        return { signedIn: false };
+      });
+      expect(await runSignedOutCleanup(d)).toBe("kept");
+      expect(d.calls).toEqual(["read", "read"]);
+    });
+
+    it("asks again after an unknown answer too", async () => {
+      const d = deps(signedIn);
+      d.readSession.mockImplementationOnce(async () => {
+        d.calls.push("read");
+        d.leave();
+        return null;
+      });
+      expect(await runSignedOutCleanup(d)).toBe("kept");
+      expect(d.calls).toEqual(["read", "read"]);
+    });
+
+    it("clears if still signed out, or still unknown", async () => {
+      for (const second of [{ signedIn: false } as SessionCheck, null]) {
+        const d = deps({ signedIn: false }, second);
+        d.leave();
+        expect(await runSignedOutCleanup(d)).toBe("cleared");
+        expect(d.calls).toEqual(["read", "read", "broadcast", "clear", "push"]);
+      }
+    });
   });
 });
