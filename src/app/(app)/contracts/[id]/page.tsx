@@ -44,6 +44,12 @@ import { buttonClass, menuItemClass, cardClass, inlineLinkClass } from "@/lib/ui
 import { Banner } from "@/components/ui/Banner";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, detailTitle("contract"), "Contract");
+}
 
 export default async function ContractDetailPage({
   params,
