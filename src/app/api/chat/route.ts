@@ -7,6 +7,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { sendChatMessageSchema } from "@/lib/validation/chat";
 import { callChatCompletion, getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { MAX_TOOL_CALL_ROUNDS, type ChatTurn } from "@/lib/ai/chat/types";
+import { ASSISTANT_OFF_MESSAGE, isAssistantEnabled } from "@/lib/assistant/enablement";
 import { getAvailableTools, runTool, type ToolContext } from "@/lib/chat/tools";
 import type { ChatMessageModel } from "@/generated/prisma/models";
 
@@ -84,6 +85,11 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // The household hasn't opted in: nothing is sent to any provider.
+  if (!(await isAssistantEnabled())) {
+    return NextResponse.json({ error: ASSISTANT_OFF_MESSAGE }, { status: 404 });
   }
 
   // Each turn bills the household's own provider key, and a tool-calling turn

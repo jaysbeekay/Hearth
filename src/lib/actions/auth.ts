@@ -19,6 +19,7 @@ import {
 } from "@/lib/validation/auth";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { isUserTimeZoneOption } from "@/lib/timezones";
@@ -98,6 +99,9 @@ export async function setupAdmin(
     .getAll("modules")
     .filter((value) => typeof value === "string" && isKnownModuleKey(value)) as ModuleKey[];
 
+  // Opt-in: left unticked, the AI assistant stays off (Settings can turn it on later).
+  const wantsAssistant = formData.get("assistant") === "on";
+
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
   // Re-check inside the write transaction. Two requests arriving together
@@ -122,6 +126,12 @@ export async function setupAdmin(
           data: selectedModules.map((key) => ({ key, enabled: true })),
         });
       }
+
+      if (wantsAssistant) {
+        await tx.appSetting.create({
+          data: { key: ASSISTANT_ENABLED_KEY, value: "true" },
+        });
+      }
     });
   } catch (error) {
     if (error instanceof SetupAlreadyCompletedError) {
@@ -137,7 +147,8 @@ export async function setupAdmin(
   await signIn("credentials", {
     email: parsed.data.email,
     password: parsed.data.password,
-    redirectTo: "/dashboard",
+    // With the assistant ticked, finish by choosing its AI provider.
+    redirectTo: wantsAssistant ? "/settings/ai?welcome=assistant" : "/dashboard",
   });
 
   return null;
