@@ -250,7 +250,7 @@ export function TripSegmentForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.cost ?? moneyInputValue(segment?.cost)}
+            defaultValue={state?.values?.cost ?? moneyInputValue(segment?.cost, segment?.currency)}
             className={inputClass}
           />
         </Field>

@@ -912,16 +912,25 @@ function escapeHtml(value) {
   })[char]);
 }
 
-// A saved money amount as a form field's starting value, always with two
-// decimals: 510.10 is stored as 510.1 and would otherwise show without its
-// trailing zero (mirrors moneyInputValue in src/lib/utils.ts).
-function moneyInputValue(value) {
+// A saved money amount as a form field's starting value, padded to the
+// currency's decimals (0 for JPY, 3 for KWD, else 2): 510.10 is stored as
+// 510.1 and would otherwise show without its trailing zero. Only pads, never
+// rounds: the padded text must read back as exactly the stored number
+// (mirrors moneyInputValue in src/lib/utils.ts).
+function moneyInputValue(value, currency) {
   if (value == null || value === "") return "";
   const amount = Number(value);
   if (!Number.isFinite(amount)) return String(value);
-  // Only pad, never round (mirrors src/lib/utils.ts).
-  const fixed = amount.toFixed(2);
-  return Math.abs(Number(fixed) - amount) < 1e-9 ? fixed : String(amount);
+  let digits = 2;
+  if (currency) {
+    try {
+      digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+    } catch {
+      digits = 2;
+    }
+  }
+  const padded = amount.toFixed(digits);
+  return Number(padded) === amount ? padded : String(amount);
 }
 
 function escapeAttr(value) {
@@ -3719,7 +3728,7 @@ function formFields(type, row) {
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost))}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
@@ -3741,7 +3750,7 @@ function formFields(type, row) {
         <label>Barcode<input name="barcode" value="${escapeAttr(row?.barcode)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Warranty end<input name="warrantyEndDate" type="date" value="${escapeAttr(dateInputValue(row?.warranty_end_date))}" /></label>
-        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.price))}" /></label>
+        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.price, row?.currency))}" /></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${propertyPickerOrHint(propertyId)}
@@ -3774,7 +3783,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost))}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3789,7 +3798,7 @@ function formFields(type, row) {
         <label>Postcode<input name="postcode" value="${escapeAttr(row?.postcode)}" /></label>
         <label>Country<input name="country" value="${escapeAttr(row?.country ?? "Australia")}" /></label>
         <label>Occupancy<select name="occupancyStatus">${options(["OWNER_OCCUPIED", "RENTED", "VACANT"], row?.occupancy_status ?? "OWNER_OCCUPIED")}</select></label>
-        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.estimated_value))}" /></label>
+        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.estimated_value, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3801,7 +3810,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost))}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Tax deductible<select name="isTaxDeductible">${options(["NO", "YES"], row?.is_tax_deductible ? "YES" : "NO")}</select></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3813,11 +3822,11 @@ function formFields(type, row) {
       <div class="field-grid">
         <input name="propertyId" type="hidden" value="${escapeAttr(propertyId)}" />
         <label>Tenant name<input name="tenantName" value="${escapeAttr(row?.tenant_name)}" /></label>
-        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.weekly_rent))}" required /></label>
+        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.weekly_rent, row?.currency))}" required /></label>
         <label>Management fee %<input name="managementFeePercent" type="number" min="0" step="0.01" value="${escapeAttr(row?.management_fee_percent ?? "")}" /></label>
         <label>Lease start<input name="leaseStart" type="date" value="${escapeAttr(dateInputValue(row?.lease_start))}" /></label>
         <label>Lease end<input name="leaseEnd" type="date" value="${escapeAttr(dateInputValue(row?.lease_end))}" /></label>
-        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.bond_amount))}" /></label>
+        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.bond_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
         <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
@@ -3833,10 +3842,10 @@ function formFields(type, row) {
         <label>Period start<input name="periodStart" type="date" value="${escapeAttr(dateInputValue(row?.period_start))}" /></label>
         <label>Period end<input name="periodEnd" type="date" value="${escapeAttr(dateInputValue(row?.period_end))}" /></label>
         <label>Statement date<input name="statementDate" type="date" value="${escapeAttr(dateInputValue(row?.statement_date))}" /></label>
-        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.gross_rent))}" /></label>
-        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.management_fee))}" /></label>
-        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.other_deductions))}" /></label>
-        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(moneyInputValue(row?.net_amount))}" /></label>
+        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.gross_rent, row?.currency))}" /></label>
+        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.management_fee, row?.currency))}" /></label>
+        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.other_deductions, row?.currency))}" /></label>
+        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(moneyInputValue(row?.net_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3851,7 +3860,7 @@ function formFields(type, row) {
         <label>Model<input name="model" value="${escapeAttr(row?.model)}" /></label>
         <label>Serial number<input name="serialNumber" value="${escapeAttr(row?.serial_number)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
-        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.purchase_price))}" /></label>
+        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.purchase_price, row?.currency))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
         <label>Warranty<select name="warrantyProductId">${productOptions(row?.warranty_product_id)}</select></label>
         <label class="checkbox-row"><input name="warrantyRegistered" type="checkbox" ${row?.warranty_registered ? "checked" : ""} /> Warranty registered with manufacturer</label>
@@ -3881,7 +3890,7 @@ function formFields(type, row) {
         <label>Start<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost))}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3919,7 +3928,7 @@ function formFields(type, row) {
         <label>Date<input name="tradeDate" type="date" value="${escapeAttr(dateInputValue(row?.trade_date) || dateInputValue(nowIso()))}" required /></label>
         <label>Units<input name="units" type="number" min="0" step="0.000001" value="${escapeAttr(row?.units ?? "")}" required /></label>
         <label>Price per unit<input name="pricePerUnit" type="number" min="0" step="0.000001" value="${escapeAttr(row?.price_per_unit ?? "")}" required /></label>
-        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.fees))}" /></label>
+        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.fees, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? portfolio?.currency ?? defaultCurrency())}" /></label>
         <label>Holding name<input name="name" value="${escapeAttr(getRecord("holdings", row?.holding_id)?.name)}" /></label>
         <label>Asset class<select name="assetClass">${options(["SHARE", "ETF", "FUND", "CRYPTO", "CASH", "OTHER"], getRecord("holdings", row?.holding_id)?.asset_class ?? "SHARE")}</select></label>
@@ -5322,7 +5331,7 @@ function renderContractRenewalForm(row) {
         <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
         <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
         <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
-        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row.cost))}" /></label>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row.cost, row.currency))}" /></label>
         ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
           ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
           <option value="">None</option>

@@ -192,7 +192,7 @@ export function TradeForm({
             type="number"
             step="any"
             min="0"
-            defaultValue={state?.values?.fees ?? moneyInputValue(trade?.fees)}
+            defaultValue={state?.values?.fees ?? moneyInputValue(trade?.fees, trade?.currency)}
             placeholder="e.g. 9.99"
             className={inputClass}
           />

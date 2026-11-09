@@ -186,7 +186,7 @@ export function VehicleItemForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.cost ?? moneyInputValue(item?.cost)}
+            defaultValue={state?.values?.cost ?? moneyInputValue(item?.cost, item?.currency)}
             className={inputClass}
           />
         </Field>

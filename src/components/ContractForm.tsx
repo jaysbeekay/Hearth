@@ -330,7 +330,7 @@ export function ContractForm({
               type="number"
               min={0}
               step="0.01"
-              defaultValue={effectiveValues?.cost ?? moneyInputValue(contract?.cost)}
+              defaultValue={effectiveValues?.cost ?? moneyInputValue(contract?.cost, contract?.currency)}
               onChange={handleCostChange}
               className={inputClass}
             />

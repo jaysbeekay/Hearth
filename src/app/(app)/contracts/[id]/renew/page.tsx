@@ -54,7 +54,7 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
           defaults={{
             startDate: next.startDate ?? "",
             endDate: next.endDate ?? "",
-            cost: moneyInputValue(contract.cost),
+            cost: moneyInputValue(contract.cost, contract.currency),
           }}
           today={today}
           baseUpdatedAt={contract.updatedAt.toISOString()}

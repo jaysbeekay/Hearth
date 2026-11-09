@@ -261,7 +261,7 @@ export function InventoryItemForm({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={effectiveValues?.purchasePrice ?? moneyInputValue(item?.purchasePrice)}
+            defaultValue={effectiveValues?.purchasePrice ?? moneyInputValue(item?.purchasePrice, item?.currency)}
             placeholder="0.00"
             className={inputClass}
           />

@@ -314,7 +314,7 @@ export function ProductForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={effectiveValues?.price ?? moneyInputValue(product?.price)}
+            defaultValue={effectiveValues?.price ?? moneyInputValue(product?.price, product?.currency)}
             className={inputClass}
           />
         </Field>

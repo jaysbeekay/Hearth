@@ -186,7 +186,7 @@ export function RentalStatementForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.grossRent ?? moneyInputValue(statement?.grossRent)}
+            defaultValue={state?.values?.grossRent ?? moneyInputValue(statement?.grossRent, statement?.currency)}
             className={inputClass}
           />
         </Field>
@@ -199,7 +199,7 @@ export function RentalStatementForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.managementFee ?? moneyInputValue(statement?.managementFee)}
+            defaultValue={state?.values?.managementFee ?? moneyInputValue(statement?.managementFee, statement?.currency)}
             className={inputClass}
           />
         </Field>
@@ -213,7 +213,7 @@ export function RentalStatementForm({
             min={0}
             step="0.01"
             defaultValue={
-              state?.values?.otherDeductions ?? moneyInputValue(statement?.otherDeductions)
+              state?.values?.otherDeductions ?? moneyInputValue(statement?.otherDeductions, statement?.currency)
             }
             className={inputClass}
           />
@@ -226,7 +226,7 @@ export function RentalStatementForm({
             name="netAmount"
             type="number"
             step="0.01"
-            defaultValue={state?.values?.netAmount ?? moneyInputValue(statement?.netAmount)}
+            defaultValue={state?.values?.netAmount ?? moneyInputValue(statement?.netAmount, statement?.currency)}
             className={inputClass}
           />
         </Field>

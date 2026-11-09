@@ -31,12 +31,18 @@ const FIELD_KEYS = [
   "netAmount",
 ] as const;
 
-const AMOUNT_PATTERN = /((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
+// An amount after a currency sign or code: "$2,600.00", "AUD 2600".
+const CURRENCY_AMOUNT_PATTERN = /(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
+// A bare amount must have cents ("2600.00"), so a statement number, account
+// number or date on the labelled line isn't read as money.
+const DECIMAL_AMOUNT_PATTERN = /(?<![\d.,])((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})(?![\d.])/;
 
 // Strip thousands commas ("2,600.00" → "2600.00"): the form's number inputs
 // would otherwise blank the value out.
 function labeledAmount(text: string, label: RegExp): string | undefined {
-  return findLabeledValue(text, label, AMOUNT_PATTERN)?.replace(/,/g, "");
+  const value =
+    findLabeledValue(text, label, CURRENCY_AMOUNT_PATTERN) ?? findLabeledValue(text, label, DECIMAL_AMOUNT_PATTERN);
+  return value?.replace(/,/g, "");
 }
 
 export function heuristicExtract(text: string): ExtractedRentalStatementFields {
