@@ -458,6 +458,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   statement number, account number or date on the same line ("Rental
   Statement #20241108" isn't read as the rent).
 
+- **A Reminder check the server slept through still runs.** The daily
+  Reminder check, scheduled backups and email ingestion only started if the
+  server was awake in the first second of their scheduled minute; node-cron
+  skips a tick the process was asleep or blocked for, so that day's
+  Reminders silently never went out. Each now runs once its schedule's next
+  time after its last run has come, so a missed 08:00 check runs as soon as
+  the server is back, however long it was down; the hourly document text
+  backfill catches up the same way. A schedule changed in Settings, or a
+  backup or email ingestion switched back on, starts from the save, even
+  across a restart, and an env-var schedule changed across a restart starts
+  from the restart. A check that fails every attempt is tried again an hour
+  later, up to twice, instead of waiting for the next day. A time skipped by
+  the clocks springing forward runs just after the jump, and an hour
+  repeated when they fall back runs once. A 6-field env schedule now runs in
+  its minute instead of never. The scheduled-job ticker also no longer leaks
+  a node-cron task every minute.
+
 - **The current page is marked by more than colour in the nav (#558).**
   The active sidebar entry, phone tab and More-sheet tile differed from the
   rest by hue alone (accent against muted text is about 1.0:1), failing WCAG

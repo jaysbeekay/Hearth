@@ -83,6 +83,22 @@ export async function getAppSettings(
   return Object.fromEntries(keys.map((k) => [k, map[k] ?? fallbacks[k] ?? ""]));
 }
 
+// When any setting whose key starts with `prefix` was last saved; null if
+// none is stored. The scheduled-job ticker starts a job's schedule from here,
+// so an edited schedule or a job switched back on doesn't run at once.
+export async function settingsSavedAt(prefix: string): Promise<Date | null> {
+  try {
+    const row = await prisma.appSetting.findFirst({
+      where: { key: { startsWith: prefix } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    });
+    return row?.updatedAt ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Writes one setting. Empty string deletes the row (reverts to env-var fallback).
 export async function setAppSetting(key: string, value: string): Promise<void> {
   if (!value) {
