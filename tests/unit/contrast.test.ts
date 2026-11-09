@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkContrast, parseThemes, readGlobalsCss } from "../../scripts/check-contrast.mjs";
+import { checkContrast, parseThemes, readGlobalsCss, readShellCss } from "../../scripts/check-contrast.mjs";
 
 // #408: every text token pairing in globals.css stays >= 4.5:1 and borders
 // stay visible (>= 1.4:1), and control borders meet WCAG 1.4.11 (>= 3:1,
@@ -11,6 +11,22 @@ describe("colour token contrast", () => {
     expect(new Set(rows.map((r) => r.theme))).toEqual(new Set(["light", "dark"]));
   });
 
+  it.each(rows.map((r) => [`${r.theme}: ${r.pair}`, r] as const))("%s", (_name, row) => {
+    expect(row.ratio).toBeGreaterThanOrEqual(row.min);
+  });
+});
+
+// #616: the phone shell takes the web app's tokens one-for-one, so it passes
+// the same checks; its only extra tokens are translucent tints of them.
+describe("phone shell colour tokens", () => {
+  const web = parseThemes(readGlobalsCss());
+  const shell = parseThemes(readShellCss());
+
+  it.each(["light", "dark"] as const)("match the web app's tokens in the %s theme", (theme) => {
+    expect(Object.fromEntries(shell[theme])).toEqual(Object.fromEntries(web[theme]));
+  });
+
+  const rows = checkContrast(readShellCss());
   it.each(rows.map((r) => [`${r.theme}: ${r.pair}`, r] as const))("%s", (_name, row) => {
     expect(row.ratio).toBeGreaterThanOrEqual(row.min);
   });

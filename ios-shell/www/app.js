@@ -1771,11 +1771,17 @@ async function render() {
     const nav = button.dataset.nav;
     const navRecordType = button.dataset.recordType;
     const activeRecordType = navRecordType ? state.recordType === navRecordType : true;
-    const active =
-      (route === nav && activeRecordType) ||
-      (["detail", "form"].includes(route) && nav === "records" && activeRecordType) ||
-      (isSecondaryRoute(route) && nav === "more");
-    button.classList.toggle("active", active);
+    // #616: as the web's navCurrent (#558), the entry for the screen being
+    // shown is the current "page"; the section a detail, form or More screen
+    // sits under is "true". style.css draws the bar from this attribute.
+    const current =
+      route === nav && activeRecordType
+        ? "page"
+        : (["detail", "form"].includes(route) && nav === "records" && activeRecordType) || (isSecondaryRoute(route) && nav === "more")
+          ? "true"
+          : null;
+    if (current) button.setAttribute("aria-current", current);
+    else button.removeAttribute("aria-current");
   });
 
   if (route === "dashboard") mobileView.innerHTML = renderDashboard();
@@ -2873,11 +2879,11 @@ function renderRecords() {
 }
 
 function recordTab(type, label) {
-  return `<button class="tab ${state.recordType === type ? "active" : ""}" data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
+  return `<button class="tab"${state.recordType === type ? ' aria-current="true"' : ""} data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
 }
 
 function filterChip(filter, label) {
-  return `<button class="chip ${state.recordFilter === filter ? "active" : ""}" data-record-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.recordFilter === filter}" data-record-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
 }
 
 function filteredRecords() {
@@ -3401,7 +3407,7 @@ function renderDocuments() {
 }
 
 function documentChip(filter, label) {
-  return `<button class="chip ${state.documentFilter === filter ? "active" : ""}" data-document-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.documentFilter === filter}" data-document-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
 }
 
 function filteredDocuments() {

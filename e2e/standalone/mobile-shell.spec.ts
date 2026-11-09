@@ -661,6 +661,110 @@ test("standalone shell follows the 0.16 mobile navigation shape", async ({ page 
   await expect(page.locator(".bottom-nav").getByRole("button", { name: "More", exact: true })).toBeVisible();
 });
 
+test("standalone nav, tabs and chips expose the current entry beyond colour (#616)", async ({ page }) => {
+  const nav = page.locator(".bottom-nav");
+  await expect(nav.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.locator("[aria-current]")).toHaveCount(1);
+
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await expect(nav.getByRole("button", { name: "Contracts" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current", /.*/);
+  // The current nav entry carries a bar, not just the accent colour.
+  const bar = await nav.getByRole("button", { name: "Contracts" }).evaluate((el) => getComputedStyle(el, "::after").height);
+  expect(bar).toBe("2px");
+
+  const tabs = page.locator(".tabs .tab");
+  await expect(tabs.filter({ hasText: "Contracts" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator(".tabs [aria-current]")).toHaveCount(1);
+
+  const chips = page.locator('.chips[aria-label="Filters"] .chip');
+  await expect(chips.filter({ hasText: "All" })).toHaveAttribute("aria-pressed", "true");
+  await chips.filter({ hasText: "Needs attention" }).click();
+  await expect(chips.filter({ hasText: "Needs attention" })).toHaveAttribute("aria-pressed", "true");
+  await expect(chips.filter({ hasText: "All" })).toHaveAttribute("aria-pressed", "false");
+  // A pressed chip leads with a check mark.
+  const mark = await chips.filter({ hasText: "Needs attention" }).evaluate((el) => getComputedStyle(el, "::before").content);
+  expect(mark).toContain("✓");
+
+  // A record's detail screen sits under its section: "true", not a second page.
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(nav.getByRole("button", { name: "Contracts" })).toHaveAttribute("aria-current", "true");
+});
+
+test("standalone interactive elements have a 44px hit area (#616)", async ({ page }) => {
+  // The element's box, widened by an absolutely placed ::before or ::after
+  // hit area (placed from the padding box, as in the web app's buttons).
+  const tooSmall = async () =>
+    page.evaluate(() => {
+      const selector = [
+        ".nav-item",
+        ".tab",
+        ".chip",
+        ".icon-button:not(.is-hidden)",
+        ".subtle-button",
+        ".inline-copy",
+        ".link-button",
+        ".secondary",
+        ".checkbox-row",
+        ".version-history summary",
+        ".status-action",
+        "#mobile-view button",
+        "#mobile-view select",
+        "#mobile-view input:not([type=checkbox])",
+      ].join(",");
+      const misses: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
+        const style = getComputedStyle(el);
+        let [left, top, right, bottom] = [rect.left, rect.top, rect.right, rect.bottom];
+        for (const pseudo of ["::before", "::after"]) {
+          const p = getComputedStyle(el, pseudo);
+          if (p.content === "none" || p.position !== "absolute") continue;
+          const pb = {
+            left: rect.left + parseFloat(style.borderLeftWidth),
+            top: rect.top + parseFloat(style.borderTopWidth),
+            right: rect.right - parseFloat(style.borderRightWidth),
+            bottom: rect.bottom - parseFloat(style.borderBottomWidth),
+          };
+          const h = parseFloat(p.height);
+          const w = parseFloat(p.width);
+          const pTop = pb.top + parseFloat(p.top) + (p.transform !== "none" ? new DOMMatrix(p.transform).m42 : 0);
+          const pLeft = pb.left + parseFloat(p.left);
+          left = Math.min(left, pLeft);
+          top = Math.min(top, pTop);
+          right = Math.max(right, pLeft + w);
+          bottom = Math.max(bottom, pTop + h);
+        }
+        if (right - left < 43.5 || bottom - top < 43.5) {
+          misses.push(`${el.className || el.tagName} "${(el.textContent ?? "").trim().slice(0, 30)}" ${Math.round(right - left)}x${Math.round(bottom - top)}`);
+        }
+      }
+      return misses;
+    });
+
+  expect(await tooSmall()).toEqual([]);
+  const nav = page.locator(".bottom-nav");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  expect(await tooSmall()).toEqual([]);
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByRole("button", { name: "Copy Contract number" })).toBeVisible();
+  expect(await tooSmall()).toEqual([]);
+  await nav.getByRole("button", { name: "Documents" }).click();
+  expect(await tooSmall()).toEqual([]);
+  await nav.getByRole("button", { name: "More" }).click();
+  expect(await tooSmall()).toEqual([]);
+  await nav.getByRole("button", { name: "Warranties" }).click();
+  await page.locator("#mobile-view").getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator("#view-title")).toHaveText("Add record");
+  expect(await tooSmall()).toEqual([]);
+  // .inline-copy text is at least 12px.
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  const copySize = await page.locator(".inline-copy").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(copySize).toBeGreaterThanOrEqual(12);
+});
+
 test("standalone dashboard header and stats remain readable on mobile", async ({ page }) => {
   const titleBox = await page.locator("#view-title").boundingBox();
   const switchBox = await page.locator("#switch-mode-button").boundingBox();
@@ -1731,8 +1835,8 @@ test("standalone Archiving a Property stops its lease-end Reminder (#355)", asyn
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Warranties missing key details/ })).toBeVisible();
   await page.getByRole("button", { name: /Warranties missing key details/ }).click();
-  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveClass(/active/);
-  await expect(page.locator(".chip.active")).toHaveText("Missing key details");
+  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator('.chip[aria-pressed="true"]')).toHaveText("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
 });
 
