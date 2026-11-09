@@ -40,7 +40,6 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { describeSchedule } from "@/lib/cronSchedule";
 import { TRASH_RETENTION_DAYS } from "@/lib/trash";
 import { SETTINGS_ROUTES, type SettingsRoute } from "@/lib/routeLabels";
-import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
@@ -60,8 +59,8 @@ interface Section {
 // min-h-11 (44px) keeps each row comfortably tappable on mobile.
 const rowClass = "flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm font-medium";
 
-// #363 — the Household tab: everything shared by the household, in one
-// list. It replaces the old "Household & System" hub and the long "System
+// #363 — Household settings: everything shared by the household, in one
+// list (its own screen and nav entry since the My account split). It replaces the old "Household & System" hub and the long "System
 // settings" page, which is split into the sections below. Members see the
 // whole list so they know what exists; the admin-only sections are greyed.
 export default async function HouseholdSettingsPage() {
@@ -173,10 +172,13 @@ export default async function HouseholdSettingsPage() {
 
   return (
     <PageShell width="form">
-      <h1 className="text-2xl font-medium">Settings</h1>
-      <SettingsTabs active="household" />
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.household.label}</h1>
       <p className="text-sm text-muted">
-        Settings shared by the whole household.
+        Settings shared by the whole household. Your own sign-in, notifications and preferences are in{" "}
+        <Link href={SETTINGS_ROUTES.settings.href} className="underline">
+          {SETTINGS_ROUTES.settings.label}
+        </Link>
+        .
         {!isAdmin && " Only an admin can change the greyed-out sections."}
       </p>
 

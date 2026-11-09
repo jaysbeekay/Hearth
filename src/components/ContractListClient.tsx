@@ -337,7 +337,7 @@ export function ContractListClient({
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
-                    confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                    confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

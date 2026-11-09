@@ -20,12 +20,11 @@ import { ROLE_LABELS } from "@/lib/utils";
 import { SETTINGS_ROUTES } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
-import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import { hashToken } from "@/lib/crypto";
 import { sectionHeadingClass } from "@/lib/ui";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.settings.label };
 
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
@@ -67,10 +66,14 @@ export default async function SettingsPage() {
 
   return (
     <PageShell width="form">
-      <h1 className="text-2xl font-medium">Settings</h1>
-      <SettingsTabs active="account" />
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.settings.label}</h1>
       <p className="text-sm text-muted">
-        These settings only affect your own account, not the rest of the household.
+        These settings only affect your own account, not the rest of the household. Settings shared by everyone
+        are in{" "}
+        <Link href={SETTINGS_ROUTES.household.href} className="underline">
+          {SETTINGS_ROUTES.household.label}
+        </Link>
+        .
       </p>
 
       <SaveChangesGroup>

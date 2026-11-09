@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, HelpCircle, MoreHorizontal, X, type LucideIcon } from "lucide-react";
+import { MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
+import { getNavItems, isFooterNavActive, footerNavCurrent, FOOTER_NAV_ENTRIES } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
@@ -34,6 +34,7 @@ function MoreLink({
   active,
   ariaLabel,
   badge,
+  current,
 }: {
   href: string;
   label: string;
@@ -41,13 +42,14 @@ function MoreLink({
   active: boolean;
   ariaLabel?: string;
   badge?: React.ReactNode;
+  /** aria-current: navCurrent() for most links, footerNavCurrent() for the footer's. */
+  current: "page" | "true" | undefined;
 }) {
-  const pathname = usePathname();
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      aria-current={navCurrent(href, pathname)}
+      aria-current={current}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
         active ? cn(tabActiveClass, "bg-accent/10") : "text-muted hover:bg-hover",
@@ -100,8 +102,7 @@ export function BottomNav({
   const overflowTools = overflow.filter((i) => i.group === "tools");
   const overflowActive =
     overflow.some((i) => isActive(i.href, pathname)) ||
-    isActive(FOOTER_NAV.settings.href, pathname) ||
-    isActive(FOOTER_NAV.help.href, pathname);
+    FOOTER_NAV_ENTRIES.some(({ key }) => isFooterNavActive(key, pathname));
   const inboxBadge = <InboxCountBadge count={inboxCount} className="absolute -right-3 -top-1.5" />;
 
   return (
@@ -175,7 +176,14 @@ export function BottomNav({
               <p className="mb-1.5 text-xs font-medium text-muted">Modules</p>
               <div className="mb-3 grid grid-cols-3 gap-2">
                 {overflowModules.map(({ href, label, icon }) => (
-                  <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
+                  <MoreLink
+                    key={href}
+                    href={href}
+                    label={label}
+                    icon={icon}
+                    active={isActive(href, pathname)}
+                    current={navCurrent(href, pathname)}
+                  />
                 ))}
               </div>
             </>
@@ -190,22 +198,24 @@ export function BottomNav({
                 label={label}
                 icon={icon}
                 active={isActive(href, pathname)}
+                current={navCurrent(href, pathname)}
                 ariaLabel={href === "/documents" ? inboxLinkLabel(label, inboxCount) : undefined}
                 badge={href === "/documents" ? inboxBadge : undefined}
               />
             ))}
-            <MoreLink
-              href={FOOTER_NAV.settings.href}
-              label={FOOTER_NAV.settings.label}
-              icon={Settings}
-              active={isActive(FOOTER_NAV.settings.href, pathname)}
-            />
-            <MoreLink
-              href={FOOTER_NAV.help.href}
-              label={FOOTER_NAV.help.label}
-              icon={HelpCircle}
-              active={isActive(FOOTER_NAV.help.href, pathname)}
-            />
+            {FOOTER_NAV_ENTRIES.map((entry) => {
+              const current = footerNavCurrent(entry, pathname);
+              return (
+                <MoreLink
+                  key={entry.key}
+                  href={entry.href}
+                  label={entry.label}
+                  icon={entry.icon}
+                  active={current !== undefined}
+                  current={current}
+                />
+              );
+            })}
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">

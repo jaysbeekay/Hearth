@@ -231,7 +231,7 @@ export default async function RentalOverviewPage({
                                 parentId: property.id,
                                 label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
                               }}
-                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Household settings → Recently deleted."
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -402,7 +402,7 @@ export default async function RentalOverviewPage({
                                   parentId: property.id,
                                   label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
                                 }}
-                                confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                                confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                                 className={menuItemClass({ destructive: true })}
                               >
                                 <Trash2 size={16} />

@@ -72,7 +72,9 @@ describe("Help FAQ labels", () => {
     expect(unresolved(["Settings", "Users"])).not.toBeNull();
     expect(unresolved(["Purchases & warranties"])).not.toBeNull();
     expect(unresolved(["Settings", "Household & System"])).not.toBeNull();
-    expect(unresolved(["Settings", "Household", "AI & privacy", "No such section"])).not.toBeNull();
-    expect(unresolved(["Settings", "Household", "AI & privacy", "AI Assistant"])).toBeNull();
+    expect(unresolved(["Settings", "Household", "AI & privacy"])).not.toBeNull();
+    expect(unresolved(["Household settings", "AI & privacy", "No such section"])).not.toBeNull();
+    expect(unresolved(["Household settings", "AI & privacy", "AI Assistant"])).toBeNull();
+    expect(unresolved(["My account", "Passkeys"])).toBeNull();
   });
 });

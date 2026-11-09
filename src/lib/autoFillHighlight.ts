@@ -97,7 +97,7 @@ export function isAiExtractionSource(source: ExtractionSource) {
 export const TEXT_EXTRACTION_UNAVAILABLE_MESSAGE =
   "Text extraction isn't available on this server (pdftotext or tesseract isn't installed), " +
   "so nothing was auto-filled. The file still attaches — fill the fields in manually, or ask an " +
-  "admin to add an AI key in Settings → Household → AI & privacy.";
+  "admin to add an AI key in Household settings → AI & privacy.";
 
 export function extractionMessage(
   source: ExtractionSource,

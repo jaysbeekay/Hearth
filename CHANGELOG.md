@@ -256,6 +256,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   is saved, and if that write fails the confirmation still succeeds and the
   entry is missing from the log. Needs review works as before.
 
+- **My account and Household settings are now two separate screens.**
+  The single Settings entry with two tabs is replaced by two entries, in
+  the sidebar's account menu and in the phone's More sheet: **My account** (`/settings`,
+  only your own sign-in, notifications and preferences) and **Household
+  settings** (`/settings/household`, shared by everyone, with admin-only
+  sections greyed out for members). Each screen links to the other, and only
+  the one you're on is marked current. Paths in Help and in confirmation
+  messages now read "Household settings → Recently deleted" and
+  "My account → Passkeys". The URLs are unchanged. Web only; the phone app's
+  standalone mode has its own settings screen.
+
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
   and used to show as two identical rows. Search now shows the latest
