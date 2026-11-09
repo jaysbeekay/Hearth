@@ -577,7 +577,7 @@ export function ImportClient({
                   type="button"
                   onClick={applyToSelected}
                   disabled={selectedRows.length === 0 || (!bulk.type && !bulk.category && !bulk.link)}
-                  className={`${buttonClass("secondary")} disabled:opacity-50`}
+                  className={buttonClass("secondary")}
                 >
                   Apply to selected
                 </button>
