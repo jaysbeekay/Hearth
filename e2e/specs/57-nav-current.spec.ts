@@ -25,6 +25,8 @@ test.describe("desktop sidebar", () => {
 
   test("marks a section above the current page as true, not page", async ({ page }) => {
     await page.goto("/settings/household");
+    // Settings is in the sidebar's account menu.
+    await page.locator("aside").getByRole("button", { name: /account menu$/ }).click();
     const settings = page.locator("aside").getByRole("link", { name: "Settings", exact: true });
     await expect(settings).toHaveAttribute("aria-current", "true");
     // The Settings tabs own the "page" marker on this route.

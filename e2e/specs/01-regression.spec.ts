@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
@@ -52,20 +52,69 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/help", "Help"],
 ];
 
+// Settings lives in the account menu, behind the sidebar's avatar button.
+// The sidebar is named: with the assistant panel open there's a second
+// complementary landmark (and a third on /assistant).
+async function sidebarLink(page: Page, label: string) {
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
+  if (label === "Settings") {
+    const account = sidebar.getByRole("button", { name: /account menu$/ });
+    if ((await account.getAttribute("aria-expanded")) !== "true") await account.click();
+  }
+  return sidebar.getByRole("link", { name: label, exact: true });
+}
+
 test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
-  // Named: with the assistant panel open there's a second complementary
-  // landmark (and a third on /assistant).
-  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
   for (const [, label] of TOP_LEVEL) {
-    await expect(sidebar.getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(await sidebarLink(page, label)).toBeVisible();
   }
+});
+
+test("account menu: Escape returns focus to the avatar, a click on a field keeps it there", async ({ page }) => {
+  await page.goto("/contracts/new");
+  const account = page.getByRole("complementary", { name: "Sidebar" }).getByRole("button", { name: /account menu$/ });
+  await account.click();
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeHidden();
+  await expect(account).toBeFocused();
+
+  await account.click();
+  await page.locator("#title").click();
+  await expect(page.getByRole("dialog", { name: "Account" })).toBeHidden();
+  await expect(page.locator("#title")).toBeFocused();
+});
+
+// The current footer entry has a bar, not only the accent colour (WCAG 1.4.1, #558).
+async function barWidth(locator: Locator) {
+  return locator.evaluate((el) => getComputedStyle(el, "::after").width);
+}
+
+test("account footer: the current entry has aria-current and a bar, not just colour", async ({ page }) => {
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
+  const account = sidebar.getByRole("button", { name: /account menu$/ });
+  const help = sidebar.getByRole("link", { name: "Help", exact: true });
+
+  await page.goto("/help");
+  await expect(help).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(help)).toBe("2px");
+  expect(await barWidth(account)).not.toBe("2px");
+
+  await page.goto("/settings");
+  await expect(help).not.toHaveAttribute("aria-current", "page");
+  expect(await barWidth(help)).not.toBe("2px");
+  expect(await barWidth(account)).toBe("2px");
+  await account.click();
+  const settings = page.getByRole("dialog", { name: "Account" }).getByRole("link", { name: "Settings", exact: true });
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(settings)).toBe("2px");
 });
 
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
   for (const [url, label] of TOP_LEVEL) {
     await page.goto(url);
-    await expect(page.getByRole("complementary", { name: "Sidebar" }).getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(await sidebarLink(page, label)).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(label);
     await expect(page).toHaveTitle(`${label} · Hearth`);
   }

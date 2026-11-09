@@ -80,6 +80,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: hearth:release-check
+          # The commit the account menu's Version row shows; the same value in
+          # the push step below, so that build is served from this one's cache.
+          build-args: GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.cache }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
 
@@ -116,6 +119,7 @@ jobs:
           # job publishes the tags once both architectures are up.
           outputs: type=image,name=jaysbeekay/hearth,push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.cache }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
           # Attach an SBOM and SLSA build provenance to the pushed image
