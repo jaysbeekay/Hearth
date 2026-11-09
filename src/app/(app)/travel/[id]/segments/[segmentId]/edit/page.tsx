@@ -8,6 +8,12 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string; segmentId: string }> }) {
+  const { segmentId } = await params;
+  return recordMetadata("tripSegment", segmentId, (name) => `Edit ${name}`, "Edit segment");
+}
 
 export default async function EditTripSegmentPage({
   params,

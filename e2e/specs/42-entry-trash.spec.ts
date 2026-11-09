@@ -30,7 +30,7 @@ async function deleteSegment(page: Page, title: string) {
   await row.getByRole("button", { name: `More actions for ${title}` }).click();
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toContainText("Settings → Household → Recently deleted");
+  await expect(dialog).toContainText("Household settings → Recently deleted");
   await expect(dialog).not.toContainText("can't be undone");
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 }
@@ -69,7 +69,7 @@ test.describe.serial("Trades go to Trash", () => {
     await page.getByRole("button", { name: /^More actions for trade / }).click();
     await page.getByRole("dialog", { name: /^More actions for trade / }).getByRole("button", { name: "Delete", exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Household → Recently deleted");
+    await expect(dialog).toContainText("Household settings → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
     await expect(toast).toContainText("Moved to Recently deleted.");

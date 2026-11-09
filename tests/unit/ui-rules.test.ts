@@ -31,9 +31,23 @@ function offenders(test: (s: string) => boolean, { skip = [UI_FILE] }: { skip?: 
 }
 
 describe("type, shape and motion", () => {
-  it("uses one radius, two weights, five sizes and sentence case", () => {
-    const banned = /\b(rounded-xl|rounded-md|shadow-(md|lg|xl|stripe)|font-(semibold|bold)|text-(lg|3xl)|text-\[\d+px\]|uppercase)\b/;
+  it("uses one radius, five sizes and sentence case", () => {
+    const banned = /\b(rounded-xl|rounded-md|shadow-(md|lg|xl|stripe)|font-bold|text-(lg|3xl)|text-\[\d+px\]|uppercase)\b/;
     expect(offenders((s) => banned.test(s), { skip: [] })).toEqual([]);
+  });
+
+  it("keeps weight 600 for section headings, set only in lib/ui (#558)", () => {
+    expect(offenders((s) => /\bfont-semibold\b/.test(s))).toEqual([]);
+  });
+
+  it("styles section <h2>s through sectionHeadingClass (#558)", () => {
+    // Small muted group labels (text-sm text-muted) may stay at 500.
+    const handRolled = files.flatMap((f) =>
+      [...f.text.matchAll(/<h2\b[^>]*className="([^"]*)"/g)]
+        .filter((m) => /\bfont-medium\b/.test(m[1]) && !(/\btext-sm\b/.test(m[1]) && /\btext-muted\b/.test(m[1])))
+        .map((m) => `${f.file}: ${m[1]}`),
+    );
+    expect(handRolled).toEqual([]);
   });
 
   it("sets no letter-spacing", () => {
@@ -98,6 +112,8 @@ describe("lib/ui", () => {
       expect(cls).toContain("rounded-lg");
     }
     expect(buttonClass("secondary", { icon: true })).toContain("w-9");
+    // The icon button's px-0 replaces the base px-3, or the icon is squeezed.
+    expect(buttonClass("quiet", { icon: true }).split(" ")).not.toContain("px-3");
   });
 
   it("gives cards p-4 and no shadow", () => {

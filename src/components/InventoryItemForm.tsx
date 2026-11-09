@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyInputValue } from "@/lib/utils";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
@@ -260,7 +261,7 @@ export function InventoryItemForm({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={effectiveValues?.purchasePrice ?? item?.purchasePrice?.toString() ?? ""}
+            defaultValue={effectiveValues?.purchasePrice ?? moneyInputValue(item?.purchasePrice, item?.currency)}
             placeholder="0.00"
             className={inputClass}
           />

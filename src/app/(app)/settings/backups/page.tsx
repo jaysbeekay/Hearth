@@ -25,6 +25,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.backups.label };
 
@@ -66,7 +67,7 @@ export default async function BackupsPage() {
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.backups.label}</h1>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Status</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Status</h2>
         <ul className="space-y-1 text-sm">
           <li>
             Encryption: {isEncryptionConfigured() ? "configured" : "not configured"}
@@ -94,7 +95,7 @@ export default async function BackupsPage() {
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Backup destination</h2>
+            <h2 className={sectionHeadingClass()}>Backup destination</h2>
             <p className="text-xs text-muted mt-0.5">
               Where encrypted database backups are written. Choose one destination.
             </p>
@@ -126,7 +127,7 @@ export default async function BackupsPage() {
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Schedule</h2>
+            <h2 className={sectionHeadingClass()}>Schedule</h2>
             <p className="text-xs text-muted mt-0.5">When automatic backups run, and how many to keep.</p>
           </div>
           <BackupScheduleForm
@@ -138,7 +139,7 @@ export default async function BackupsPage() {
       </SaveChangesGroup>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Recent runs</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Recent runs</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No backups have run yet.</p>
         ) : (

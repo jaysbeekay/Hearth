@@ -16,7 +16,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolio" };
@@ -107,7 +107,7 @@ export default async function PortfolioPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Holdings</h2>
+          <h2 className={sectionHeadingClass()}>Holdings</h2>
           <div className="flex items-center gap-2">
             {canWrite && (
               <Link

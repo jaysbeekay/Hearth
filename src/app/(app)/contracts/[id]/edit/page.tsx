@@ -10,6 +10,12 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { propertyLinkTargets, vehicleLinkTargets } from "@/lib/linkTargets";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, (name) => `Edit ${name}`, "Edit contract");
+}
 
 export default async function EditContractPage({
   params,

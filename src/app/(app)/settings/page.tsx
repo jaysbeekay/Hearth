@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KeyRound } from "lucide-react";
+import { BellRing, CalendarDays, HardDriveDownload, KeyRound, Lock, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
-import { isSmtpConfigured, isNtfyConfigured, getHouseholdTimeZone } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getHouseholdTimeZone, getHouseholdCurrency } from "@/lib/appSettings";
+import { followsHouseholdTimeZone } from "@/lib/timezones";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
@@ -18,17 +19,11 @@ import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
 import { ROLE_LABELS } from "@/lib/utils";
 import { SETTINGS_ROUTES } from "@/lib/routeLabels";
-import { Card } from "@/components/ui/Card";
+import { SettingsDisclosure, SettingsLinkRow, SettingsRowList } from "@/components/SettingsRows";
 import { PageShell } from "@/components/ui/PageShell";
-import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 
-export const metadata: Metadata = { title: "Settings" };
-
-// min-h-11 (44px) keeps these comfortably tappable on mobile even though
-// they're plain text links, not buttons.
-const quickLinkClass =
-  "flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-hover";
+export const metadata: Metadata = { title: SETTINGS_ROUTES.settings.label };
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -37,31 +32,44 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey, pushDevices] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, householdCurrency, vapidPublicKey, pushDevices, passkeyCount] =
+    await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
     getHouseholdTimeZone(),
+    getHouseholdCurrency(),
     getVapidPublicKey(),
     // #375 — the member's own devices only; other members' stay private.
     ownPushDevices(session.user.id),
+    prisma.passkeyCredential.count({ where: { userId: session.user.id } }),
   ]);
   if (!user) redirect("/login");
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
+  const pushOn = pushDevices.length;
+  const prefsSummary = [
+    user.dateFormat,
+    user.preferredCurrency,
+    followsHouseholdTimeZone(user.timezone) ? "Household timezone" : user.timezone,
+  ].join(" · ");
+
   return (
     <PageShell width="form">
-      <h1 className="text-2xl font-medium">Settings</h1>
-      <SettingsTabs active="account" />
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.settings.label}</h1>
       <p className="text-sm text-muted">
-        These settings only affect your own account, not the rest of the household.
+        These settings only affect your own account, not the rest of the household. Settings shared by everyone
+        are in{" "}
+        <Link href={SETTINGS_ROUTES.household.href} className="underline">
+          {SETTINGS_ROUTES.household.label}
+        </Link>
+        .
       </p>
 
       <SaveChangesGroup>
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card as="section">
-            <h2 className="mb-3 font-medium">Profile</h2>
-            <dl className="grid gap-3">
+        <SettingsRowList>
+          <SettingsDisclosure id="profile" icon={UserRound} label="Profile" summary={user.email}>
+            <dl className="grid gap-3 sm:grid-cols-3">
               <div className="min-w-0">
                 <dt className="text-xs text-muted">Name</dt>
                 <dd className="text-sm font-medium break-words">{user.name}</dd>
@@ -75,10 +83,17 @@ export default async function SettingsPage() {
                 <dd className="text-sm font-medium">{ROLE_LABELS[user.role] ?? user.role}</dd>
               </div>
             </dl>
-          </Card>
+          </SettingsDisclosure>
 
-          <Card as="section">
-            <h2 className="mb-3 font-medium">Reminders</h2>
+          <SettingsDisclosure
+            id="notifications"
+            icon={BellRing}
+            label="Notifications"
+            summary={[
+              user.emailReminders ? "Email on" : "Email off",
+              `${pushOn} ${pushOn === 1 ? "device" : "devices"}`,
+            ].join(" · ")}
+          >
             <p className="mb-3 text-sm text-muted">
               Reminders are sent to each device with notifications on
               {smtpConfigured && ntfyConfigured ? ", by email and by ntfy" : smtpConfigured ? " and by email" : ntfyConfigured ? " and by ntfy" : ""}.{" "}
@@ -90,7 +105,7 @@ export default async function SettingsPage() {
                       {" "}
                       — set them up in{" "}
                       <Link href={SETTINGS_ROUTES.reminders.href} className="underline">
-                        {SETTINGS_ROUTES.reminders.label}
+                        {SETTINGS_ROUTES.household.label} → {SETTINGS_ROUTES.reminders.label}
                       </Link>
                       .
                     </>
@@ -104,14 +119,13 @@ export default async function SettingsPage() {
               <NotifyThisDevice userId={user.id} vapidPublicKey={vapidPublicKey} devices={pushDevices} />
               <NotificationPreferencesForm emailReminders={user.emailReminders} />
             </div>
-          </Card>
+          </SettingsDisclosure>
 
-          <Card as="section" className="md:col-span-2">
-            <h2 className="mb-3 font-medium">Preferences</h2>
+          <SettingsDisclosure id="preferences" icon={SlidersHorizontal} label="Preferences" summary={prefsSummary}>
             <p className="mb-3 text-sm text-muted">
-              Localisation used throughout the app — dates, default currency for new records, your
-              timezone, and the region convention used for number formatting (decimal/thousands
-              separators). This doesn&apos;t change the app&apos;s display language.
+              How the app shows things to you: dates, your default currency for new records, your timezone, and
+              number formatting (decimal and thousands separators). This doesn&apos;t change the app&apos;s
+              display language.
             </p>
             <PreferencesForm
               dateFormat={user.dateFormat}
@@ -121,46 +135,61 @@ export default async function SettingsPage() {
               region={user.region}
             />
             <p className="mt-4 text-xs text-muted">
-              The household timezone is {householdTimeZone}. Reminders and due dates will use it.{" "}
+              The household timezone is {householdTimeZone}. The household currency is {householdCurrency}.
+              Reminders, due dates and household totals use those, whatever you pick here.{" "}
               {user.role === "ADMIN" ? (
                 <Link href={SETTINGS_ROUTES.household.href} className="underline">
-                  Change it in {SETTINGS_ROUTES.household.label}.
+                  Change them in {SETTINGS_ROUTES.household.label}.
                 </Link>
               ) : (
-                "Only an admin can change it."
+                "Only an admin can change them."
               )}
             </p>
-          </Card>
-        </div>
-      </SaveChangesGroup>
+          </SettingsDisclosure>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card as="section">
-          <h2 className="mb-3 font-medium">Sign-in and security</h2>
-          <Link href={SETTINGS_ROUTES.passkeys.href} className={quickLinkClass}>
-            <KeyRound size={16} />
-            {SETTINGS_ROUTES.passkeys.label}
-          </Link>
+          <SettingsDisclosure id="password" icon={Lock} label="Password" summary="Change your password">
+            <ChangePasswordForm />
+          </SettingsDisclosure>
 
-          <div className="mt-4 border-t border-border pt-4">
-            <h3 className="mb-2 text-sm font-medium">Two-factor authentication</h3>
+          <SettingsDisclosure
+            id="two-factor"
+            icon={ShieldCheck}
+            label="Two-factor authentication"
+            summary={isEncryptionConfigured() ? (user.totpEnabled ? "On" : "Off") : "Not available"}
+          >
             {isEncryptionConfigured() ? (
               <TotpSection enabled={user.totpEnabled} />
             ) : (
               <UnconfiguredNotice feature="two-factor authentication" />
             )}
-          </div>
-        </Card>
+          </SettingsDisclosure>
 
-        <Card as="section">
-          <h2 className="mb-3 font-medium">Change password</h2>
-          <ChangePasswordForm />
-        </Card>
+          <SettingsLinkRow
+            href={SETTINGS_ROUTES.passkeys.href}
+            icon={KeyRound}
+            label={SETTINGS_ROUTES.passkeys.label}
+            summary={passkeyCount === 0 ? "None yet" : `${passkeyCount} ${passkeyCount === 1 ? "passkey" : "passkeys"}`}
+          />
 
-        <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
+          <SettingsDisclosure
+            id="calendar-feed"
+            icon={CalendarDays}
+            label="Calendar feed"
+            summary={user.icalTokenHash ? "On" : "Off"}
+          >
+            <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} inRow />
+          </SettingsDisclosure>
 
-        <OfflineDocumentsPanel />
-      </div>
+          <SettingsDisclosure
+            id="downloaded-documents"
+            icon={HardDriveDownload}
+            label="Downloaded documents"
+            summary="On this device"
+          >
+            <OfflineDocumentsPanel inRow />
+          </SettingsDisclosure>
+        </SettingsRowList>
+      </SaveChangesGroup>
     </PageShell>
   );
 }

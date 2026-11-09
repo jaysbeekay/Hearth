@@ -59,8 +59,18 @@ async function signIn(page: Page, email: string, password: string) {
   await page.waitForURL(/\/dashboard/);
 }
 
+function accountMenuButton(page: Page) {
+  return page.locator("aside").getByRole("button", { name: /account menu$/ });
+}
+
+// Sign out sits in the account menu behind the sidebar's avatar button.
 function signOutButton(page: Page) {
-  return page.locator("aside").getByRole("button", { name: "Sign out" });
+  return {
+    async click() {
+      await accountMenuButton(page).click();
+      await page.locator("aside").getByRole("button", { name: "Sign out" }).click();
+    },
+  };
 }
 
 // Only call once the app has opened the database itself: opening it without
@@ -434,7 +444,7 @@ test.describe("sign-out clears offline data (#424)", () => {
     await signIn(page, ADMIN_424_EMAIL, PASSWORD);
     const other = await page.context().newPage();
     await other.goto("/contracts");
-    await expect(signOutButton(other)).toBeVisible();
+    await expect(accountMenuButton(other)).toBeVisible();
 
     await signOutButton(page).click();
     await page.waitForURL(/\/login/);

@@ -204,13 +204,12 @@ async function openMoreSheet(page: import("@playwright/test").Page) {
 // entry carries its count. #372 put Upcoming in the bar in Documents' place.
 const PHONE_DESTINATIONS = {
   bar: ["/dashboard", "/contracts", "/products", "/calendar"],
-  // The seed enables every optional module. Inventory has no nav entry of
-  // its own (getNavItems leaves it out; it's reached from Warranties).
-  modules: ["/travel", "/home", "/vehicles", "/wealth"],
+  // The seed enables every optional module.
+  modules: ["/inventory", "/home", "/travel", "/vehicles", "/wealth"],
   // No /assistant: the seed configures no chat provider (spec 09 sets one
   // up later in the run).
   tools: ["/documents", "/spend"],
-  footer: ["/settings", "/help"],
+  footer: ["/settings", "/settings/household", "/help"],
 };
 
 test("phones have one navigation: no menu drawer, and each destination is in the bar or the More sheet exactly once", async ({
@@ -234,7 +233,6 @@ test("phones have one navigation: no menu drawer, and each destination is in the
   expect(barHrefs).toEqual(PHONE_DESTINATIONS.bar);
   expect(new Set(hrefs)).toEqual(new Set(Object.values(PHONE_DESTINATIONS).flat()));
   expect(hrefs).not.toContain("/assistant");
-  expect(hrefs).not.toContain("/inventory");
   expect(hrefs).not.toContain("/import");
   expect(hrefs).not.toContain("/documents/inbox");
 

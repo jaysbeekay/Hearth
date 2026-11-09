@@ -9,7 +9,7 @@ import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
-import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
+import { TRIP_SEGMENT_TYPE_LABELS, moneyInputValue } from "@/lib/utils";
 import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -250,7 +250,7 @@ export function TripSegmentForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.cost ?? segment?.cost ?? ""}
+            defaultValue={state?.values?.cost ?? moneyInputValue(segment?.cost, segment?.currency)}
             className={inputClass}
           />
         </Field>

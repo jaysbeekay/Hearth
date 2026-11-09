@@ -4,6 +4,7 @@ import { documentFileHref } from "@/lib/documents/kinds";
 import { formatTermCost, formatTermCostChange, termCostChange, type TermCost } from "@/lib/contractTerms";
 import { formatDate } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export interface HistoryTerm extends TermCost {
   id: string;
@@ -28,7 +29,7 @@ export function ContractTermHistory({
   if (terms.length === 0) return null;
   return (
     <Card>
-      <h2 className="mb-3 font-medium">Previous terms</h2>
+      <h2 className={sectionHeadingClass("mb-3")}>Previous terms</h2>
       <ul className="divide-y divide-border">
         {terms.map((term, index) => {
           const change = termCostChange(term, terms.at(index + 1));

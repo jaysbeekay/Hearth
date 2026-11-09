@@ -14,12 +14,19 @@ export async function sendTestEmail(to: string) {
   });
 
   await transporter.sendMail({
-    from: smtp.from,
+    from: requireFrom(smtp.from),
     to,
     subject: "Hearth test email",
     text: "This is a test email from Hearth to confirm your SMTP settings are working.",
     html: "<p>This is a test email from Hearth to confirm your SMTP settings are working.</p>",
   });
+}
+
+// With no From, nodemailer sends a null sender and no From header, which
+// servers reject with an error that doesn't point here.
+function requireFrom(from: string): string {
+  if (!from) throw new Error("No From address: set one in Settings, or use an email address as the SMTP username.");
+  return from;
 }
 
 // Header values must never contain raw newlines, regardless of nodemailer's
@@ -40,7 +47,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   });
 
   await transporter.sendMail({
-    from: smtp.from,
+    from: requireFrom(smtp.from),
     to,
     subject: "Reset your Hearth password",
     text: `We received a request to reset your Hearth password. Follow this link to choose a new one (expires in 1 hour):\n\n${resetUrl}\n\nIf you didn't request this, you can ignore this email.`,
@@ -60,7 +67,7 @@ export async function sendInvitationEmail(to: string, inviteUrl: string) {
   });
 
   await transporter.sendMail({
-    from: smtp.from,
+    from: requireFrom(smtp.from),
     to,
     subject: "You've been invited to Hearth",
     text: `You've been added to a Hearth household. Follow this link to set your password and sign in (expires in 48 hours):\n\n${inviteUrl}\n\nIf you weren't expecting this, you can ignore this email.`,
@@ -82,5 +89,5 @@ export async function sendReminderEmail(to: string, input: ReminderInput) {
   // Wording, date format and the link back to the record come from the
   // shared builder (#352), so every channel says the same thing.
   const { subject, text, html } = buildReminderEmail(input);
-  await transporter.sendMail({ from: smtp.from, to, subject: stripNewlines(subject), text, html });
+  await transporter.sendMail({ from: requireFrom(smtp.from), to, subject: stripNewlines(subject), text, html });
 }
