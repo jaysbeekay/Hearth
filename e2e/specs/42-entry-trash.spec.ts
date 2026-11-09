@@ -127,25 +127,53 @@ test.describe.serial("Trip segments go to Trash", () => {
 });
 
 // #618 (WCAG 2.2.1) — the Undo toast doesn't time out while the pointer is
-// over it or focus is inside it, and Escape still dismisses it at once.
-test("the Undo toast stays up while hovered or focused, and Escape dismisses it", async ({ page }) => {
-  test.setTimeout(60_000);
-  const segment = `Toast stay ${Date.now()}`;
-  await addSegment(page, segment);
-  await deleteSegment(page, segment);
+// over it or focus is inside it, closes once both leave, and Escape still
+// dismisses it at once without undoing, handing focus back where it was.
+test.describe.serial("The Undo toast waits while it's in use", () => {
+  test("stays up while hovered or focused, then times out once left", async ({ page }) => {
+    // Fake timers from the start (time still flows normally until runFor),
+    // so the toast's own timer is one the clock controls.
+    await page.clock.install();
+    const segment = `Toast wait ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegment(page, segment);
 
-  const toast = page.getByRole("status");
-  await expect(toast).toContainText("Moved to Recently deleted.");
-  await toast.getByText("Moved to Recently deleted.").hover();
-  await page.waitForTimeout(9000);
-  await expect(toast).toContainText("Moved to Recently deleted.");
+    const toast = page.getByRole("status");
+    const message = toast.getByText("Moved to Recently deleted.");
+    await expect(message).toBeVisible();
 
-  await toast.getByRole("button", { name: "Undo" }).focus();
-  await page.mouse.move(0, 0);
-  await page.waitForTimeout(9000);
-  await expect(toast).toContainText("Moved to Recently deleted.");
+    await message.hover();
+    await page.clock.runFor(20_000);
+    await expect(message).toBeVisible();
 
-  await page.keyboard.press("Escape");
-  await expect(toast).toHaveCount(0);
-  await expect(page.locator("main")).not.toContainText(segment);
+    await toast.getByRole("button", { name: "Undo" }).focus();
+    await page.mouse.move(0, 0);
+    await page.clock.runFor(20_000);
+    await expect(message).toBeVisible();
+
+    // Neither hovered nor focused: the time it had left runs out.
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    await page.clock.runFor(8_000);
+    await expect(message).toHaveCount(0);
+  });
+
+  test("Escape dismisses it without undoing and returns focus", async ({ page }) => {
+    const segment = `Toast escape ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegment(page, segment);
+
+    const toast = page.getByRole("status");
+    await expect(toast).toContainText("Moved to Recently deleted.");
+    const undo = toast.getByRole("button", { name: "Undo" });
+    await undo.focus();
+    await page.keyboard.press("Escape");
+    await expect(undo).toHaveCount(0);
+    await expect(page.locator("body")).not.toBeFocused();
+
+    await page.goto(tripUrl);
+    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(segment);
+  });
 });

@@ -69,6 +69,38 @@ describe("createDismissTimer (#618)", () => {
     expect(onExpire).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps only the time left across several hold/release cycles", () => {
+    const onExpire = vi.fn();
+    const timer = createDismissTimer(8000, onExpire);
+    vi.advanceTimersByTime(1000);
+    timer.hold("hover");
+    vi.advanceTimersByTime(10_000);
+    timer.release("hover");
+    vi.advanceTimersByTime(2000);
+    timer.hold("focus");
+    vi.advanceTimersByTime(10_000);
+    timer.release("focus");
+    vi.advanceTimersByTime(3000);
+    timer.hold("hover");
+    vi.advanceTimersByTime(10_000);
+    timer.release("hover");
+    // 1000 + 2000 + 3000 ran, so 2000 is left.
+    vi.advanceTimersByTime(1999);
+    expect(onExpire).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stray release while counting down doesn't push expiry back", () => {
+    const onExpire = vi.fn();
+    const timer = createDismissTimer(8000, onExpire);
+    vi.advanceTimersByTime(5000);
+    timer.release("hover");
+    timer.release("focus");
+    vi.advanceTimersByTime(3000);
+    expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+
   it("never fires after cancel, even if released later", () => {
     const onExpire = vi.fn();
     const timer = createDismissTimer(8000, onExpire);
