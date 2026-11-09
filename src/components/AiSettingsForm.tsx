@@ -16,7 +16,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, settingsActionRowClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -104,9 +104,9 @@ export function AiSettingsForm({
         )}
 
         <FormMessage attempt={state} error={state?.error} success={state?.success} />
-        <div className="flex items-center justify-between">
+        <div className={settingsActionRowClass}>
           {selected === "OLLAMA" ? (
-            <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+            <TestConnectionButton action={testOllamaConnection} label="Test connection" inRow />
           ) : (
             <span />
           )}
