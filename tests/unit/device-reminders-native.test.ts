@@ -336,6 +336,25 @@ describe("keepDeviceRemindersCurrent", () => {
     stop();
   });
 
+  it("keeps Reminders turned on mid-session current, without waiting for a restart", async () => {
+    // App opened with nothing on here: the claim fails, but the keeper is set
+    // up anyway (DeviceReminderSync) and does nothing until they're on.
+    store.delete("hearth.deviceReminders.user");
+    expect(native.claimDeviceReminders("u1")).toBe(false);
+    const sync = vi.fn(async () => null);
+    const stop = native.keepDeviceRemindersCurrent("u1", sync);
+    await vi.advanceTimersByTimeAsync(0);
+    listeners.forEach((fn) => fn());
+    expect(sync).not.toHaveBeenCalled();
+
+    // "Notify this phone" schedules once and marks them on for u1...
+    await native.scheduleDeviceReminders("u1", [reminder("a", 2)], native.startDeviceReminderSync());
+    // ...and the next return to the app syncs them.
+    listeners.forEach((fn) => fn());
+    expect(sync).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it("syncs again when the app comes back into view, at most hourly", async () => {
     const sync = vi.fn(async () => null);
     const stop = native.keepDeviceRemindersCurrent("u1", sync);
