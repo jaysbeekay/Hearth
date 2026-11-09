@@ -66,4 +66,8 @@ describe("document preview alt text", () => {
     expect(documentPreviewAlt({ typeLabel: "Other", ownerName: "Laptop" })).toBe("Preview of document for Laptop");
     expect(documentPreviewAlt({ ownerName: "  " })).toBe("Preview of document");
   });
+
+  it("names no owner for an Inbox file: the Inbox is a location, not a record", () => {
+    expect(documentPreviewAlt({ typeLabel: null, ownerName: null })).toBe("Preview of document");
+  });
 });

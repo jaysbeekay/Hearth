@@ -44,7 +44,7 @@ export function OnboardingChecklist({
         <div className="space-y-1">
           <h2 className={sectionHeadingClass()}>You&apos;re set up</h2>
           <p className="mx-auto max-w-md text-sm text-muted">
-            Every getting-started step is done. Add a document or record whenever you&apos;re ready.
+            Every getting-started step is done.
           </p>
         </div>
         <button type="button" onClick={dismiss} className={buttonClass("secondary")}>

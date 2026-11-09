@@ -65,7 +65,7 @@ export function ChatMessageList({
                 ? (toolStatus ?? "Thinking…")
                 : message.content}
               {message.streaming && message.content && (
-                <span className="ml-0.5 inline-block w-1.5 animate-pulse">▍</span>
+                <span className="ml-0.5 inline-block w-1.5 animate-pulse motion-reduce:animate-none">▍</span>
               )}
             </div>
             {message.proposedActions?.map((action) => (

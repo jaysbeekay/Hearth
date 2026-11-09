@@ -187,6 +187,38 @@ test("previewing an image document from the Documents page renders it", async ({
   await expect(dialog.locator("img")).toHaveAttribute("alt", "Preview of document for Preview Image Regression Contract");
 });
 
+// #617 — on a record's own Document list the alt names the Document type
+// and the record too.
+test("a typed image previewed from its record's Documents is described by type and record", async ({ page }) => {
+  const filename = `typed-preview-${Date.now()}.png`;
+  const title = `Typed Preview Contract ${Date.now()}`;
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await page.locator("#provider").fill("Regression Provider");
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
+    page.locator('form:has(#title) button[type="submit"]').click(),
+  ]);
+  await page.locator('input[type="file"]').first().setInputFiles({ name: filename, mimeType: "image/png", buffer: PNG });
+  await page.locator('form:has(input[type="file"]) button[type="submit"]').first().click();
+  await page.waitForSelector(`text=${filename}`);
+
+  const typeSelect = page.getByLabel(`Document type for ${filename}`);
+  await typeSelect.selectOption({ label: "Receipt" });
+  await expect
+    .poll(async () => {
+      await page.reload();
+      return typeSelect.evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.text ?? "");
+    }, { timeout: 15_000 })
+    .toBe("Receipt");
+
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
+  const img = page.getByRole("dialog", { name: `Preview of ${filename}` }).locator("img");
+  await expect(img).toBeVisible();
+  await expect(img).toHaveAttribute("alt", `Preview of receipt for ${title}`);
+});
+
 // #374 — Preview, Share and Download from a record's own Documents section.
 async function contractWithPdf(page: import("@playwright/test").Page, filename: string) {
   await page.goto("/contracts/new");

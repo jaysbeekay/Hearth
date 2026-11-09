@@ -11,7 +11,7 @@ import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { documentFileHref } from "@/lib/documents/kinds";
 
 import { humanFileSize } from "@/lib/utils";
-import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, documentCategoryLabel, type DocumentCategory } from "@/lib/documents/categories";
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
 import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
@@ -37,6 +37,10 @@ export interface DocRow {
   parentTitle: string;
   parentHref: string;
   downloadHref: string;
+  /** #617 — for the preview image's alt text, matching the record's own Document list. */
+  typeLabel?: string | null;
+  /** The record the Document belongs to; none for an Inbox file. */
+  ownerName?: string | null;
 }
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "size-desc";
@@ -289,12 +293,7 @@ export function DocumentsExplorer({
 
       {preview && (
         <DocumentPreviewModal
-          doc={{
-            ...preview,
-            id: shareable(preview) ? preview.id : undefined,
-            typeLabel: documentCategoryLabel(preview.category),
-            ownerName: preview.parentTitle,
-          }}
+          doc={{ ...preview, id: shareable(preview) ? preview.id : undefined }}
           onClose={() => {
             setPreview(null);
           }}

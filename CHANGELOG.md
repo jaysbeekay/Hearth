@@ -9,15 +9,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
-- **Onboarding has an ending, motion respects your settings, and previews
-  are described (#617).** Once every getting-started step is done, the
-  dashboard's checklist shows a short "You're set up" note with a Dismiss
-  button instead of a list of struck-through steps. With the system's reduce
-  motion setting on, the Assistant chat jumps to the newest message instead
-  of scrolling smoothly, and swipe-to-delete rows move without animating.
-  A previewed image's alt text now names the Document type and the record it
-  belongs to ("Preview of invoice for Home insurance") rather than its
-  filename.
+- **Onboarding has an ending (#617).** Once every getting-started step is
+  done, the dashboard's checklist shows a short "You're set up" note with a
+  Dismiss button instead of a list of struck-through steps.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order
@@ -234,6 +228,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Motion respects your settings, and previews are described (#617).**
+  With the system's reduce motion setting on, the Assistant chat jumps to the
+  newest message instead of scrolling smoothly, its typing caret stops
+  pulsing, and swipe-to-delete rows move without animating. A previewed
+  image's alt text now names the Document type and the record it belongs to
+  ("Preview of invoice for Home insurance") rather than its filename; an
+  Inbox file names no record.
 - **Disabled controls all dim to the same 50% (#620, #558).** Disabled
   buttons and fields were 60% from the shared classes, but 13 buttons added
   their own 50%, the locked admin-only settings rows and the sign-in email
