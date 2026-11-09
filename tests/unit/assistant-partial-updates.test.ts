@@ -3,6 +3,8 @@
 // defaults, or touch notes and dates.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
+import { setAppSetting } from "@/lib/appSettings";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
 import { updateContractFromAssistant } from "@/lib/actions/contracts";
@@ -26,6 +28,9 @@ beforeEach(async () => {
   actorId = (await createTestUser()).id;
   ctx = { userId: actorId, role: "MEMBER", enabledModules: new Set() };
   vi.mocked(auth).mockResolvedValue({ user: { id: actorId, role: "MEMBER" } } as never);
+
+  // The confirm-card writes refuse while the household has the assistant off.
+  await setAppSetting(ASSISTANT_ENABLED_KEY, "true");
 });
 
 const newContract = () =>

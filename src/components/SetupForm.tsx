@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { FileText } from "lucide-react";
+import { Bot, FileText } from "lucide-react";
 import { setupAdmin, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
@@ -127,6 +127,28 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
             </label>
           );
         })}
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">AI assistant (optional)</legend>
+        <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2">
+          <input
+            type="checkbox"
+            name="assistant"
+            className="mt-0.5 size-4 rounded border-border accent-accent"
+          />
+          <span>
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Bot size={16} />
+              Turn on the AI assistant
+            </span>
+            <span className="text-xs text-muted">
+              A chat panel that answers questions about your household&apos;s records, using an AI
+              provider and key you choose next. It stays off if you leave this unticked, and you
+              can change it later in Settings.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
