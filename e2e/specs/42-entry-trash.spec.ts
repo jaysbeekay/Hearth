@@ -125,3 +125,27 @@ test.describe.serial("Trip segments go to Trash", () => {
     await expect(page.locator("main")).not.toContainText(title);
   });
 });
+
+// #618 (WCAG 2.2.1) — the Undo toast doesn't time out while the pointer is
+// over it or focus is inside it, and Escape still dismisses it at once.
+test("the Undo toast stays up while hovered or focused, and Escape dismisses it", async ({ page }) => {
+  test.setTimeout(60_000);
+  const segment = `Toast stay ${Date.now()}`;
+  await addSegment(page, segment);
+  await deleteSegment(page, segment);
+
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText("Moved to Recently deleted.");
+  await toast.getByText("Moved to Recently deleted.").hover();
+  await page.waitForTimeout(9000);
+  await expect(toast).toContainText("Moved to Recently deleted.");
+
+  await toast.getByRole("button", { name: "Undo" }).focus();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(9000);
+  await expect(toast).toContainText("Moved to Recently deleted.");
+
+  await page.keyboard.press("Escape");
+  await expect(toast).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(segment);
+});

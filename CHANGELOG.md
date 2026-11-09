@@ -490,6 +490,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Toasts wait while you're using them (#618).** A toast, such as "Moved to
+  Recently deleted · Undo", no longer closes while the pointer is over it or
+  keyboard focus is inside it; once both leave it closes after the time it
+  had left. Escape now dismisses a focused toast, and the close button still
+  does too (WCAG 2.2.1).
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a
