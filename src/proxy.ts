@@ -4,6 +4,7 @@ import { authConfig, isPublicPath } from "@/lib/auth.config";
 import { hasMismatchedOrigin } from "@/lib/originCheck";
 import { env } from "@/lib/env";
 import { resolveMapTiles, tileImgSrc } from "@/lib/mapTiles";
+import { INLINE_VIEW_CSP, isInlineViewRequest } from "@/lib/documents/inlineView";
 
 // PropertyMap's tile host (#338) — the OpenStreetMap default, or whatever
 // MAP_TILE_URL points at. Resolved once; env vars don't change at runtime.
@@ -22,9 +23,11 @@ const { auth } = NextAuth(authConfig);
 //  - img-src blob:/data:: document thumbnails and camera captures render from
 //    object URLs before upload.
 //  - img-src map tile host: PropertyMap's basemap tiles (src/lib/mapTiles.ts).
-//  - frame-src blob:: PDF document preview (DocumentPreviewModal.tsx) renders
-//    a fetched, decrypted-at-rest document into an <iframe> over a same-origin
-//    blob: URL — no remote origin is ever framed.
+//  - frame-src blob:: the offline PDF preview (DocumentPreviewModal.tsx)
+//    renders a cached document into an <iframe> over a same-origin blob: URL.
+//    Online it frames the file's own URL with ?inline=1, which gets its own
+//    narrow CSP (src/lib/documents/inlineView.ts). No remote origin is ever
+//    framed.
 //  - 'unsafe-eval' in development only, for the webpack dev runtime.
 function buildCsp(nonce: string, { isDev, isHttps }: { isDev: boolean; isHttps: boolean }) {
   const scriptSrc = [
@@ -82,10 +85,15 @@ function needsOriginCheck(request: NextRequest): boolean {
   );
 }
 
-function withSecurityHeaders(response: NextResponse, csp: string, isHttps: boolean) {
+function withSecurityHeaders(
+  response: NextResponse,
+  csp: string,
+  isHttps: boolean,
+  { frameableBySelf = false }: { frameableBySelf?: boolean } = {},
+) {
   response.headers.set("content-security-policy", csp);
   response.headers.set("x-content-type-options", "nosniff");
-  response.headers.set("x-frame-options", "DENY");
+  response.headers.set("x-frame-options", frameableBySelf ? "SAMEORIGIN" : "DENY");
   response.headers.set("referrer-policy", "no-referrer");
   response.headers.set(
     "permissions-policy",
@@ -146,6 +154,17 @@ export default auth((request) => {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+
+  // The PDF preview's frame (inlineView.ts): only this response may be
+  // framed, by this origin, and its CSP lets Safari's PDF plugin draw it.
+  if (isInlineViewRequest(request.nextUrl.pathname, request.nextUrl.searchParams)) {
+    return withSecurityHeaders(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+      INLINE_VIEW_CSP,
+      isHttps,
+      { frameableBySelf: true },
+    );
+  }
 
   return withSecurityHeaders(
     NextResponse.next({ request: { headers: requestHeaders } }),

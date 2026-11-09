@@ -458,6 +458,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   statement number, account number or date on the same line ("Rental
   Statement #20241108" isn't read as the rent).
 
+- **PDF preview is no longer blank in Safari (#599).** The eye button's preview
+  framed the PDF over a `blob:` URL, which inherits the app's CSP; Safari
+  checks its PDF viewer against that CSP's `object-src 'none'` and drew
+  nothing. Online, the preview now frames the file's own URL with
+  `?inline=1`, served inline (PDFs only) with a narrow CSP of its own that
+  only this origin may frame. The app's CSP is unchanged. Offline previews
+  still use the cached copy, so an offline PDF preview in Safari is still
+  blank. A preview that can't load (a file gone to Trash, an expired
+  session) says so, and comes back by itself after the connection returns.
+
+- **Documents named with characters outside Latin-1 download again.** A
+  filename like "John’s lease.pdf" (the curly apostrophe iPhones type) or
+  any non-Latin name made the file route fail with a server error, so the
+  file could neither be previewed nor downloaded. The name is now sent as
+  UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox, Item and
+  share link routes.
+
 - **A Reminder check the server slept through still runs.** The daily
   Reminder check, scheduled backups and email ingestion only started if the
   server was awake in the first second of their scheduled minute; node-cron
