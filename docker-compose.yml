@@ -16,7 +16,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Push notifications via ntfy.sh (or a self-hosted instance — see the
       # commented-out "ntfy" service below). Topics on the public ntfy.sh
       # instance are unauthenticated by default and guessable by anyone who

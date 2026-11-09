@@ -19,6 +19,7 @@ import {
 } from "@/lib/validation/auth";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { isUserTimeZoneOption } from "@/lib/timezones";
@@ -30,6 +31,7 @@ import {
   checkRateLimit,
   clientAddress,
   consumeRateLimit,
+  RATE_LIMITS,
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/rateLimit";
@@ -98,6 +100,9 @@ export async function setupAdmin(
     .getAll("modules")
     .filter((value) => typeof value === "string" && isKnownModuleKey(value)) as ModuleKey[];
 
+  // Opt-in: left unticked, the AI assistant stays off (Settings can turn it on later).
+  const wantsAssistant = formData.get("assistant") === "on";
+
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
   // Re-check inside the write transaction. Two requests arriving together
@@ -122,6 +127,12 @@ export async function setupAdmin(
           data: selectedModules.map((key) => ({ key, enabled: true })),
         });
       }
+
+      if (wantsAssistant) {
+        await tx.appSetting.create({
+          data: { key: ASSISTANT_ENABLED_KEY, value: "true" },
+        });
+      }
     });
   } catch (error) {
     if (error instanceof SetupAlreadyCompletedError) {
@@ -137,7 +148,8 @@ export async function setupAdmin(
   await signIn("credentials", {
     email: parsed.data.email,
     password: parsed.data.password,
-    redirectTo: "/dashboard",
+    // With the assistant ticked, finish by choosing its AI provider.
+    redirectTo: wantsAssistant ? "/settings/ai?welcome=assistant" : "/dashboard",
   });
 
   return null;
@@ -561,6 +573,25 @@ export async function disableTotp(
 
 const GENERIC_RESET_MESSAGE = "If that email exists, we've sent a password reset link.";
 
+// Anyone can ask for a reset without signing in, so these rows share one
+// budget across all addresses (passwordResetLog); past it, one row says
+// logging is paused. A failed send is always logged: it needs a real account
+// and is capped by the per-address send limit.
+async function logResetRequest(email: string, address: string, detail: string, userId?: string) {
+  if (!checkRateLimit("passwordResetLog", "all").allowed) return;
+  consumeRateLimit("passwordResetLog", "all");
+  const paused = !checkRateLimit("passwordResetLog", "all").allowed;
+  await logSecurityEvent({
+    type: "PASSWORD_RESET_REQUESTED",
+    email: paused ? undefined : email,
+    address,
+    userId: paused ? undefined : userId,
+    detail: paused
+      ? `Too many reset requests; logging them is paused for up to ${Math.ceil(RATE_LIMITS.passwordResetLog.windowMs / 60_000)} minutes`
+      : detail,
+  });
+}
+
 export async function requestPasswordReset(
   _prevState: ActionState,
   formData: FormData,
@@ -573,32 +604,69 @@ export async function requestPasswordReset(
   // Capped per address rather than per email — the email is whatever the
   // caller typed. This bounds both enumeration attempts and the volume of
   // mail the app can be made to send.
-  const resetThrottle = consumeRateLimit("passwordReset", clientAddress(await headers()));
+  const address = clientAddress(await headers());
+  const resetThrottle = consumeRateLimit("passwordReset", address);
   if (!resetThrottle.allowed) {
     // Same generic response as the success path: whether the throttle fired
-    // must not reveal that the account exists.
+    // must not reveal that the account exists. Not logged: the request that
+    // used up the address's last slot already said so.
     return { success: GENERIC_RESET_MESSAGE };
+  }
+  if (resetThrottle.remaining === 0) {
+    await logResetRequest(
+      parsed.data.email,
+      address,
+      "Throttled: this address has used its reset requests for the hour; further ones are refused",
+    );
   }
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (user) {
-    const token = generateToken();
-    await prisma.passwordResetToken.create({
-      data: {
-        tokenHash: hashToken(token),
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
+  if (!user) {
+    await logResetRequest(parsed.data.email, address, "No account with this email; nothing sent");
+    return { success: GENERIC_RESET_MESSAGE };
+  }
+  // The forgot-password page hides its form without SMTP, but the action can
+  // still be posted (a page loaded before SMTP was removed).
+  if (!(await isSmtpConfigured())) {
+    await logResetRequest(user.email, address, "SMTP is not configured; nothing sent", user.id);
+    return { success: GENERIC_RESET_MESSAGE };
+  }
+
+  const token = generateToken();
+  await prisma.passwordResetToken.create({
+    data: {
+      tokenHash: hashToken(token),
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+  // env.appUrl falls back to http://localhost:3000, so this always builds.
+  const resetUrl = buildConfiguredAppUrl(env.appUrl, `/reset-password/${token}`)!;
+  try {
+    await sendPasswordResetEmail(user.email, resetUrl);
+    await logResetRequest(
+      user.email,
+      address,
+      // #227: without APP_URL the link falls back to http://localhost:3000,
+      // which is broken for anyone not on the server itself.
+      isAppUrlConfigured()
+        ? "Reset email handed to the SMTP server"
+        : "Reset email sent, but APP_URL is not set so its link points at localhost",
+      user.id,
+    );
+  } catch (error) {
+    // The response stays identical whether or not the account exists, so the
+    // failure is only visible to admins: in Settings > Security and the
+    // server log.
+    const reason = error instanceof Error ? error.message : "unknown error";
+    console.error("[auth] password reset email failed:", reason);
+    await logSecurityEvent({
+      type: "PASSWORD_RESET_EMAIL_FAILED",
+      userId: user.id,
+      email: user.email,
+      address,
+      detail: reason.slice(0, 500),
     });
-    const resetUrl = buildConfiguredAppUrl(env.appUrl, `/reset-password/${token}`);
-    if (resetUrl) {
-      try {
-        await sendPasswordResetEmail(user.email, resetUrl);
-      } catch {
-        // Swallowed: the response must stay identical whether or not the
-        // account exists, and regardless of transient SMTP failures.
-      }
-    }
   }
 
   return { success: GENERIC_RESET_MESSAGE };
