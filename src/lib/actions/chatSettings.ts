@@ -7,6 +7,7 @@ import { isEncryptionConfigured } from "@/lib/env";
 import { chatSettingsSchema } from "@/lib/validation/chat";
 import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
 import { issueState } from "@/lib/validation/issues";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 
 export type ActionState = { error?: string; field?: string; success?: string } | null;
 
@@ -61,4 +62,24 @@ export async function removeChatSettings(): Promise<ActionState> {
   // Household tab summarises them), so refresh the whole section.
   revalidatePath("/settings", "layout");
   return { success: "AI Assistant settings removed." };
+}
+
+// The household switch for the assistant (page, side panel and /api/chat).
+// Turning it off keeps the saved provider and key, so it can come back on.
+export async function setAssistantEnabled(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const enabled = formData.get("enabled") === "true";
+
+  try {
+    await setAppSetting(ASSISTANT_ENABLED_KEY, enabled ? "true" : "");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to update the assistant." };
+  }
+
+  // The nav, the panel and the Assistant page all read this from the app layout.
+  revalidatePath("/", "layout");
+  return { success: enabled ? "AI Assistant turned on." : "AI Assistant turned off." };
 }

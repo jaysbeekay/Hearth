@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import {
   FileText,
-  Package,
+  ShieldCheck,
   Car,
   Home,
   Plane,
-  Box,
   Trash2,
   Wrench,
   Receipt,
@@ -69,11 +69,11 @@ const DOMAIN_META: Record<
   { label: string; icon: LucideIcon; restore: (id: string) => Promise<unknown>; permanentlyDelete: (id: string) => Promise<unknown> }
 > = {
   contract: { label: "Contract", icon: FileText, restore: restoreContract, permanentlyDelete: permanentlyDeleteContract },
-  product: { label: "Warranty", icon: Package, restore: restoreProduct, permanentlyDelete: permanentlyDeleteProduct },
+  product: { label: "Warranty", icon: ShieldCheck, restore: restoreProduct, permanentlyDelete: permanentlyDeleteProduct },
   vehicle: { label: "Vehicle", icon: Car, restore: restoreVehicle, permanentlyDelete: permanentlyDeleteVehicle },
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },
-  inventoryItem: { label: "Inventory item", icon: Box, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
+  inventoryItem: { label: "Inventory item", icon: MODULE_REGISTRY.INVENTORY.icon, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
   homeItem: { label: "Maintenance record", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
   vehicleItem: { label: "Service record", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
   tripSegment: { label: "Trip segment", icon: Plane, restore: restoreTripSegment, permanentlyDelete: permanentlyDeleteTripSegment },

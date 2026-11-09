@@ -66,13 +66,13 @@ export function PreferencesForm({
       </div>
       <div className="space-y-1">
         <label htmlFor="preferredCurrency" className="text-sm font-medium">
-          Default currency
+          My default currency
         </label>
         <CurrencySelect id="preferredCurrency" name="preferredCurrency" defaultValue={preferredCurrency} />
       </div>
       <div className="space-y-1">
         <label htmlFor="timezone" className="text-sm font-medium">
-          Timezone
+          My timezone
         </label>
         <SelectWrapper>
           <select id="timezone" name="timezone" defaultValue={userTimeZoneChoice(timezone)} className={selectClass}>

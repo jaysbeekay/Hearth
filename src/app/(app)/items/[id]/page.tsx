@@ -1,5 +1,5 @@
 import { BackLink } from "@/components/BackLink";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, sectionHeadingClass } from "@/lib/ui";
 import Link from "next/link";
 import { Banner } from "@/components/ui/Banner";
 import { notFound, redirect } from "next/navigation";
@@ -12,6 +12,12 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { formatDate } from "@/lib/utils";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { addItemDocumentAction } from "@/lib/actions/items";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("item", id, detailTitle("item"), "Item");
+}
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   if (process.env.ITEMS_PREVIEW !== "1" || !(await itemCutoverReadiness()).ready) redirect("/products");
@@ -26,8 +32,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     <BackLink href="/items" label="Items" />
     <header className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-medium">{item.description}</h1>{item.manufacturer && <p className="text-muted">{item.manufacturer}</p>}</div>{writable && <Link href={`/items/${id}/edit`} className={buttonClass("secondary")}>Edit</Link>}</header>
     {item.mergeConflictFields && <Banner tone="warning">This Item combines {item.legacyInventories.length} inventory record{item.legacyInventories.length === 1 ? "" : "s"} with a warranty record. Some source fields differ; review the details before public cutover.</Banner>}
-    {item.warranty && <section><h2 className="font-medium">Warranty</h2><p>{item.warranty.endDate ? `Ends ${formatDate(item.warranty.endDate, dateFormat)}` : "No end date recorded"}</p></section>}
-    <section className="space-y-3"><h2 className="font-medium">Documents</h2>{item.documents.length === 0 ? <p className="text-muted">None yet.</p> : <ul className="mt-2 space-y-2">
+    {item.warranty && <section><h2 className={sectionHeadingClass()}>Warranty</h2><p>{item.warranty.endDate ? `Ends ${formatDate(item.warranty.endDate, dateFormat)}` : "No end date recorded"}</p></section>}
+    <section className="space-y-3"><h2 className={sectionHeadingClass()}>Documents</h2>{item.documents.length === 0 ? <p className="text-muted">None yet.</p> : <ul className="mt-2 space-y-2">
       {item.documents.map((doc) => <li key={doc.id}><a className="underline" href={`/api/items/documents/${doc.id}`}>{doc.filename}</a>{doc.isImportant && <span className="ml-2 text-sm">★</span>}</li>)}
     </ul>}{writable && <DocumentUploadForm action={addItemDocumentAction.bind(null, id)} />}</section>
   </div>;

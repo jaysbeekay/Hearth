@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, MEMBER_AUTH_FILE } from "../env";
 
-// #363 — Settings is two tabs, My account and Household; the old "System
+// #363 — Settings is two screens, My account and Household settings, each
+// with its own nav entry; the old "System
 // settings" page is split into Household sections, its old links still
 // resolve, schedules read in plain language, and each page has one Save.
 
@@ -28,12 +29,21 @@ test.describe("as an admin", () => {
     }
   });
 
-  test("the Household tab lists every shared section, and no page says System settings", async ({ page }) => {
+  test("Household settings lists every shared section, and no page says System settings", async ({ page }) => {
     await page.goto("/settings");
-    const tabs = page.getByRole("navigation", { name: "Settings" });
-    await expect(tabs.getByRole("link", { name: "My account" })).toHaveAttribute("aria-current", "page");
-    await tabs.getByRole("link", { name: "Household" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "My account" })).toBeVisible();
+    // Both screens are in the sidebar's account menu.
+    const sidebar = page.locator("aside");
+    const accountMenu = sidebar.getByRole("button", { name: /account menu$/ });
+    await accountMenu.click();
+    await expect(sidebar.getByRole("link", { name: "My account" })).toHaveAttribute("aria-current", "page");
+    await sidebar.getByRole("link", { name: "Household settings" }).click();
     await expect(page).toHaveURL(/\/settings\/household$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Household settings" })).toBeVisible();
+    // /settings/household also starts with /settings: only one entry is current.
+    await accountMenu.click();
+    await expect(sidebar.getByRole("link", { name: "Household settings" })).toHaveAttribute("aria-current", "page");
+    await expect(sidebar.getByRole("link", { name: "My account" })).not.toHaveAttribute("aria-current", "page");
 
     const main = page.locator("main");
     for (const section of [
@@ -340,7 +350,7 @@ test.describe("the save bar when saving goes wrong", () => {
 test.describe("as a member", () => {
   test.use({ storageState: MEMBER_AUTH_FILE });
 
-  test("sees the Household tab with the admin-only sections greyed out", async ({ page }) => {
+  test("sees Household settings with the admin-only sections greyed out", async ({ page }) => {
     await page.goto("/settings/household");
     const main = page.locator("main");
     await expect(main).toContainText("Only an admin can change the greyed-out sections.");

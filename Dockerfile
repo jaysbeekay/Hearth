@@ -27,6 +27,9 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
+# The commit shown in the account menu's Version row; .git isn't in the
+# build context. Optional: without it the menu shows only the version.
+ARG GIT_SHA=""
 RUN npm run build
 # npm installs both the glibc and musl builds of sharp's and libsql's native
 # binaries, and the trace copies glibc ones into the standalone output. They

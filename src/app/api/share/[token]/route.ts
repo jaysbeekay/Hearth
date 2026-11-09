@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contentDisposition } from "@/lib/documents/inlineView";
 import { documentStoreFor } from "@/lib/storage";
 import { openShareLink } from "@/lib/documents/shareLinks";
 
@@ -17,12 +18,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const { doc, buffer } = opened;
-  const safeFilename = doc.filename.replace(/[\r\n"]/g, "_");
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": doc.mimeType,
       // Always a download, never rendered on this origin.
-      "Content-Disposition": `attachment; filename="${safeFilename}"`,
+      "Content-Disposition": contentDisposition(doc.mimeType, doc.filename, false),
       "Content-Length": String(buffer.length),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

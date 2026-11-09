@@ -14,7 +14,8 @@ import {
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
-import type { Prisma } from "@/generated/prisma/client";
+import { logExtractionConfirmed } from "@/lib/documents/extractionAudit";
+import type { Prisma, Product } from "@/generated/prisma/client";
 import { retireStagedProduct, syncLegacyProduct } from "@/lib/items/syncLegacyItem";
 
 // Record commands for Products (Items), as for Contracts in
@@ -72,7 +73,8 @@ function assertDateOrder(
 
 interface ProductWrite {
   // The patch, or a function that works it out inside the transaction.
-  patch: ProductPatch | ((tx: Prisma.TransactionClient) => Promise<ProductPatch>);
+  // It's given the Product as this transaction read it.
+  patch: ProductPatch | ((tx: Prisma.TransactionClient, existing: Product) => Promise<ProductPatch>);
   // More writes that must land with the patch or not at all.
   alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>;
 }
@@ -83,7 +85,7 @@ interface ProductWrite {
 async function writeProduct(id: string, actorId: string, options: UpdateOptions, write: ProductWrite) {
   await prisma.$transaction(async (tx) => {
     const existing = await findLiveProduct(id, tx);
-    const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
+    const patch = typeof write.patch === "function" ? await write.patch(tx, existing) : write.patch;
     // Stale first, so a stale offline replay is reported as stale rather
     // than as a link it no longer means to set.
     assertNotStale(existing, options.baseUpdatedAt);
@@ -145,18 +147,25 @@ export async function confirmProductExtractionCommand(
 ) {
   const reviewedAt = new Date();
   const pendingWhere = { ownerType: "PRODUCT" as const, ownerId: id, reviewedAt: null };
+  let reviewedFieldNames: string[] = [];
+  let wasAwaitingReview = false;
   await writeProduct(id, actorId, options, {
-    patch: async (tx) => {
-      let reviewed = corrections;
-      if (typeof reviewed === "function") {
-        const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
-        reviewed = reviewed(new Set(pending.map((f) => f.fieldName)));
-      }
+    patch: async (tx, existing) => {
+      const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
+      reviewedFieldNames = pending.map((f) => f.fieldName);
+      wasAwaitingReview = pending.length > 0;
+      const reviewed = typeof corrections === "function" ? corrections(new Set(reviewedFieldNames)) : corrections;
       return { ...reviewed, extractionPending: false, extractionConfirmedAt: reviewedAt };
     },
     alsoInTransaction: (tx) =>
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
+  // Who confirmed it is audit detail for admins (Settings > Security log),
+  // not something the record page shows. Only a confirmation that reviewed
+  // pending fields is logged, so re-confirming can't flood the log and no
+  // entry has an empty field list. Logging is best-effort: it runs after the
+  // confirmation has committed and never throws (see logExtractionConfirmed).
+  if (wasAwaitingReview) await logExtractionConfirmed({ ownerType: "PRODUCT", ownerId: id, actorId, fieldNames: reviewedFieldNames });
   return { id };
 }
 

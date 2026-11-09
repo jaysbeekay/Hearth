@@ -40,10 +40,16 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, cardClass, inlineLinkClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass, inlineLinkClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { Banner } from "@/components/ui/Banner";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, detailTitle("contract"), "Contract");
+}
 
 export default async function ContractDetailPage({
   params,
@@ -194,7 +200,7 @@ export default async function ContractDetailPage({
                 <ConfirmForm
                   action={deleteContract.bind(null, contract.id)}
                   undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
-                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                 >
@@ -318,7 +324,7 @@ export default async function ContractDetailPage({
 
       {(contract.contactName || contract.contactPhone || contract.contactEmail) && (
         <Card>
-          <h2 className="mb-3 font-medium">Contact details</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Contact details</h2>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Detail label="Name" value={contract.contactName ?? "—"} />
             <Detail label="Phone" value={contract.contactPhone ?? "—"} />
@@ -329,14 +335,14 @@ export default async function ContractDetailPage({
 
       {contract.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{contract.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{contract.notes}</p>
         </Card>
       )}
 
       {(contract.property || contract.vehicle) && (
         <Card>
-          <h2 className="mb-3 font-medium">Linked to</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {contract.property && (
               <Link
@@ -376,7 +382,7 @@ export default async function ContractDetailPage({
         <Card>
           <div className="mb-3 flex items-center gap-2">
             <Home size={16} className="text-muted" />
-            <h2 className="font-medium">Linked tenancy</h2>
+            <h2 className={sectionHeadingClass()}>Linked tenancy</h2>
           </div>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Detail
@@ -412,7 +418,7 @@ export default async function ContractDetailPage({
       )}
 
       <Card id="documents" className="scroll-mt-20">
-        <h2 className="mb-3 font-medium">Documents</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
         <DocumentList kind="CONTRACT" ownerId={contract.id} documents={contract.documents} trashedLinks={trashedLinks.get(contract.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
@@ -426,7 +432,6 @@ export default async function ContractDetailPage({
         updatedByName={contract.updatedBy?.name}
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
-        extractionConfirmedAt={contract.extractionConfirmedAt}
         memberCount={memberCount}
       />
     </PageShell>

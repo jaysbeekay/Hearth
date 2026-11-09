@@ -3,7 +3,7 @@ import { BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, sectionHeadingClass } from "@/lib/ui";
 import { channelSummary } from "@/lib/notifications/reminderSummary";
 
 function pushSummary({ total, failing }: HouseholdReminderHealth["pushDevices"]) {
@@ -26,7 +26,7 @@ export function HouseholdReminderHealthCard({
   return (
     <Card as="section" className="space-y-4">
       <div>
-        <h2 className="flex items-center gap-2 font-medium">
+        <h2 className={sectionHeadingClass("flex items-center gap-2")}>
           <BellRing size={16} className="text-muted" aria-hidden />
           Reminder delivery health
         </h2>
@@ -84,7 +84,7 @@ export function HouseholdReminderHealthCard({
 
       {health.deliveryReady && !appUrlConfigured && (
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <AlertTriangle size={16} className="mt-1 shrink-0" aria-hidden />
           Reminders can&apos;t link to the record they&apos;re about until the server&apos;s
           APP_URL is set to the address you open Hearth on.
         </p>
@@ -92,7 +92,7 @@ export function HouseholdReminderHealthCard({
 
       {!health.deliveryReady ? (
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <AlertTriangle size={16} className="mt-1 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
           coverage until push, email or ntfy is turned on, or a webhook is added under Integrations.
         </p>

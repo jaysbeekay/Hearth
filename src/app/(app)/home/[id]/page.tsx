@@ -50,9 +50,10 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -65,6 +66,12 @@ const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 function isValuationStale(valuedAt: Date) {
   return Date.now() - valuedAt.getTime() > ONE_YEAR_MS;
+}
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("property", id, detailTitle("property"), "Property");
 }
 
 export default async function PropertyDetailPage({
@@ -167,7 +174,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -221,14 +228,14 @@ export default async function PropertyDetailPage({
 
       {property.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{property.notes}</p>
         </Card>
       )}
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Maintenance records</h2>
+          <h2 className={sectionHeadingClass()}>Maintenance records</h2>
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
@@ -286,7 +293,7 @@ export default async function PropertyDetailPage({
                             <ConfirmForm
                               action={deleteHomeItem.bind(null, property.id, item.id)}
                               undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -307,7 +314,7 @@ export default async function PropertyDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
+                    <p className={proseClass("mt-4 whitespace-pre-wrap")}>
                       {item.notes}
                     </p>
                   )}
@@ -332,7 +339,7 @@ export default async function PropertyDetailPage({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Contracts and warranties linked to this property</h2>
+          <h2 className={sectionHeadingClass()}>Contracts and warranties linked to this property</h2>
           {canWrite && (
             <div className="flex flex-wrap items-center gap-2">
               {/* #456 - a shortcut that opens the contract form linked to this property. */}
@@ -374,7 +381,7 @@ export default async function PropertyDetailPage({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-muted" />
-            <h2 className="font-medium">Property valuations</h2>
+            <h2 className={sectionHeadingClass()}>Property valuations</h2>
           </div>
         </div>
 
@@ -409,7 +416,7 @@ export default async function PropertyDetailPage({
                         parentId: property.id,
                         label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
                       }}
-                      confirmText="Delete this valuation? You can restore it within 30 days from Settings → Household → Recently deleted."
+                      confirmText="Delete this valuation? You can restore it within 30 days from Household settings → Recently deleted."
                       className={menuItemClass({ destructive: true })}
                     >
                       <Trash2 size={16} />
@@ -445,7 +452,7 @@ export default async function PropertyDetailPage({
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Home size={16} className="text-muted" />
-              <h2 className="font-medium">Tenancy</h2>
+              <h2 className={sectionHeadingClass()}>Tenancy</h2>
             </div>
             {property.isRented ? (
               <Link
