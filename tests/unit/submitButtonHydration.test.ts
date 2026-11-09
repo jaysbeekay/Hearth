@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,10 @@ vi.mock("@/lib/actions/ical", () => ({
 const { SubmitButton } = await import("@/components/SubmitButton");
 const { IcalTokenSection } = await import("@/components/IcalTokenSection");
 
+// children go in createElement's third argument (react/no-children-prop),
+// which its typing doesn't count towards the required `children` prop.
+type SubmitButtonProps = ComponentProps<typeof SubmitButton>;
+
 function buttonTag(html: string, label: string): string {
   const match = html.match(new RegExp(`<button[^>]*>${label}</button>`));
   expect(match, `a "${label}" button is rendered`).not.toBeNull();
@@ -23,13 +27,13 @@ function buttonTag(html: string, label: string): string {
 describe("SubmitButton before hydration", () => {
   it("is disabled in server-rendered HTML when disabledUntilHydrated is set", () => {
     const html = renderToString(
-      createElement("form", null, createElement(SubmitButton, { disabledUntilHydrated: true, children: "Go" })),
+      createElement("form", null, createElement(SubmitButton, { disabledUntilHydrated: true } as SubmitButtonProps, "Go")),
     );
     expect(buttonTag(html, "Go")).toMatch(/\sdisabled=""(\s|>)/);
   });
 
   it("stays enabled by default, so other forms are unchanged", () => {
-    const html = renderToString(createElement("form", null, createElement(SubmitButton, { children: "Go" })));
+    const html = renderToString(createElement("form", null, createElement(SubmitButton, {} as SubmitButtonProps, "Go")));
     expect(buttonTag(html, "Go")).not.toMatch(/\sdisabled(=|\s|>)/);
   });
 });
