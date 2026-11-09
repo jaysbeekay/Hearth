@@ -413,8 +413,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   filename like "John’s lease.pdf" (the curly apostrophe iPhones type) or
   any non-Latin name made the file route fail with a server error, so the
   file could neither be previewed nor downloaded. The name is now sent as
-  UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox and share
-  link routes.
+  UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox, Item and
+  share link routes.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
