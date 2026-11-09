@@ -31,7 +31,7 @@ function addDays(day: string, days: number): string {
 }
 
 async function savePreferences(page: Page, dateFormat: string, region: string) {
-  await page.goto("/settings");
+  await page.goto("/settings#preferences");
   await page.locator("#dateFormat").selectOption(dateFormat);
   await page.locator("#region").selectOption(region);
   await page.getByRole("button", { name: "Save changes" }).click();

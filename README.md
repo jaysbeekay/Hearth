@@ -123,7 +123,7 @@ security notes.
 - AI extraction pre-fills service record details when you upload a receipt or invoice
 
 **Passkeys**
-- Register Face ID, Touch ID, or a security key as an alternative to your password from **My account → Sign-in and security**
+- Register Face ID, Touch ID, or a security key as an alternative to your password from **My account → Passkeys**
 - Passkeys are per-user and opt-in — passwords continue to work normally
 - Signing in with a passkey appears as a second button on the login page
 - Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
@@ -174,9 +174,9 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
-| Settings — My account | Settings — Household |
+| My account | Household settings |
 | --- | --- |
-| ![Settings — My account](docs/screenshots/settings-personal.png) | ![Settings — Household](docs/screenshots/settings-household-tab.png) |
+| ![My account](docs/screenshots/settings-personal.png) | ![Household settings](docs/screenshots/settings-household-tab.png) |
 
 | Settings — Reminders & channels | Settings — reminder schedule |
 | --- | --- |
@@ -224,7 +224,7 @@ _The property detail screenshot was captured without network access, so it doesn
 
 | Contracts — dark | Settings — dark |
 | --- | --- |
-| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
+| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![My account in dark mode](docs/screenshots/settings-personal-dark.png) |
 
 | Mobile — contracts | Mobile — contract filters |
 | --- | --- |

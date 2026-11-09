@@ -113,10 +113,10 @@ test("the iCal feed covers the whole household, whichever member's token is used
   const memberContext = await browser.newContext({ storageState: MEMBER_AUTH_FILE });
   const memberPage = await memberContext.newPage();
 
-  await memberPage.goto("/settings");
+  await memberPage.goto("/settings#calendar-feed");
 
   // Only stored as a hash, so the URL appears exactly once — right here.
-  const feedInput = memberPage.locator('section:has-text("Calendar feed") input[readonly]');
+  const feedInput = memberPage.locator("#calendar-feed input[readonly]");
   // A click that lands before the page hydrates submits the form natively,
   // and the one-time URL (held in client state) is lost with the reload
   // (#609). Wait until React has hydrated the button itself, then click
@@ -158,7 +158,7 @@ test("the iCal feed covers the whole household, whichever member's token is used
   // Revisiting Settings can't reproduce the URL.
   await memberPage.reload();
   await expect(
-    memberPage.locator('section:has-text("Calendar feed") input[readonly]'),
+    memberPage.locator('#calendar-feed input[readonly]'),
   ).toHaveCount(0);
   await expect(memberPage.locator("body")).toContainText("A calendar feed is active");
 

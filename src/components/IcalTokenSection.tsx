@@ -16,6 +16,9 @@ interface Props {
   // Rendered inside CalendarSubscribeDialog on /calendar (#368): drops the
   // card chrome and ids the heading for the dialog's aria-labelledby.
   embedded?: boolean;
+  // Rendered inside its My account row, which already shows the name: no
+  // card chrome and no heading.
+  inRow?: boolean;
 }
 
 // webcal:// hands the feed straight to the OS calendar app (Apple Calendar,
@@ -24,7 +27,7 @@ function webcalUrl(url: string): string {
   return url.replace(/^https?:\/\//, "webcal://");
 }
 
-export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
+export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
   const [genState, genAction] = useActionState<IcalActionState, FormData>(generateIcalToken, null);
   const [revokeState, revokeAction] = useActionState<IcalActionState, FormData>(
     revokeIcalToken,
@@ -44,10 +47,12 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
   }
 
   return (
-    <section className={embedded ? undefined : cardClass()}>
-      <h2 id={embedded ? "calendar-feed-heading" : undefined} className={sectionHeadingClass("mb-1")}>
-        Calendar feed
-      </h2>
+    <section className={embedded || inRow ? undefined : cardClass()}>
+      {!inRow && (
+        <h2 id={embedded ? "calendar-feed-heading" : undefined} className={sectionHeadingClass("mb-1")}>
+          Calendar feed
+        </h2>
+      )}
       <p className="mb-3 text-sm text-muted">
         Subscribe to your household&apos;s contracts, warranties, and events in any calendar app
         that supports iCal (Apple Calendar, Google Calendar, Outlook, etc.).
