@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   stopped before any text arrived saves nothing). The server aborts the
   provider request in flight and makes no further provider calls or tool
   rounds for it, so a stopped reply stops using the household's provider key.
+  A message sent straight after Stop waits briefly for the stopped reply to
+  finish saving, and the conversation's history is replayed to the provider
+  with every tool call paired with its result. A reply that fails partway
+  now shows an error instead of ending as if it had finished.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order

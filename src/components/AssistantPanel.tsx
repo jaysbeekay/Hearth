@@ -41,6 +41,9 @@ export function AssistantPanel({ initialOpen }: { initialOpen: boolean }) {
     onThreadCreated: () => {
       void loadAssistantThreads().then(setThreads);
     },
+    onThreadListChanged: () => {
+      void loadAssistantThreads().then(setThreads);
+    },
     onRecordWritten: () => router.refresh(),
   });
 

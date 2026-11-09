@@ -158,6 +158,12 @@ export async function runChatTurn({
     }
   }
 
+  // Stopped during the last round's tools: the reply was stopped, not out of steps.
+  if (finalText === null && signal.aborted) {
+    await saveStopped();
+    return;
+  }
+
   if (finalText === null) {
     finalText =
       "I wasn't able to finish that within the allowed number of steps — try asking something narrower.";

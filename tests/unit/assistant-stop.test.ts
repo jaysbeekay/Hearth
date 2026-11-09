@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { runChatTurn, type ChatTurnProvider } from "@/lib/chat/chatTurn";
 import { markReplyStopped, type ChatStreamEvent } from "@/lib/chat/streamEvents";
-import type { ChatProviderResult, ChatTurn } from "@/lib/ai/chat/types";
+import { MAX_TOOL_CALL_ROUNDS, type ChatProviderResult, type ChatTurn } from "@/lib/ai/chat/types";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 
@@ -173,5 +173,60 @@ describe("runChatTurn", () => {
     expect(calls).toHaveLength(2);
     const rows = await assistantRows();
     expect(rows.map((r) => r.content)).toEqual(["Let me check.", markReplyStopped("")]);
+  });
+
+  it("saves both tool results when stopped after the first of two tool calls", async () => {
+    const abort = new AbortController();
+    const { provider, calls } = stubProvider([
+      {
+        result: {
+          ok: true,
+          text: null,
+          toolCalls: [
+            { id: "call-1", name: "list_contracts", input: {} },
+            { id: "call-2", name: "list_products", input: {} },
+          ],
+        },
+      },
+    ]);
+    let ran = 0;
+    const runTool = vi.fn(async () => {
+      ran += 1;
+      if (ran === 1) abort.abort();
+      return "[]";
+    });
+    const { done } = run(provider, abort.signal, runTool);
+    await done;
+
+    expect(calls).toHaveLength(1);
+    const assistant = await db.prisma.chatMessage.findFirstOrThrow({
+      where: { threadId, role: "ASSISTANT", toolCalls: { not: null } },
+    });
+    const callIds = (JSON.parse(assistant.toolCalls ?? "[]") as { id: string }[]).map((c) => c.id);
+    const tools = await db.prisma.chatMessage.findMany({ where: { threadId, role: "TOOL" } });
+    expect(tools.map((t) => t.toolCallId).sort()).toEqual(callIds.sort());
+  });
+
+  it("stops instead of giving the out-of-steps answer when stopped during the last round", async () => {
+    const abort = new AbortController();
+    const steps = Array.from({ length: MAX_TOOL_CALL_ROUNDS }, (_, i) => ({
+      deltas: i === 0 ? ["Checking."] : [],
+      result: { ...toolRound, text: i === 0 ? "Checking." : null },
+    }));
+    const { provider, calls } = stubProvider(steps);
+    let ran = 0;
+    const runTool = vi.fn(async () => {
+      ran += 1;
+      if (ran === MAX_TOOL_CALL_ROUNDS) abort.abort();
+      return "[]";
+    });
+    const { done, events } = run(provider, abort.signal, runTool);
+    await done;
+
+    expect(calls).toHaveLength(MAX_TOOL_CALL_ROUNDS);
+    const contents = (await assistantRows()).map((r) => r.content);
+    expect(contents.at(-1)).toBe(markReplyStopped(""));
+    expect(contents.some((c) => c.includes("allowed number of steps"))).toBe(false);
+    expect(events.some((e) => e.type === "done")).toBe(false);
   });
 });

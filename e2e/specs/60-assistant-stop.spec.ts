@@ -106,3 +106,36 @@ test("a streaming assistant reply can be stopped, and closing the panel stops it
     await mock.close();
   }
 });
+
+test("stopping a new chat's first reply on the Assistant page keeps the partial reply", async ({ page }) => {
+  const mock = await startHangingOllama();
+  try {
+    await configureMockAssistant(page, mock.url);
+
+    await page.goto("/assistant");
+    await page.locator("textarea").fill("What's due this week?");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Your next renewal is")).toBeVisible();
+    await page.getByRole("button", { name: "Stop" }).click();
+
+    // The chat now has its own address, and the stopped reply stays on screen
+    // rather than being replaced by a page refresh mid-save.
+    await expect(page).toHaveURL(/\/assistant\?thread=/);
+    await expect(page.getByText(/Your next renewal is\s+\(stopped\)/)).toBeVisible();
+    await expect(page.locator("p[role=alert]")).toHaveCount(0);
+    await expect.poll(() => mock.stats.closed).toBe(1);
+
+    // The next message goes into the same chat.
+    await page.locator("textarea").fill("Anything else due this week?");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Your next renewal is")).toHaveCount(2);
+    await page.getByRole("button", { name: "Stop" }).click();
+    await expect.poll(() => mock.stats.closed).toBe(2);
+
+    await page.reload();
+    await expect(page.getByText("Anything else due this week?")).toBeVisible();
+    await expect(page.getByText(/Your next renewal is\s+\(stopped\)/)).toHaveCount(2);
+  } finally {
+    await mock.close();
+  }
+});
