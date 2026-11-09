@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { saveSmtpSettings } from "@/lib/actions/app-settings";
 import { getSmtpConfig, setAppSetting } from "@/lib/appSettings";
 import { sendTestEmail } from "@/lib/notifications/email";
+import { env } from "@/lib/env";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -63,5 +64,19 @@ describe("saveSmtpSettings From address", () => {
     await setAppSetting("smtp.host", "smtp.example.com");
     await setAppSetting("smtp.user", "apikey");
     await expect(sendTestEmail("a@example.com")).rejects.toThrow(/No From address/);
+  });
+
+  it("falls back to an unqualified SMTP_FROM from .env rather than sending with no From", async () => {
+    // A lenient relay may still accept no-reply@localhost; a null sender never works.
+    const saved = env.smtp.from;
+    env.smtp.from = "Hearth <no-reply@localhost>";
+    try {
+      await setAppSetting("smtp.user", "apikey");
+      const smtp = await getSmtpConfig();
+      expect(smtp.configuredFrom).toBe("");
+      expect(smtp.from).toBe("Hearth <no-reply@localhost>");
+    } finally {
+      env.smtp.from = saved;
+    }
   });
 });
