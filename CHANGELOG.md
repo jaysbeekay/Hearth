@@ -490,6 +490,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Scans read amounts in £, €, ¥ and R, and European-style numbers (#613).**
+  Document text extraction only picked up an amount after `$` or AUD/USD/NZD/
+  GBP/EUR, and read `$1.234,56` as 1.23. One shared amount reader now handles
+  `$`, `£`, `€`, `¥`, `R` and the codes AUD, USD, NZD, GBP, EUR, JPY and ZAR,
+  with comma, dot or space thousands separators and a dot or comma decimal
+  (`€1.234,56`, `R 1 234,56` → 1234.56); yen amounts have no decimals. Cost
+  and price fields, lease rent and bond, and rental statement amounts all use
+  it. A reference like "R2D2" isn't read as money.
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a

@@ -1,5 +1,5 @@
 import { getOllamaConfig, isOllamaConfigured } from "@/lib/appSettings";
-import { findLabeledDate, findLabeledValue, matchDate } from "@/lib/documents/textHeuristics";
+import { findLabeledAmount, matchDate } from "@/lib/documents/textHeuristics";
 import { extractWithByok, isByokConfigured } from "@/lib/ai/extract";
 import { parseJsonObject, whitelistFields } from "@/lib/ai/parseJson";
 import { untrustedTextPrompt } from "@/lib/ai/untrustedContent";
@@ -21,8 +21,6 @@ const FIELD_KEYS = [
   "leaseEnd",
   "bondAmount",
 ] as const;
-
-const AMOUNT_PATTERN = /\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
 
 // REIWA Form 1AA encodes dates as "DD MM YYYY" in separate box characters.
 // `matchDate` from textHeuristics handles slash/dash/dot separators but not spaces.
@@ -75,11 +73,11 @@ function extractTenantName(text: string): string | undefined {
 export function heuristicExtract(text: string): ExtractedLeaseFields {
   return {
     weeklyRent:
-      findLabeledValue(text, /(rent\s+is|weekly\s+rent|rent\s+per\s+week)/i, AMOUNT_PATTERN) ??
-      findLabeledValue(text, /\brent\b/i, AMOUNT_PATTERN),
+      findLabeledAmount(text, /(rent\s+is|weekly\s+rent|rent\s+per\s+week)/i) ??
+      findLabeledAmount(text, /\brent\b/i),
     bondAmount:
-      findLabeledValue(text, /(security\s+bond|bond\s+of|bond\s+amount)/i, AMOUNT_PATTERN) ??
-      findLabeledValue(text, /\bbond\b/i, AMOUNT_PATTERN),
+      findLabeledAmount(text, /(security\s+bond|bond\s+of|bond\s+amount)/i) ??
+      findLabeledAmount(text, /\bbond\b/i),
     leaseStart: findLabeledLeaseDate(text, /(starting\s+on|commencement|lease\s+start|from\s+date)/i),
     leaseEnd: findLabeledLeaseDate(text, /(ending\s+on|expiry|lease\s+end|end\s+date)/i),
     tenantName: extractTenantName(text),

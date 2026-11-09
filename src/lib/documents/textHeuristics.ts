@@ -69,13 +69,77 @@ export function findLabeledValue(
   return undefined;
 }
 
+// An amount after a currency sign or code: "$1,234.56", "€1.234,56",
+// "R 1 234,56", "¥12,000", "AUD 5101.00". The number is either grouped in
+// threes by one consistent thousands separator (comma, dot, space, or a thin /
+// non-breaking space), with an optional decimal part, or a plain digit run with
+// an optional decimal part. "R" only counts when a digit follows it (after an
+// optional space), and the amount mustn't run on into more digits.
+const AMOUNT_PATTERN =
+  /(\b(?:AUD|USD|NZD|GBP|EUR|JPY|ZAR)|[$£€¥]|\bR(?=\s?\d))\s*(\d{1,3}([,.    ])\d{3}(?:\3\d{3})*(?:(?!\3)[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d)/g;
+
+const SPACES = /[    ]/g;
+
+// Turns a matched number into a plain decimal string ("1.234,56" → "1234.56").
+// With both "." and "," the last one is the decimal separator. With one kind
+// only, it's a thousands separator when it splits the number into groups of
+// three ("1.234", "12,000,000"), otherwise a decimal separator ("12,50", "12.5").
+function normaliseNumber(raw: string, wholeUnitsOnly: boolean): string {
+  const digits = raw.replace(SPACES, "");
+  const lastDot = digits.lastIndexOf(".");
+  const lastComma = digits.lastIndexOf(",");
+  let whole: string;
+  let fraction: string | undefined;
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalAt = Math.max(lastDot, lastComma);
+    whole = digits.slice(0, decimalAt).replace(/[.,]/g, "");
+    fraction = digits.slice(decimalAt + 1);
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const parts = digits.split(/[.,]/);
+    const grouped = parts.length > 2 || (parts[0].length <= 3 && parts[1].length === 3);
+    if (grouped) {
+      whole = parts.join("");
+    } else {
+      whole = parts[0];
+      fraction = parts[1];
+    }
+  } else {
+    whole = digits;
+  }
+  // Yen have no minor unit, so a decimal part is dropped rather than kept.
+  if (fraction === undefined || wholeUnitsOnly) return whole;
+  return `${whole}.${fraction}`;
+}
+
+// The first currency-marked amount in the text, as a plain decimal string
+// ("Total €1.234,56" → "1234.56"), or undefined if there isn't one. A
+// reference like "R2D2" isn't read: an "R" amount mustn't run on into letters.
+export function parseAmount(text: string): string | undefined {
+  for (const match of text.matchAll(AMOUNT_PATTERN)) {
+    const prefix = match[1];
+    const end = (match.index ?? 0) + match[0].length;
+    if (prefix === "R" && /^[A-Za-z]/.test(text.slice(end))) continue;
+    return normaliseNumber(match[2], prefix === "¥" || prefix === "JPY");
+  }
+  return undefined;
+}
+
+// The first amount on a line matching `labels` ("Weekly rent £1,200.00").
+export function findLabeledAmount(text: string, labels: RegExp): string | undefined {
+  for (const line of text.split(/\r?\n/)) {
+    if (!labels.test(line)) continue;
+    const amount = parseAmount(line);
+    if (amount) return amount;
+  }
+  return undefined;
+}
+
 export function findCost(text: string): string | undefined {
   const priority = /(total|amount due|balance due|premium|monthly fee|amount payable|payment)/i;
   let fallback: string | undefined;
   for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/);
-    if (!match) continue;
-    const value = match[1].replace(/,/g, "");
+    const value = parseAmount(line);
+    if (!value) continue;
     if (priority.test(line)) return value;
     fallback ??= value;
   }
