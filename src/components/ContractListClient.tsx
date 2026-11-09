@@ -191,6 +191,7 @@ export function ContractListClient({
     <PageShell width="list">
       <ListPageHeader
         title="Contracts"
+        description="Insurance policies, plans, leases, loans and subscriptions"
         exportPath={nothingYet ? undefined : "/api/export/contracts"}
         action={canWrite ? { href: "/contracts/new", label: "Add contract", online } : undefined}
       />
