@@ -6,6 +6,7 @@ import { setupAdmin, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
+import { dimmedClass } from "@/lib/ui";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // Setup-screen-only ordering: Travel last, since it's the module most new
@@ -86,7 +87,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
           Enable any extra modules now, or turn them on later from Settings. Records in every
           module are visible to your whole household, not just the person who added them.
         </p>
-        <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 opacity-70">
+        <label className={`flex items-start gap-3 rounded-lg border border-border px-3 py-2 ${dimmedClass}`}>
           <input
             type="checkbox"
             checked

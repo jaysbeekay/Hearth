@@ -226,13 +226,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Changed
 
 - **Screen readers read a field's hint with the field, and say "Error:"
-  before a validation error (#615).** A form field's hint (the small text
+  before a form error message (#615).** A form field's hint (the small text
   under it) is now linked to its control through `aria-describedby`, after
   the field's error when there is one, so both are read when the field takes
-  focus. Ids added to a control's `aria-describedby` (the hint, a #406 field
-  error, the auto-fill note) are now added and removed one at a time, so
-  none of them drops another. Error messages start with a visually hidden
-  "Error:". Nothing changes on screen.
+  focus. The hint, a #406 field error and the auto-fill note each add and
+  remove only their own id, rather than restoring an earlier copy of the
+  attribute. Form error messages start with a visually hidden "Error:".
+  Nothing changes on screen.
+
+- **Disabled controls all dim to the same 50% (#620, #558).** Disabled
+  buttons and fields were 60% from the shared classes, but 13 buttons added
+  their own 50%, the locked admin-only settings rows and the sign-in email
+  field (while a two-factor code is asked for) used 60%, and the always-on
+  Documents box on first-run setup used 70%. All of them are now 50%, set
+  once in `src/lib/ui.ts`; components no longer set their own opacity, and
+  `tests/unit/ui-rules.test.ts` keeps it that way. Actions that need a
+  connection are 40% while offline. The "Add" buttons on list pages and the
+  Inventory "Add item" link had been showing at 50% offline, because their
+  disabled state outranked the 40%, and an offline Document link that isn't
+  saved on the device was 50%; all of them are now 40%.
 
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body

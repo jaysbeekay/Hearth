@@ -79,9 +79,7 @@ export function ListPageHeader({
               aria-disabled={!online}
               tabIndex={!online ? -1 : undefined}
               className={cn(
-                action.variant === "secondary"
-                  ? cn(buttonClass("secondary"), !online && "pointer-events-none opacity-40")
-                  : buttonClass("primary", { online }),
+                buttonClass(action.variant === "secondary" ? "secondary" : "primary", { online }),
                 "w-full justify-center whitespace-nowrap md:w-auto",
               )}
             >
