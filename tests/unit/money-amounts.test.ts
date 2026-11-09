@@ -12,6 +12,11 @@ describe("moneyInputValue", () => {
     expect(moneyInputValue(0.1 + 0.2)).toBe("0.30");
   });
 
+  it("never rounds an amount saved with more than two decimals", () => {
+    expect(moneyInputValue(1.005)).toBe("1.005");
+    expect(moneyInputValue(12.345)).toBe("12.345");
+  });
+
   it("leaves a missing amount blank", () => {
     expect(moneyInputValue(null)).toBe("");
     expect(moneyInputValue(undefined)).toBe("");

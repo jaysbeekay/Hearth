@@ -143,7 +143,12 @@ export interface CurrencyFormatOptions {
  * would otherwise show in the field without its trailing zero.
  */
 export function moneyInputValue(amount: number | null | undefined): string {
-  return amount == null ? "" : amount.toFixed(2);
+  if (amount == null) return "";
+  const fixed = amount.toFixed(2);
+  // Only pad, never round: an amount saved with more than two decimals
+  // (an import, a 3-decimal currency) is shown as stored, so saving the
+  // form untouched can't change it. Float noise (0.1 + 0.2) still pads.
+  return Math.abs(Number(fixed) - amount) < 1e-9 ? fixed : String(amount);
 }
 
 export function formatCurrency(

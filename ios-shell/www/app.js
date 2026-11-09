@@ -918,7 +918,10 @@ function escapeHtml(value) {
 function moneyInputValue(value) {
   if (value == null || value === "") return "";
   const amount = Number(value);
-  return Number.isFinite(amount) ? amount.toFixed(2) : String(value);
+  if (!Number.isFinite(amount)) return String(value);
+  // Only pad, never round (mirrors src/lib/utils.ts).
+  const fixed = amount.toFixed(2);
+  return Math.abs(Number(fixed) - amount) < 1e-9 ? fixed : String(amount);
 }
 
 function escapeAttr(value) {
