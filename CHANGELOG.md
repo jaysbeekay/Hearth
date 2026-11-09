@@ -411,6 +411,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Inventory shows in the sidebar, and modules are listed A–Z.**
+  Inventory was left out of the desktop sidebar and the phone More sheet
+  even when enabled (it was only reachable from the bottom of Warranties).
+  It now appears with the other modules, and the Modules nav group and
+  Settings → Modules list are sorted alphabetically, the same in every
+  server locale. The standalone mobile shell's More screen and module
+  settings list modules A–Z too. Warranties now uses a shield icon so it no
+  longer shares the box icon with Inventory.
+
 - **Emails no longer bounce for an unqualified From address.** The default
   From, `Hearth <no-reply@localhost>`, is rejected by most SMTP servers
   ("504 5.5.2 Sender address rejected: need fully-qualified address"), so no
