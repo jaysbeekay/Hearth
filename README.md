@@ -198,6 +198,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Documents](docs/screenshots/documents.png) | ![Assistant](docs/screenshots/assistant.png) |
 
+| AI Assistant — side panel | |
+| --- | --- |
+| ![The Assistant docked beside the Contracts page](docs/screenshots/assistant-panel.png) | |
+
 | Mobile — dashboard | Form validation error |
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |

@@ -98,3 +98,11 @@ body {
 .sr-only-focusable:focus {
   left: 0;
 }
+
+/* The assistant side panel (AssistantPanel, xl and up) is 380px wide at the
+   bottom-right; keep toasts beside it rather than over its composer. */
+@media (min-width: 80rem) {
+  html[data-assistant-panel="open"] .toast-stack {
+    padding-right: calc(380px + 1.5rem);
+  }
+}

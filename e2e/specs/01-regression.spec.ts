@@ -54,7 +54,9 @@ const TOP_LEVEL: Array<[string, string]> = [
 
 test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
-  const sidebar = page.getByRole("complementary");
+  // Named: with the assistant panel open there's a second complementary
+  // landmark (and a third on /assistant).
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
   for (const [, label] of TOP_LEVEL) {
     await expect(sidebar.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
@@ -63,7 +65,7 @@ test("all nav items appear together on one page", async ({ page }) => {
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
   for (const [url, label] of TOP_LEVEL) {
     await page.goto(url);
-    await expect(page.getByRole("complementary").getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Sidebar" }).getByRole("link", { name: label, exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(label);
     await expect(page).toHaveTitle(`${label} · Hearth`);
   }

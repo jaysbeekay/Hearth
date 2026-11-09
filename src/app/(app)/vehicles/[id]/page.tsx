@@ -40,6 +40,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -49,6 +50,12 @@ const ITEM_ICONS: Record<string, LucideIcon> = {
   PURCHASE: Receipt,
   OTHER: Tag,
 };
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("vehicle", id, detailTitle("vehicle"), "Vehicle");
+}
 
 export default async function VehicleDetailPage({
   params,
