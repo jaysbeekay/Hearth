@@ -60,11 +60,23 @@ const YIELD_EVERY = 10_000;
 const floorToMinute = (ms: number) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 
 // How far each job's schedule has been checked with nothing owed, so a tick
-// only looks at the minutes since the last tick. Lost on restart, when the
-// job's last run starts the scan again.
-const scannedThrough = new Map<string, number>();
-// The pattern each job was last checked with, to tell when Settings changed it.
-const patternInUse = new Map<string, string>();
+// only looks at the minutes since the last tick. It holds for one pattern
+// and one last run: a new run, a retry after a failure (which moves the
+// last run back) or a new schedule starts the scan again. Lost on restart,
+// when the job's last run starts the scan again.
+interface Scan {
+  pattern: string;
+  anchor: number | null;
+  through: number;
+}
+const scans = new Map<string, Scan>();
+
+export interface OwedOptions {
+  /** The schedule the last run was queued under, when it was recorded. */
+  lastSchedule?: string | null;
+  /** When this job's settings were last saved in Settings, if ever. */
+  savedAt?: Date | null;
+}
 
 /**
  * Whether a scheduled job is owed a run: some minute after its last run, up
@@ -77,25 +89,41 @@ const patternInUse = new Map<string, string>();
  * `key` names the job; `lastRun` is when its last run was queued (null if
  * never). The first scan after a restart covers the whole time since
  * `lastRun`; later ones only the minutes since the previous tick.
+ *
+ * A schedule edited, or a job switched back on, in Settings starts from the
+ * save (`savedAt`): the times between the last run and the save were never
+ * asked for. A save happens while the server is up, so any time missed
+ * before it was already caught up. A schedule that changed with no save to
+ * explain it (an env var, changed across a restart) starts from the first
+ * check under it.
  */
-export async function cronOwed(key: string, pattern: string, lastRun: Date | null, now: Date): Promise<boolean> {
-  const compiled = matchersFor(pattern);
+export async function cronOwed(
+  key: string,
+  pattern: string,
+  lastRun: Date | null,
+  now: Date,
+  { lastSchedule = null, savedAt = null }: OwedOptions = {},
+): Promise<boolean> {
+  const minutePattern = onTheMinute(pattern);
+  const compiled = matchersFor(minutePattern);
   if (!compiled) return false; // an invalid pattern in Settings shouldn't crash the ticker
   const { task, wallTask, dayTask } = compiled;
-  // A run or scan stamped while the clock was ahead, since corrected, would
+  // A run or save stamped while the clock was ahead, since corrected, would
   // otherwise hold every run off until real time caught up with it.
   const anchor = lastRun && lastRun.getTime() <= now.getTime() ? lastRun : null;
+  const saved = savedAt && savedAt.getTime() <= now.getTime() ? savedAt.getTime() : null;
   const end = floorToMinute(now.getTime());
-  const memoKey = `${key}|${pattern}`;
-  // A schedule edited in Settings starts from now: the new times that fell
-  // between the last run and the edit were never asked for.
-  const previousPattern = patternInUse.get(key);
-  patternInUse.set(key, pattern);
-  if (previousPattern !== undefined && previousPattern !== pattern) scannedThrough.set(memoKey, end - MINUTE_MS);
 
-  const since = anchor ? anchor.getTime() : now.getTime() - FIRST_RUN_LOOKBACK_MS;
-  const scanned = Math.min(scannedThrough.get(memoKey) ?? -Infinity, end);
-  const start = Math.max(floorToMinute(since), scanned, end - MAX_LOOKBACK_MS);
+  let since = anchor ? anchor.getTime() : now.getTime() - FIRST_RUN_LOOKBACK_MS;
+  const savedSinceRun = saved !== null && saved > since;
+  if (savedSinceRun) since = saved;
+  const memo = scans.get(key);
+  const anchorMs = anchor ? anchor.getTime() : null;
+  const scanned = memo && memo.pattern === minutePattern && memo.anchor === anchorMs ? Math.min(memo.through, end) : null;
+  if (scanned === null && !savedSinceRun && lastSchedule !== null && lastSchedule !== pattern) {
+    since = Math.max(since, end - MINUTE_MS);
+  }
+  const start = Math.max(floorToMinute(since), scanned ?? -Infinity, end - MAX_LOOKBACK_MS);
 
   let checked = 0;
   let day = "";
@@ -123,8 +151,18 @@ export async function cronOwed(key: string, pattern: string, lastRun: Date | nul
     if (task.match(at) && !coveredFirstPass(t, wall, anchor)) return true;
     if (++checked % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
   }
-  scannedThrough.set(memoKey, end);
+  scans.set(key, { pattern: minutePattern, anchor: anchorMs, through: end });
   return false;
+}
+
+/**
+ * The ticker checks once a minute, at second 0, so a 6-field pattern (env
+ * schedules aren't checked like Settings ones) runs in its minute whatever
+ * its seconds field says, instead of never.
+ */
+function onTheMinute(pattern: string): string {
+  const fields = pattern.trim().split(/\s+/);
+  return fields.length === 6 ? ["0", ...fields.slice(1)].join(" ") : pattern;
 }
 
 /**
@@ -158,6 +196,5 @@ function daysOf(pattern: string, create: (expression: string) => Task): Task | n
 
 /** Forgets what cronOwed has scanned; for tests. Compiled patterns are kept. */
 export function resetCronOwedScans(): void {
-  scannedThrough.clear();
-  patternInUse.clear();
+  scans.clear();
 }

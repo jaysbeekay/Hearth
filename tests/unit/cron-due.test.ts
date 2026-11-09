@@ -83,15 +83,50 @@ describe("cronOwed — a run the server slept through still happens", () => {
 
 describe("cronOwed — schedule edits", () => {
   beforeEach(() => resetCronOwedScans());
+  const lastRun = new Date(2026, 10, 6, 20, 0, 5);
+  const editedAt = new Date(2026, 10, 7, 10, 0, 30);
 
-  it("starts an edited schedule from the edit, not from the last run", async () => {
-    const lastRun = new Date(2026, 10, 6, 20, 0, 5);
+  it("starts a schedule edited in Settings from the edit, not from the last run", async () => {
     expect(await cronOwed("BACKUP_RUN", "0 20 * * *", lastRun, new Date(2026, 10, 7, 10, 0, 0))).toBe(false);
     // Changed to 08:00 at 10:00: today's 08:00 was never asked for.
-    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 10, 1, 0))).toBe(false);
-    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 8, 0, 2))).toBe(true);
+    const after = { lastSchedule: "0 20 * * *", savedAt: editedAt };
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 10, 1, 0), after)).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 8, 0, 2), after)).toBe(true);
   });
 
+  it("still starts from the edit after a restart", async () => {
+    const after = { lastSchedule: "0 20 * * *", savedAt: editedAt };
+    // A fresh process: nothing scanned yet, so only the DB tells it about the edit.
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 11, 0, 0), after)).toBe(false);
+    resetCronOwedScans();
+    // Down across the new 08:00: it's still owed when the server is back.
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 9, 30, 0), after)).toBe(true);
+  });
+
+  it("doesn't run at once when a job is switched back on after months off", async () => {
+    const lastBackup = new Date(2026, 5, 1, 3, 0, 5);
+    const reEnabled = new Date(2026, 10, 7, 15, 0, 0);
+    expect(await cronOwed("BACKUP_RUN", "0 3 * * *", lastBackup, new Date(2026, 10, 7, 15, 1, 0), { savedAt: reEnabled })).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "0 3 * * *", lastBackup, new Date(2026, 10, 8, 3, 0, 1), { savedAt: reEnabled })).toBe(true);
+  });
+
+  it("starts an env schedule changed across a restart from the first check under it", async () => {
+    // Last queued under 20:00; the env var now says 08:00 and nothing was saved in Settings.
+    const changed = { lastSchedule: "0 20 * * *" };
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 10, 0, 0), changed)).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 7, 10, 1, 0), changed)).toBe(false);
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, new Date(2026, 10, 8, 8, 0, 2), changed)).toBe(true);
+  });
+
+  it("ignores a save stamped while the clock was ahead", async () => {
+    const now = new Date(2026, 10, 7, 9, 0, 0);
+    expect(await cronOwed("BACKUP_RUN", "0 8 * * *", lastRun, now, { savedAt: new Date(2026, 11, 1) })).toBe(true);
+  });
+
+  it("runs a 6-field env schedule in its minute, whatever its seconds field", async () => {
+    expect(await cronOwed("BACKUP_RUN", "30 0 8 * * *", lastRun, new Date(2026, 10, 7, 8, 0, 4))).toBe(true);
+    expect(await cronOwed("BACKUP_RUN", "30 0 8 * * *", lastRun, new Date(2026, 10, 7, 7, 59, 0))).toBe(false);
+  });
 });
 
 describe("cronOwed — clock trouble and memory", () => {
@@ -105,14 +140,34 @@ describe("cronOwed — clock trouble and memory", () => {
 
   it("doesn't grow node-cron's task registry tick after tick", async () => {
     const now = new Date(2026, 10, 8, 9, 0, 0);
-    await cronOwed("REMINDER_CHECK", "0 8 * * *", null, now);
+    const ranToday = new Date(2026, 10, 8, 8, 0, 5);
+    await cronOwed("REMINDER_CHECK", "0 8 * * *", ranToday, now);
     cronDue("0 8 * * *", now);
     const before = cron.getTasks().size;
     for (let i = 1; i <= 200; i += 1) {
-      await cronOwed("REMINDER_CHECK", "0 8 * * *", null, new Date(now.getTime() + i * 60_000));
+      await cronOwed("REMINDER_CHECK", "0 8 * * *", ranToday, new Date(now.getTime() + i * 60_000));
       cronDue("0 8 * * *", now);
       cronDue("not a cron pattern", now);
     }
     expect(cron.getTasks().size).toBe(before);
+  });
+
+  it("keeps a bounded number of tasks however many schedules it sees", async () => {
+    const before = cron.getTasks().size;
+    const now = new Date(2026, 10, 8, 9, 0, 0);
+    for (let minute = 0; minute < 60; minute += 1) {
+      await cronOwed(`JOB_${minute}`, `${minute} 8 * * *`, new Date(2026, 10, 8, 8, 59, 0), now);
+      cronDue(`${minute} 9 * * *`, now);
+    }
+    // 20 patterns kept, three tasks each at most.
+    expect(cron.getTasks().size - before).toBeLessThanOrEqual(60);
+  });
+
+  it("scans again when the last run moves back, as it does to retry a failure", async () => {
+    const yesterday = new Date(2026, 10, 7, 8, 0, 4);
+    const failedToday = new Date(2026, 10, 8, 8, 0, 4);
+    expect(await cronOwed("REMINDER_CHECK", "0 8 * * *", failedToday, new Date(2026, 10, 8, 9, 0, 0))).toBe(false);
+    // The failure stops counting: yesterday's run is the last one again, so today's 08:00 is owed.
+    expect(await cronOwed("REMINDER_CHECK", "0 8 * * *", yesterday, new Date(2026, 10, 8, 9, 1, 0))).toBe(true);
   });
 });
