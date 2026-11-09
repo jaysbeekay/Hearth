@@ -19,6 +19,7 @@ LEFT JOIN (
     WHERE "contractId" IS NOT NULL
     GROUP BY "contractId"
     HAVING count(*) = count("reviewedById") AND count(DISTINCT "reviewedById") = 1
+        AND count(DISTINCT "reviewedAt") = 1
 ) r ON r."contractId" = c."id" AND r."reviewedAt" = c."extractionConfirmedAt"
 LEFT JOIN "users" u ON u."id" = r."reviewedById"
 WHERE c."extractionConfirmedAt" IS NOT NULL;
@@ -38,6 +39,7 @@ LEFT JOIN (
     WHERE "productId" IS NOT NULL
     GROUP BY "productId"
     HAVING count(*) = count("reviewedById") AND count(DISTINCT "reviewedById") = 1
+        AND count(DISTINCT "reviewedAt") = 1
 ) r ON r."productId" = p."id" AND r."reviewedAt" = p."extractionConfirmedAt"
 LEFT JOIN "users" u ON u."id" = r."reviewedById"
 WHERE p."extractionConfirmedAt" IS NOT NULL;

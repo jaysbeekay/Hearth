@@ -204,8 +204,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Contract and Warranty pages no longer say "Auto-filled details confirmed
   {date}". Instead, each confirmation is an admin-only Security log entry
   (Settings > Household > Security log) naming who confirmed which record and
-  the fields the scan had filled. Confirmations saved before this release are
-  copied into the log on upgrade. Needs review works as before.
+  the fields the scan had filled. Only a confirmation that reviewed auto-filled
+  fields is logged, and confirmations get their own 100-entry window on the
+  page, so they can't push sign-in and role events out of view. Confirmations
+  saved before this release are copied into the log on upgrade, naming the
+  confirmer only when one person reviewed every field at the confirmation
+  time. Logging is best-effort: the entry is written after the confirmation
+  is saved, and if that write fails the confirmation still succeeds and the
+  entry is missing from the log. Needs review works as before.
 
 - **Search shows one result per Document, not one per version.** A
   re-uploaded file and the version it replaced usually match the same words,
