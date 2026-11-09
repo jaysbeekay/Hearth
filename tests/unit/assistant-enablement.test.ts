@@ -14,13 +14,19 @@ import { setAssistantEnabled } from "@/lib/actions/chatSettings";
 import { getAssistantAvailability, isAssistantEnabled } from "@/lib/assistant/enablement";
 import { setAppSetting } from "@/lib/appSettings";
 import { POST as chatPost } from "@/app/api/chat/route";
+import AssistantPage from "@/app/(app)/assistant/page";
+import { deleteChatThread } from "@/lib/actions/chatThreads";
+import { createContractFromAssistant, updateContractFromAssistant } from "@/lib/actions/contracts";
+import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((to: string) => {
     throw new Error(`REDIRECT ${to}`);
   }),
-  notFound: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error("NOT_FOUND");
+  }),
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }));
@@ -94,6 +100,54 @@ describe("/api/chat while the assistant is off", () => {
     expect(await prisma.chatThread.count()).toBe(0);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+});
+
+describe("every other assistant entry point while it's off", () => {
+  let memberId: string;
+
+  beforeEach(async () => {
+    memberId = (await createTestUser({ role: "MEMBER" })).id;
+    vi.mocked(auth).mockResolvedValue({ user: { id: memberId, role: "MEMBER" }, expires: "" } as never);
+    await setAppSetting("chat.provider", "OLLAMA");
+  });
+
+  it("the Assistant page 404s", async () => {
+    await expect(AssistantPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("a confirm card left open can't create or update a record", async () => {
+    const contract = await prisma.contract.create({
+      data: { title: "Broadband", category: "OTHER", provider: "ISP", renewalType: "FIXED_TERM", createdById: memberId },
+    });
+    const product = await prisma.product.create({ data: { description: "TV", createdById: memberId } });
+    const off = { success: false, error: "The assistant is turned off." };
+
+    expect(
+      await createContractFromAssistant({ title: "New", category: "OTHER", provider: "Co", renewalType: "FIXED_TERM" }),
+    ).toEqual(off);
+    expect(await updateContractFromAssistant(contract.id, { title: "Renamed" })).toEqual(off);
+    expect(await createProductFromAssistant({ description: "Fridge" })).toEqual(off);
+    expect(await updateProductFromAssistant(product.id, { description: "Renamed" })).toEqual(off);
+
+    expect(await prisma.contract.count()).toBe(1);
+    expect(await prisma.product.count()).toBe(1);
+    expect((await prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).title).toBe("Broadband");
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).description).toBe("TV");
+  });
+
+  it("a conversation can't be deleted from outside the page", async () => {
+    const thread = await prisma.chatThread.create({ data: { title: "Old chat", createdById: memberId } });
+    await expect(deleteChatThread(thread.id)).rejects.toThrow("The assistant is turned off.");
+    expect(await prisma.chatThread.count()).toBe(1);
+  });
+
+  it("the same calls go through once it's back on", async () => {
+    await setAppSetting("assistant.enabled", "true");
+    expect((await createProductFromAssistant({ description: "Fridge" })).success).toBe(true);
+    const thread = await prisma.chatThread.create({ data: { title: "Old chat", createdById: memberId } });
+    await expect(deleteChatThread(thread.id)).rejects.toThrow("REDIRECT /assistant");
+    expect(await prisma.chatThread.count()).toBe(0);
   });
 });
 

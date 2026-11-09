@@ -14,8 +14,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   assistant on and finishes setup on Settings → AI & privacy to choose a
   provider. Left unticked, it stays off. Admins can turn it on or off at any
   time beside the AI Assistant provider settings, which are kept while it's
-  off. While it's off the Assistant page 404s, it leaves the navigation, and
-  `/api/chat` refuses before anything reaches a provider. Households that had
+  off. While it's off the Assistant page 404s, it leaves the navigation,
+  `/api/chat` refuses before anything reaches a provider, and the server
+  refuses the Assistant's other actions too: confirming a proposed contract or
+  warranty card that was left open, and deleting a conversation. Households that had
   already saved an assistant provider are switched on by the migration, so
   nothing changes for them.
 
