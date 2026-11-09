@@ -34,7 +34,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 import { recordMetadata, detailTitle } from "@/lib/recordTitles";
@@ -210,7 +210,7 @@ export default async function ProductDetailPage({
 
       {(product.property || product.warrantyForItems.length > 0) && (
         <Card>
-          <h2 className="mb-3 font-medium">Linked to</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {product.property && (
               <Link
@@ -243,13 +243,13 @@ export default async function ProductDetailPage({
 
       {product.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{product.notes}</p>
         </Card>
       )}
 
       <Card id="documents" className="scroll-mt-20">
-        <h2 className="mb-3 font-medium">Documents</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
         <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
