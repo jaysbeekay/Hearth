@@ -19,7 +19,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
@@ -141,12 +141,12 @@ export default async function InventoryItemPage({
           )}
         </dl>
         {item.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{item.notes}</p>
+          <p className={proseClass("mt-4 whitespace-pre-wrap")}>{item.notes}</p>
         )}
       </Card>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Documents</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
         <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">

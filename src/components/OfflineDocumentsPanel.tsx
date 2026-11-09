@@ -10,7 +10,7 @@ import {
 import { humanFileSize } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
 import { Card } from "@/components/ui/Card";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, sectionHeadingClass } from "@/lib/ui";
 
 // `inRow`: rendered inside its My account row, which already shows the name,
 // so there's no card chrome and no heading.
@@ -43,7 +43,7 @@ export function OfflineDocumentsPanel({ inRow = false }: { inRow?: boolean }) {
   return (
     <Wrapper>
       <div className={inRow ? "mb-3 flex justify-end empty:hidden" : "mb-3 flex items-center justify-between"}>
-        {!inRow && <h2 className="font-medium">Downloaded documents</h2>}
+        {!inRow && <h2 className={sectionHeadingClass()}>Downloaded documents</h2>}
         {docs.length > 0 && (
           <button
             type="button"

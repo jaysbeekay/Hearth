@@ -217,6 +217,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Section headings stand out from body text, and long text reads more
+  easily (#558).** Section headings were 16px at weight 500 over 14px body
+  text at 400, too small a step to scan by. They are now weight 600 through
+  a new `sectionHeadingClass`; the #411 rules in `src/lib/ui.ts` now allow
+  600 for section headings only, and `tests/unit/ui-rules.test.ts` keeps it
+  there. Notes on record pages and Help answers now use 24px lines and stop
+  at about 65 characters wide (`proseClass`), and banners use 24px lines
+  (their icons move down 2px to stay centred on the first line). Weight 600
+  needs a semibold face; on Linux system fonts it renders as bold.
+
 - **The Contracts page says what it holds.** A line under the heading reads
   "Insurance policies, plans, leases, loans and subscriptions", so it's clear
   an insurance policy belongs under Contracts. The name itself stays
@@ -477,6 +487,54 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a
   field outside it no longer pulls focus back to the menu's button, so the
   field you clicked keeps it.
+
+- **Money amounts keep two decimals in edit forms (#601).** A saved 510.10 came
+  back as 510.1 because amounts are stored as numbers. Edit and Renew forms,
+  trade fees, the scan's "Needs review" panel and Quick check, web and
+  standalone app, now show it as 510.10. Zero-decimal currencies stay whole
+  (JPY 50000) and three-decimal ones get three (KWD 1.500). This is display
+  only and never rounds: an amount with more decimals than its currency
+  (12.345 in AUD) is shown as stored, so saving a form untouched never changes
+  a stored amount.
+- **Document scans read amounts without a thousands comma (#601).** "$5101.00"
+  was read as 510. Rental-statement amounts with a comma ("$2,600.00") no
+  longer come back blank, and a labelled line's money is preferred over a
+  statement number, account number or date on the same line ("Rental
+  Statement #20241108" isn't read as the rent).
+
+- **PDF preview is no longer blank in Safari (#599).** The eye button's preview
+  framed the PDF over a `blob:` URL, which inherits the app's CSP; Safari
+  checks its PDF viewer against that CSP's `object-src 'none'` and drew
+  nothing. Online, the preview now frames the file's own URL with
+  `?inline=1`, served inline (PDFs only) with a narrow CSP of its own that
+  only this origin may frame. The app's CSP is unchanged. Offline previews
+  still use the cached copy, so an offline PDF preview in Safari is still
+  blank. A preview that can't load (a file gone to Trash, an expired
+  session) says so, and comes back by itself after the connection returns.
+
+- **Documents named with characters outside Latin-1 download again.** A
+  filename like "John’s lease.pdf" (the curly apostrophe iPhones type) or
+  any non-Latin name made the file route fail with a server error, so the
+  file could neither be previewed nor downloaded. The name is now sent as
+  UTF-8 (`filename*`) with an ASCII fallback, on the file, Inbox, Item and
+  share link routes.
+
+- **A Reminder check the server slept through still runs.** The daily
+  Reminder check, scheduled backups and email ingestion only started if the
+  server was awake in the first second of their scheduled minute; node-cron
+  skips a tick the process was asleep or blocked for, so that day's
+  Reminders silently never went out. Each now runs once its schedule's next
+  time after its last run has come, so a missed 08:00 check runs as soon as
+  the server is back, however long it was down; the hourly document text
+  backfill catches up the same way. A schedule changed in Settings, or a
+  backup or email ingestion switched back on, starts from the save, even
+  across a restart, and an env-var schedule changed across a restart starts
+  from the restart. A check that fails every attempt is tried again an hour
+  later, up to twice, instead of waiting for the next day. A time skipped by
+  the clocks springing forward runs just after the jump, and an hour
+  repeated when they fall back runs once. A 6-field env schedule now runs in
+  its minute instead of never. The scheduled-job ticker also no longer leaks
+  a node-cron task every minute.
 
 - **The current page is marked by more than colour in the nav (#558).**
   The active sidebar entry, phone tab and More-sheet tile differed from the

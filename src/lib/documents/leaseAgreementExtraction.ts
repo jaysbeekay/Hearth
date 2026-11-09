@@ -22,8 +22,7 @@ const FIELD_KEYS = [
   "bondAmount",
 ] as const;
 
-const AMOUNT_PATTERN = /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
-const PLAIN_AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
+const AMOUNT_PATTERN = /\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/;
 
 // REIWA Form 1AA encodes dates as "DD MM YYYY" in separate box characters.
 // `matchDate` from textHeuristics handles slash/dash/dot separators but not spaces.

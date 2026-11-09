@@ -5,8 +5,13 @@
 // takes the class string from here instead of re-declaring it.
 //
 // The rules, from the issue:
-// - Type: five sizes (text-2xl/xl/base/sm/xs) and two weights (400/500),
-//   sentence case, tabular-nums set once on body.
+// - Type: five sizes (text-2xl/xl/base/sm/xs) and three weights: 400 for
+//   body, 500 for UI text and titles, 600 only for section headings
+//   (sectionHeadingClass) so they stand apart from 14px body copy (#558).
+//   The app ships no font, so on a system stack without a semibold face
+//   (Liberation Sans / DejaVu on Linux, some older Android Roboto) the
+//   browser renders 600 as 700 and 500 as 400. Apple and Windows have both.
+//   Sentence case, tabular-nums set once on body.
 // - Shape: rounded-lg everywhere except rounded-full for the FAB, dots and
 //   the account avatar;
 //   1px borders; dashed only for the file drop zone; no card shadows, one
@@ -40,6 +45,7 @@ const CLASS_GROUPS: RegExp[] = [
   /^h-/,
   /^w-/,
   /^text-(xs|sm|base|xl|2xl)$/,
+  /^leading-/,
   /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
 ];
 
@@ -50,6 +56,26 @@ export function mergeClasses(base: string, extra?: string | false | null): strin
   const overridden = CLASS_GROUPS.filter((g) => extras.some((x) => g.test(x)));
   const kept = base.split(/\s+/).filter((b) => b && !overridden.some((g) => g.test(b)));
   return [...kept, ...extras].join(" ");
+}
+
+// ── Headings ────────────────────────────────────────────────────────────
+
+/**
+ * A section <h2>: 16px at weight 600. At 500 it sat only 100 weight units
+ * and 1.14x in size above 14px body text; 600 gives the 200-unit step the
+ * type hierarchy needs (#558). The page <h1> stays text-2xl at 500.
+ */
+export function sectionHeadingClass(className?: string) {
+  return mergeClasses("text-base font-semibold", className);
+}
+
+/**
+ * Running text that wraps over several lines (notes, Help answers): 14px on
+ * a 24px line (1.71) and capped at 65ch, so lines stay readable (#558).
+ * Single-line UI text keeps Tailwind's default leading.
+ */
+export function proseClass(className?: string) {
+  return mergeClasses("max-w-prose text-sm leading-6 text-foreground", className);
 }
 
 // ── Card ────────────────────────────────────────────────────────────────
@@ -133,9 +159,12 @@ export function bannerToneClass(tone: BannerTone) {
   return BANNER_TONE.get(tone) ?? "";
 }
 
-/** A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3. */
+/**
+ * A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3, 24px
+ * lines (#558). A 16px leading icon takes mt-1 to centre on the first line.
+ */
 export function bannerClass(tone: BannerTone = "neutral", className?: string) {
-  return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone)), className);
+  return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm leading-6", BANNER_TONE.get(tone)), className);
 }
 
 // ── Button ──────────────────────────────────────────────────────────────

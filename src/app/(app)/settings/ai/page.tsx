@@ -17,6 +17,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.ai.label };
 
@@ -80,7 +81,7 @@ export default async function AiSettingsPage({
 
       <Card as="section" className="space-y-4">
         <div>
-          <h2 className="font-medium">Document text extraction</h2>
+          <h2 className={sectionHeadingClass()}>Document text extraction</h2>
           <p className="text-xs text-muted mt-0.5">
             Local tools this server uses to read uploaded documents before any AI is involved
           </p>
@@ -95,7 +96,7 @@ export default async function AiSettingsPage({
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Local AI (Ollama)</h2>
+            <h2 className={sectionHeadingClass()}>Local AI (Ollama)</h2>
             <p className="text-xs text-muted mt-0.5">Used as a fallback extraction backend when no cloud AI key is set</p>
           </div>
           <OllamaForm action={saveOllamaSettings} current={{ baseUrl: ollama.baseUrl, model: ollama.model }} />
@@ -103,7 +104,7 @@ export default async function AiSettingsPage({
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">AI document extraction</h2>
+            <h2 className={sectionHeadingClass()}>AI document extraction</h2>
             <p className="text-xs text-muted mt-0.5">
               Bring your own API key to send uploaded documents to a cloud AI provider for
               higher-accuracy field extraction, shared by the whole household. Leave this unset to
@@ -119,7 +120,7 @@ export default async function AiSettingsPage({
 
         <Card as="section" id="ai-assistant" className="scroll-mt-8 space-y-4">
           <div>
-            <h2 className="font-medium">AI Assistant</h2>
+            <h2 className={sectionHeadingClass()}>AI Assistant</h2>
             <p className="text-xs text-muted mt-0.5">
               Bring your own API key to enable an assistant that can answer questions using the
               household&apos;s own data — contracts, warranties, trips, vehicles, properties,
