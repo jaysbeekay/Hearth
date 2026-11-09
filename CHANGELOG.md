@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
+  configured" item and the onboarding checklist now open one screen,
+  available to every member, that lists the ways to get Reminders in order
+  of effort: notify this device (one tap, no account), email, then ntfy.
+  Each has its own Test button, and the household's reminder delivery
+  health is at the bottom. Email and ntfy still need an admin's server
+  settings, which stay in Settings → Reminders & channels; the screen links
+  there for admins.
 - **The AI assistant is now opt-in, with its own on/off switch.** First-run
   setup has a new "AI assistant (optional)" box; ticking it turns the
   assistant on and finishes setup on Settings → AI & privacy to choose a

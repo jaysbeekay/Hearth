@@ -193,3 +193,30 @@ export async function sendTestReminder(target?: TestReminderTarget): Promise<Act
   if (sent.length > 0) return { success: `Sent via ${sent.join(" and ")} — but failed: ${failed.join("; ")}` };
   return { error: failed.join("; ") || "Failed to send test reminder." };
 }
+
+/**
+ * #375 — the "Turn on reminders" screen's Test button for one channel, so a
+ * member checks each channel on its own: an email to their own address, or a
+ * message on the household's ntfy topic. Push has its own (sendPushTest).
+ */
+export async function sendChannelTest(channel: "EMAIL" | "NTFY"): Promise<ActionState> {
+  const user = await requireUser();
+  if (channel !== "EMAIL" && channel !== "NTFY") return { error: "Unknown reminder channel." };
+  if (channel === "EMAIL") {
+    if (!user.email) return { error: "Your account has no email address to send a test to." };
+    if (!(await isSmtpConfigured())) return { error: "Email isn't set up for the household." };
+    try {
+      await sendTestEmail(user.email);
+      return { success: `Test email sent to ${user.email}.` };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Couldn't send the test email." };
+    }
+  }
+  if (!(await isNtfyConfigured())) return { error: "ntfy isn't set up for the household." };
+  try {
+    await sendTestNtfy();
+    return { success: "Test notification sent to the household's ntfy topic." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't send the test notification." };
+  }
+}
