@@ -9,6 +9,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **The AI assistant is now opt-in, with its own on/off switch.** First-run
+  setup has a new "AI assistant (optional)" box; ticking it turns the
+  assistant on and finishes setup on Settings → AI & privacy to choose a
+  provider. Left unticked, it stays off. Admins can turn it on or off at any
+  time beside the AI Assistant provider settings, which are kept while it's
+  off. While it's off the Assistant page 404s, it leaves the navigation,
+  `/api/chat` refuses before anything reaches a provider, and the server
+  refuses the Assistant's other actions too: confirming a proposed contract or
+  warranty card that was left open, and deleting a conversation. Households that had
+  already saved an assistant provider are switched on by the migration, so
+  nothing changes for them.
+- **Assistant side panel.** With the assistant on, wide windows (1280px and
+  up) get a slim rail on the right of every page; it opens the assistant as
+  a docked panel beside whatever you're looking at, the same chat as the
+  Assistant page (streaming, your private chat history, confirm-before-write
+  cards). The conversation stays put as you move between pages, and each
+  browser remembers whether the panel is open. Opening or closing it moves
+  keyboard focus into the panel or back to the rail, chat errors are
+  announced to screen readers (on the Assistant page too), and a different
+  account signing in on the same browser starts with a fresh panel. Phones
+  and narrower windows keep using the Assistant page.
+
 - **Search finds Documents of every record type by their contents (#398).**
   Documents on Service records, Maintenance records, Trip segments, Rental
   statements and Trades now get their text extracted in the background
@@ -408,6 +430,70 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   link above it (Contracts on a contract, Settings on a Settings section),
   so the sidebar never claims a different current page than the Settings
   tabs. `e2e/specs/57-nav-current.spec.ts` covers both.
+
+- **Every record page names itself in the browser tab (#558).** About 30
+  pages (record detail, edit, renew and add pages for Contracts, Warranties,
+  Travel, Vehicles, Properties and Items) fell back to a bare "Hearth"
+  title, failing WCAG 2.4.2. They now read like "Netflix · Contracts ·
+  Hearth", "Edit Netflix · Hearth" or "Add a contract · Hearth", matching
+  each page's heading. A record in a turned-off module gets the generic
+  title, so the tab never shows what the page itself won't. A unit test
+  fails if a new page under `(app)` ships without a title.
+
+- **Form fields, secondary buttons and filter chips have a visible edge
+  (#558).** Their border used the same faint `--border` as card edges and
+  dividers (about 1.5:1), below the 3:1 WCAG 1.4.11 asks of a control. They
+  now use a new `--border-control` token (3.3:1 on the page and 3.6:1 on a
+  card in light mode; 3.5:1 and 3.2:1 in dark mode). File drop zones and the
+  Documents type picker use it too, auto-filled review fields get a full
+  accent edge, and filter chips with a count of 0 are no longer faded (they
+  are still pressable, so they need the full contrast). Cards and dividers
+  keep the lighter `--border`. `scripts/check-contrast.mjs` now enforces 3:1 for
+  the new token in both themes.
+
+- **Inventory shows in the sidebar, and modules are listed A–Z.**
+  Inventory was left out of the desktop sidebar and the phone More sheet
+  even when enabled (it was only reachable from the bottom of Warranties).
+  It now appears with the other modules, and the Modules nav group and
+  Settings → Modules list are sorted alphabetically, the same in every
+  server locale. The standalone mobile shell's More screen and module
+  settings list modules A–Z too. Warranties now uses a shield icon so it no
+  longer shares the box icon with Inventory.
+
+- **Emails no longer bounce for an unqualified From address.** The default
+  From, `Hearth <no-reply@localhost>`, is rejected by most SMTP servers
+  ("504 5.5.2 Sender address rejected: need fully-qualified address"), so no
+  email got through, password resets included. `SMTP_FROM` now defaults to
+  blank, and a blank or unqualified From (including a saved
+  `no-reply@localhost`) sends as the SMTP username when that's an email
+  address. An unqualified `SMTP_FROM` left in `.env` is ignored the same
+  way, and is only used as a last resort when the username isn't an email
+  address either; Hearth refuses to send with no From at all and says why.
+  To send from your own address, set `SMTP_FROM` to one on your domain
+  (or remove the line to send as `SMTP_USER`). Settings → Reminders warns
+  when there's no usable From address, including a blank From with a
+  username that isn't an email address (SendGrid's `apikey`, SES keys), and
+  refuses to save a new From that isn't fully qualified.
+
+- **A long Test result no longer runs into the Save button.** On the
+  Settings email, ntfy, email-ingestion and Ollama forms, the result of
+  "Send test email"/"Test connection" now gets its own full-width row under
+  both buttons.
+
+- **A password reset email that fails to send is no longer silent.** The
+  forgot-password form always shows the same message, so an SMTP error (wrong
+  password, blocked port, rejected sender) left no trace anywhere. Settings →
+  Security now records every reset request with its outcome (sent, no account
+  with that email, throttled) and flags a failed send with the SMTP server's
+  error, which also goes to the server log. A sent email whose link points at
+  localhost because `APP_URL` isn't set is called out too, as is a request
+  made while SMTP isn't configured. Since anyone can request a reset without
+  signing in, these rows share a budget of 30 an hour across all addresses
+  (one row says when logging is paused), a throttled address is noted once
+  rather than per request, and emails over 254 characters are refused.
+  **Rolling back** past this release: delete `security_event_logs` rows of
+  type `PASSWORD_RESET_REQUESTED` and `PASSWORD_RESET_EMAIL_FAILED` first, or
+  the older Settings → Security page fails to load.
 
 - **AI egress proxy works with Pipelock again (#559).** Setting
   `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:

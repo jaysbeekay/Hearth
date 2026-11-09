@@ -198,6 +198,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Documents](docs/screenshots/documents.png) | ![Assistant](docs/screenshots/assistant.png) |
 
+| AI Assistant — side panel | |
+| --- | --- |
+| ![The Assistant docked beside the Contracts page](docs/screenshots/assistant-panel.png) | |
+
 | Mobile — dashboard | Form validation error |
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
@@ -319,7 +323,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Push notifications via ntfy.sh (or a self-hosted instance — see the
       # commented-out "ntfy" service below). Topics on the public ntfy.sh
       # instance are unauthenticated by default and guessable by anyone who

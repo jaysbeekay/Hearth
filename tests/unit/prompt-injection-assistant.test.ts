@@ -11,6 +11,8 @@
 //     the forms don't have, and refuse a link to a record in Trash.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
+import { setAppSetting } from "@/lib/appSettings";
+import { ASSISTANT_ENABLED_KEY } from "@/lib/assistant/enablement";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
 import { createContractFromAssistant, updateContractFromAssistant } from "@/lib/actions/contracts";
@@ -43,6 +45,9 @@ beforeEach(async () => {
   ctx = { userId: actorId, role: "MEMBER", enabledModules: new Set(["HOME"]) };
   vi.mocked(auth).mockResolvedValue({ user: { id: actorId, role: "MEMBER" } } as never);
   await setModuleEnabled("HOME", true);
+
+  // The confirm-card writes refuse while the household has the assistant off.
+  await setAppSetting(ASSISTANT_ENABLED_KEY, "true");
 });
 
 const seedContract = () =>

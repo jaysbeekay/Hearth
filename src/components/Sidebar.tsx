@@ -36,7 +36,7 @@ export function Sidebar({
   const toolItems = items.filter((item) => item.group === "tools");
 
   return (
-    <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
+    <aside aria-label="Sidebar" className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-4">
         <Flame size={20} className="text-accent" />
         <span className="text-xl font-medium">Hearth</span>

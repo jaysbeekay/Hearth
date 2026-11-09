@@ -12,6 +12,12 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { formatDate } from "@/lib/utils";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { addItemDocumentAction } from "@/lib/actions/items";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("item", id, detailTitle("item"), "Item");
+}
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   if (process.env.ITEMS_PREVIEW !== "1" || !(await itemCutoverReadiness()).ready) redirect("/products");

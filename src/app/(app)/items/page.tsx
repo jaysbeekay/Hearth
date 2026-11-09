@@ -8,6 +8,9 @@ import { auth } from "@/lib/auth";
 import { canWrite } from "@/lib/readOnly";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { formatDate } from "@/lib/utils";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Items" };
 
 /** Hidden preview until all Item writers and readers can cut over. */
 export default async function ItemsPage() {
