@@ -10,7 +10,9 @@
 //     over both surface and background: >= 4.5:1
 //   - text tokens on the solid hover-surface: >= 4.5:1
 //   - accent-foreground on accent, danger-foreground on danger: >= 4.5:1
-//   - borders against background and surface: >= 1.4:1 (non-text, visible)
+//   - decorative borders against background and surface: >= 1.4:1 (visible)
+//   - control borders (inputs, secondary buttons, chips) against background
+//     and surface: >= 3:1 (WCAG 1.4.11, #558)
 //
 // Run directly (`node scripts/check-contrast.mjs`) for a table, or through
 // `npm run test:unit` (tests/unit/contrast.test.ts), which fails on any miss.
@@ -21,6 +23,7 @@ import path from "node:path";
 
 const TEXT_MIN = 4.5;
 const BORDER_MIN = 1.4;
+const CONTROL_BORDER_MIN = 3;
 const TINT_ALPHA = 0.1;
 
 const TEXT_TOKENS = ["foreground", "muted", "accent", "danger", "warning", "success"];
@@ -157,6 +160,7 @@ export function checkContrast(css) {
     add("danger-foreground on danger", contrast(need("danger-foreground"), need("danger")), TEXT_MIN);
     for (const ground of GROUNDS) {
       add(`border on ${ground}`, contrast(need("border"), need(ground)), BORDER_MIN);
+      add(`border-control on ${ground}`, contrast(need("border-control"), need(ground)), CONTROL_BORDER_MIN);
     }
   }
   return rows;
