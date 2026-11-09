@@ -1,7 +1,20 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buttonClass, cardClass, pillClass, bannerClass, pageShellClass, mergeClasses } from "@/lib/ui";
+import {
+  buttonClass,
+  cardClass,
+  pillClass,
+  bannerClass,
+  pageShellClass,
+  mergeClasses,
+  inputClass,
+  selectClass,
+  textareaClass,
+  reviewFieldClass,
+  disabledClass,
+  dimmedClass,
+} from "@/lib/ui";
 
 // #411 — the shared UI rules, checked against the source so a new page
 // can't quietly bring back a second radius, a bold weight or a hand-rolled
@@ -132,6 +145,32 @@ describe("lib/ui", () => {
     expect(pageShellClass("detail")).toContain("max-w-3xl");
     expect(pageShellClass("form")).toContain("max-w-2xl");
     expect(pageShellClass("auth")).toContain("max-w-sm");
+  });
+});
+
+describe("disabled controls (#620)", () => {
+  it("dim to 50% from the shared classes", () => {
+    for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
+      const cls = buttonClass(variant).split(" ");
+      expect(cls).toContain("disabled:opacity-50");
+      expect(cls).toContain("aria-disabled:opacity-50");
+    }
+    for (const cls of [inputClass, selectClass, textareaClass, reviewFieldClass("extracted"), reviewFieldClass("ai")]) {
+      expect(cls.split(" ")).toContain("disabled:opacity-50");
+    }
+    expect(disabledClass).toBe("disabled:opacity-50");
+    expect(dimmedClass).toBe("opacity-50");
+  });
+
+  it("keeps offline-unavailable actions fainter, at 40%", () => {
+    const cls = buttonClass("secondary", { online: false }).split(" ");
+    expect(cls).toContain("opacity-40");
+    expect(cls).toContain("disabled:opacity-50");
+  });
+
+  it("sets no disabled opacity outside lib/ui", () => {
+    expect(offenders((s) => /\b(aria-)?disabled:opacity-\d+/.test(s))).toEqual([]);
+    expect(offenders((s) => /(^|\s)opacity-60\b/.test(s))).toEqual([]);
   });
 });
 

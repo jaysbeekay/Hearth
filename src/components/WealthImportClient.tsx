@@ -98,7 +98,7 @@ export function WealthImportClient({ portfolioId }: Props) {
             <button
               onClick={handleImport}
               disabled={isImporting}
-              className={`${buttonClass("primary")} disabled:opacity-50`}
+              className={buttonClass("primary")}
             >
               {isImporting && <Loader2 size={16} className="animate-spin" />}
               Import {rows.length} trades

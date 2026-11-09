@@ -167,6 +167,20 @@ export function bannerClass(tone: BannerTone = "neutral", className?: string) {
   return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm leading-6", BANNER_TONE.get(tone)), className);
 }
 
+// ── Disabled ────────────────────────────────────────────────────────────
+
+// #620 — one dimmed look for a control that can't be used right now: 50%.
+// buttonClass and the input / select / textarea classes carry it already; a
+// one-off control uses disabledClass, and something that isn't a control
+// (a locked settings row) uses dimmedClass. Offline-unavailable actions stay
+// fainter, at 40% (buttonClass's online option).
+
+/** For a plain <button> that doesn't use buttonClass. */
+export const disabledClass = "disabled:opacity-50";
+
+/** For an element shown as unavailable that has no disabled state of its own. */
+export const dimmedClass = "opacity-50";
+
 // ── Button ──────────────────────────────────────────────────────────────
 
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
@@ -177,7 +191,7 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 // button) without the button looking any bigger. ::before is placed from the
 // padding box, so a bordered button reaches 5px past its 1px border.
 const BUTTON_BASE =
-  "relative inline-flex min-h-9 max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-1 text-center text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
+  "relative inline-flex min-h-9 max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-1 text-center text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50";
 
 const HIT_AREA = "before:-inset-1";
 const HIT_AREA_BORDERED = "before:-inset-[5px]";
@@ -278,7 +292,7 @@ export function avatarClass(size: "md" | "lg" = "md", className?: string) {
 // ── Form controls ───────────────────────────────────────────────────────
 
 const INPUT_SHAPE =
-  "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
+  "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50";
 
 /**
  * The one input / select / textarea look: 36px tall, rounded-lg, 1px border.
@@ -302,7 +316,7 @@ export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
-  "w-full rounded-lg border border-border-control bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-60";
+  "w-full rounded-lg border border-border-control bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-50";
 
 // ── Page widths ─────────────────────────────────────────────────────────
 
