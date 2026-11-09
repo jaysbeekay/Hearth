@@ -204,6 +204,70 @@ describe("cancelDeviceReminders without storage", () => {
   });
 });
 
+describe("scheduleDeviceReminders without storage", () => {
+  afterEach(() => {
+    store.set = Map.prototype.set;
+  });
+
+  it("cancels a tagged Reminder no longer wanted even though its id was never stored", async () => {
+    plugin.getPending.mockResolvedValueOnce({
+      notifications: [
+        { id: id("old"), extra: { source: "hearth-server" } },
+        { id: 12, extra: { source: "standalone" } },
+      ],
+    });
+    await native.scheduleDeviceReminders("u1", [reminder("a", 2)], native.startDeviceReminderSync());
+    expect(nativeLog).toEqual([`cancel:${id("old")}`, `schedule:${id("a")}`]);
+  });
+
+  it("refuses, and cancels what it scheduled, when storage can't remember they're on", async () => {
+    store.set = () => {
+      throw new Error("QuotaExceededError");
+    };
+    await expect(
+      native.scheduleDeviceReminders("u1", [reminder("a", 2)], native.startDeviceReminderSync()),
+    ).rejects.toBeInstanceOf(native.DeviceRemindersStorageUnavailable);
+    expect(nativeLog).toEqual([`schedule:${id("a")}`, `cancel:${id("a")}`]);
+    expect(native.deviceRemindersUser()).toBeNull();
+  });
+
+  it("shows the storage error from Notify this phone", async () => {
+    store.set = () => {
+      throw new Error("QuotaExceededError");
+    };
+    fetchReminders.mockResolvedValueOnce({ reminders: [reminder("a", 2)] });
+    await expect(syncDeviceReminders("u1")).rejects.toThrow("app storage isn't available");
+  });
+});
+
+describe("claimDeviceReminders", () => {
+  it("keeps the same member's Reminders, and cancels nothing", async () => {
+    store.set("hearth.deviceReminders.user", "u1");
+    expect(native.claimDeviceReminders("u1")).toBe(true);
+    await native.cancelDeviceReminders().catch(() => {}); // flush the queue
+    expect(plugin.getPending).toHaveBeenCalledTimes(1); // only the flush's
+  });
+
+  it("turns off another member's", async () => {
+    await native.scheduleDeviceReminders("u0", [reminder("a", 2)], native.startDeviceReminderSync());
+    expect(native.claimDeviceReminders("u1")).toBe(false);
+    await vi.waitFor(() => expect(cancelledIds()).toEqual([id("a")]));
+    expect(native.deviceRemindersUser()).toBeNull();
+  });
+
+  it("cancels tagged Reminders that nothing remembers, on another member's sign-in", async () => {
+    // Scheduled for u0, then storage was cleared: no owner, no ids.
+    plugin.getPending.mockResolvedValueOnce({
+      notifications: [
+        { id: 11, extra: { source: "hearth-server" } },
+        { id: 12, extra: { source: "standalone" } },
+      ],
+    });
+    expect(native.claimDeviceReminders("u1")).toBe(false);
+    await vi.waitFor(() => expect(cancelledIds()).toEqual([11]));
+  });
+});
+
 describe("syncDeviceReminders", () => {
   it("loses to a sign-out that happens while its fetch is out", async () => {
     const gate = deferred();

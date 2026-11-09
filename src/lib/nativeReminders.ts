@@ -38,14 +38,18 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string | null): void {
+/**
+ * Whether the write stuck. A lost ids write is covered: a cancel or the next
+ * sync also finds this page's Reminders by their tag (pendingOwnIds). A lost
+ * "on" isn't, so scheduleDeviceReminders refuses without it.
+ */
+function write(key: string, value: string | null): boolean {
   try {
     if (value == null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
+    return true;
   } catch {
-    // Storage blocked: the Reminders still go, but "on" isn't remembered and
-    // neither are their ids. A cancel still finds them by their tag
-    // (pendingOwnIds).
+    return false;
   }
 }
 
@@ -135,6 +139,17 @@ function superseded(ticket: DeviceReminderSyncTicket): boolean {
   return ticket.generation !== generation || ticket.seq < committed;
 }
 
+/**
+ * Thrown when this phone's app storage can't remember that Reminders are on.
+ * Without that, nothing would keep them current or turn them off for another
+ * member, so what was scheduled is cancelled again.
+ */
+export class DeviceRemindersStorageUnavailable extends Error {
+  constructor() {
+    super("This phone's app storage isn't available, so Hearth can't keep reminders on it. Free some space or restart the app, then try again.");
+  }
+}
+
 /** Thrown when a sync was overtaken by a cancel, a turn-off or a newer sync. */
 export class DeviceRemindersSuperseded extends Error {
   constructor() {
@@ -218,7 +233,8 @@ export function scheduleDeviceReminders(
       .catch(() => {});
     const notifications = notificationsFor(reminders, new Date());
     const ids = notifications.map((n) => n.id);
-    const previous = storedIds();
+    // Tagged ones too, in case an earlier ids write didn't stick.
+    const previous = [...new Set([...storedIds(), ...(await pendingOwnIds())])];
     if (superseded(ticket)) throw new DeviceRemindersSuperseded();
     await cancelIds(previous.filter((id) => !ids.includes(id)));
     // Until the schedule is done, both sets count as this page's.
@@ -228,7 +244,10 @@ export function scheduleDeviceReminders(
     // every id tracked, these included.
     if (superseded(ticket)) throw new DeviceRemindersSuperseded();
     write(IDS_KEY, JSON.stringify(ids));
-    write(USER_KEY, userId);
+    if (!write(USER_KEY, userId) || deviceRemindersUser() !== userId) {
+      await cancelIds(ids);
+      throw new DeviceRemindersStorageUnavailable();
+    }
     committed = ticket.seq;
     return notifications.length;
   });
@@ -249,6 +268,20 @@ export async function turnOffDeviceReminders(): Promise<void> {
     if (owner && deviceRemindersUser() === null) write(USER_KEY, owner);
     throw error;
   }
+}
+
+/**
+ * On opening the app as `userId`: whether that member's Reminders are on
+ * here, to be kept current. If not, any left on the phone go: another
+ * member's are turned off, and ones nothing remembers (storage cleared or
+ * blocked since they were scheduled) are found by their tag and cancelled.
+ */
+export function claimDeviceReminders(userId: string): boolean {
+  if (!deviceRemindersAvailable()) return false;
+  const owner = deviceRemindersUser();
+  if (owner === userId) return true;
+  void (owner ? turnOffDeviceReminders() : cancelDeviceReminders()).catch(() => {});
+  return false;
 }
 
 /** At most one resync an hour when the app comes back into view. */

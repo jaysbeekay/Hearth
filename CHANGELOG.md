@@ -14,7 +14,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   phone": it schedules the household's Reminders for the next four months as
   notifications on the phone, worded like Web Push, and again each time the
   app opens. Tapping one opens its record. The sign-in page cancels them,
-  and another member signing in turns them off.
+  and another member signing in turns them off. They're found by a tag as
+  well as by the ids the app keeps, so ones the app's storage lost track of
+  still go; if the app's storage can't remember they're on, "Notify this
+  phone" says so instead of scheduling ones nothing would keep current.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order
