@@ -40,7 +40,7 @@ test("clearing a Contract's end date on the edit form clears it", async ({ page 
   await expect(page.locator("#endDate")).toHaveValue("");
   await expect(page.locator("#notes")).toHaveValue("");
   // Untouched fields are kept.
-  await expect(page.locator("#cost")).toHaveValue("42");
+  await expect(page.locator("#cost")).toHaveValue("42.00");
   await expect(page.locator("#billingFrequency")).toHaveValue("MONTHLY");
 
   await page.goto("/contracts?missing=details");

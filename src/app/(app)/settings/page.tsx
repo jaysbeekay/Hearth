@@ -23,6 +23,7 @@ import { PageShell } from "@/components/ui/PageShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import { hashToken } from "@/lib/crypto";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -75,7 +76,7 @@ export default async function SettingsPage() {
       <SaveChangesGroup>
         <div className="grid gap-6 md:grid-cols-2">
           <Card as="section">
-            <h2 className="mb-3 font-medium">Profile</h2>
+            <h2 className={sectionHeadingClass("mb-3")}>Profile</h2>
             <dl className="grid gap-3">
               <div className="min-w-0">
                 <dt className="text-xs text-muted">Name</dt>
@@ -93,7 +94,7 @@ export default async function SettingsPage() {
           </Card>
 
           <Card as="section">
-            <h2 className="mb-3 font-medium">Reminders</h2>
+            <h2 className={sectionHeadingClass("mb-3")}>Reminders</h2>
             <p className="mb-3 text-sm text-muted">
               Reminders are sent to each device with notifications on
               {smtpConfigured && ntfyConfigured ? ", by email and by ntfy" : smtpConfigured ? " and by email" : ntfyConfigured ? " and by ntfy" : ""}.{" "}
@@ -122,7 +123,7 @@ export default async function SettingsPage() {
           </Card>
 
           <Card as="section" className="md:col-span-2">
-            <h2 className="mb-3 font-medium">Preferences</h2>
+            <h2 className={sectionHeadingClass("mb-3")}>Preferences</h2>
             <p className="mb-3 text-sm text-muted">
               Localisation used throughout the app — dates, default currency for new records, your
               timezone, and the region convention used for number formatting (decimal/thousands
@@ -151,7 +152,7 @@ export default async function SettingsPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card as="section">
-          <h2 className="mb-3 font-medium">Sign-in and security</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Sign-in and security</h2>
           <Link href={SETTINGS_ROUTES.passkeys.href} className={quickLinkClass}>
             <KeyRound size={16} />
             {SETTINGS_ROUTES.passkeys.label}
@@ -168,7 +169,7 @@ export default async function SettingsPage() {
         </Card>
 
         <Card as="section">
-          <h2 className="mb-3 font-medium">Change password</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Change password</h2>
           <ChangePasswordForm />
         </Card>
 
