@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { ShareLinkRevokeButton } from "@/components/DocumentShareButton";
 import { listActiveShareLinks } from "@/lib/documents/shareLinks";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.security.label };
 
@@ -84,7 +85,7 @@ export default async function SecurityLogPage() {
 
       {/* #374 — links that open a Document without signing in, until they expire. */}
       <Card as="section" aria-labelledby="share-links-heading">
-        <h2 id="share-links-heading" className="text-sm font-medium">
+        <h2 id="share-links-heading" className={sectionHeadingClass()}>
           Shared links <span className="font-normal text-muted">({shareLinks.length})</span>
         </h2>
         {shareLinks.length === 0 ? (

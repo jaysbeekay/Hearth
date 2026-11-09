@@ -217,6 +217,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Section headings stand out from body text, and long text reads more
+  easily (#558).** Section headings were 16px at weight 500 over 14px body
+  text at 400, too small a step to scan by. They are now weight 600 through
+  a new `sectionHeadingClass`; the #411 rules in `src/lib/ui.ts` now allow
+  600 for section headings only, and `tests/unit/ui-rules.test.ts` keeps it
+  there. Notes on record pages and Help answers now use 24px lines and stop
+  at about 65 characters wide (`proseClass`), and banners use 24px lines
+  (their icons move down 2px to stay centred on the first line). Weight 600
+  needs a semibold face; on Linux system fonts it renders as bold.
+
 - **The Contracts page says what it holds.** A line under the heading reads
   "Insurance policies, plans, leases, loans and subscriptions", so it's clear
   an insurance policy belongs under Contracts. The name itself stays
@@ -447,6 +457,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   longer come back blank, and a labelled line's money is preferred over a
   statement number, account number or date on the same line ("Rental
   Statement #20241108" isn't read as the rent).
+
+- **The current page is marked by more than colour in the nav (#558).**
+  The active sidebar entry, phone tab and More-sheet tile differed from the
+  rest by hue alone (accent against muted text is about 1.0:1), failing WCAG
+  1.4.1. They now carry an accent bar (down the left edge in the sidebar,
+  along the top on phones) and `aria-current`, so screen readers announce
+  it too: "page" on the link to the page you're on, "true" on a section
+  link above it (Contracts on a contract, Settings on a Settings section),
+  so the sidebar never claims a different current page than the Settings
+  tabs. `e2e/specs/57-nav-current.spec.ts` covers both.
 
 - **Every record page names itself in the browser tab (#558).** About 30
   pages (record detail, edit, renew and add pages for Contracts, Warranties,
