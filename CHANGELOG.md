@@ -225,6 +225,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Disabled controls all dim to the same 50% (#620, #558).** Disabled
+  buttons and fields were 60% from the shared classes, but about 15 buttons
+  added their own 50%, and the locked admin-only settings rows and the
+  sign-in email field (while a two-factor code is asked for) used 60%. All of
+  them are now 50%, set once in `src/lib/ui.ts`; components no longer add
+  their own disabled opacity, and `tests/unit/ui-rules.test.ts` keeps it that
+  way. Actions that need a connection stay at 40% while offline.
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body
   text at 400, too small a step to scan by. They are now weight 600 through
