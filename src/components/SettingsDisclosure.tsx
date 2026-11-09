@@ -6,11 +6,37 @@ import { RowSummary, rowClass } from "@/components/settingsRowParts";
 import { cardClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
+// Feedback the app renders inside a row: FormMessage's role="alert" error
+// (in the banner or under its field) and the aria-invalid it puts on the field.
+const FEEDBACK = '[role="alert"], [aria-invalid="true"]';
+
+function isFeedback(node: Node): boolean {
+  return node instanceof Element && (node.matches(FEEDBACK) || node.querySelector(FEEDBACK) !== null);
+}
+
+/** Whether a mutation added an error or marked a field invalid. */
+function showsFeedback(record: MutationRecord): boolean {
+  if (record.type === "attributes") return record.target instanceof Element && record.target.matches(FEEDBACK);
+  return [...record.addedNodes].some(isFeedback);
+}
+
+/** The element the URL's fragment names, if any. */
+function hashTarget(): HTMLElement | null {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return null;
+  try {
+    return document.getElementById(decodeURIComponent(hash));
+  } catch {
+    return null;
+  }
+}
+
 /**
- * A row that drops down in place to show its settings. It opens on its own
- * when the page's URL names it (/settings#preferences), and when the
- * browser's validation flags a field inside it, so a closed row never hides
- * the field that stopped a save.
+ * A row that drops down in place to show its settings. A closed row never
+ * hides feedback: it opens on its own when the page's URL names it or a
+ * field in it (/settings#preferences), when the browser's validation flags a
+ * field inside it, and when the app shows an error inside it (a save that
+ * the server rejected).
  */
 export function SettingsDisclosureClient({
   id,
@@ -28,10 +54,14 @@ export function SettingsDisclosureClient({
 
   useEffect(() => {
     function openFromHash() {
-      if (ref.current && window.location.hash === `#${id}`) {
-        ref.current.open = true;
-        ref.current.scrollIntoView({ block: "start" });
-      }
+      const details = ref.current;
+      const target = hashTarget();
+      if (!details || !target || !details.contains(target)) return;
+      details.open = true;
+      // Only the row itself is scrolled to; a field inside it is the
+      // browser's own fragment target, which it can reach now it's open.
+      if (target === details) details.scrollIntoView({ block: "start" });
+      else target.scrollIntoView({ block: "center" });
     }
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
@@ -40,6 +70,28 @@ export function SettingsDisclosureClient({
     };
   }, [id]);
 
+  useEffect(() => {
+    const details = ref.current;
+    if (!details) return;
+    if (details.querySelector(FEEDBACK)) details.open = true;
+    // Opens when feedback appears, not whenever some stays: a row the user
+    // closes over an old error stays closed. FormMessage marks an error when
+    // the action returns and scrolls to it a frame later; this observer's
+    // microtask opens the row first.
+    const observer = new MutationObserver((records) => {
+      if (!details.open && records.some(showsFeedback)) details.open = true;
+    });
+    observer.observe(details, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["role", "aria-invalid"],
+    });
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <li>
       <details
@@ -47,6 +99,8 @@ export function SettingsDisclosureClient({
         id={id}
         data-settings-row
         // `invalid` doesn't bubble, so catch it on the way down.
+        // Opened while the event is dispatched, so the browser can then
+        // focus the field and show its message.
         onInvalidCapture={(e) => {
           e.currentTarget.open = true;
         }}

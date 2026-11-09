@@ -254,8 +254,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Downloaded documents) drops it down to edit right there. Passkeys and the
   household sections still open their own page. Household timezone and
   currency are rows too. A link like `/settings#preferences` or
-  `/settings/household#timezone` opens that row. A row that holds a field
-  the browser flags opens itself, and one Save changes covers each screen.
+  `/settings/household#timezone` opens that row, as does a link to a field
+  inside it. A row opens itself when the browser flags a field in it or a
+  save comes back with an error for it, so a closed row never hides why a
+  save failed. One Save changes covers each screen.
   The personal fields now read "My default currency" and "My timezone", next
   to a line naming the household timezone and currency that reminders and
   totals use.
