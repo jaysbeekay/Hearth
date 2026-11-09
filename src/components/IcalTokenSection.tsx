@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 import { generateIcalToken, revokeIcalToken, type IcalActionState } from "@/lib/actions/ical";
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
-import { buttonClass, cardClass, inputClass } from "@/lib/ui";
+import { buttonClass, cardClass, inputClass, sectionHeadingClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -45,7 +45,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
 
   return (
     <section className={embedded ? undefined : cardClass()}>
-      <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
+      <h2 id={embedded ? "calendar-feed-heading" : undefined} className={sectionHeadingClass("mb-1")}>
         Calendar feed
       </h2>
       <p className="mb-3 text-sm text-muted">

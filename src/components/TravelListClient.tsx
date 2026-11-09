@@ -14,7 +14,7 @@ import { formatDistance } from "@/lib/utils";
 import type { DistanceSummary } from "@/lib/integrations/flightDistance";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Card } from "@/components/ui/Card";
-import { emptyStateClass } from "@/lib/ui";
+import { emptyStateClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
@@ -57,7 +57,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
         <Card>
           <div className="flex items-center gap-2">
             <Route size={16} className="text-muted" />
-            <h2 className="font-medium">Distance travelled</h2>
+            <h2 className={sectionHeadingClass()}>Distance travelled</h2>
           </div>
           <p className="mt-2 text-2xl font-medium">
             {formatDistance(distanceSummary.totalKm)}

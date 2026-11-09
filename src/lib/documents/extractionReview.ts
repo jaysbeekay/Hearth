@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { moneyInputValue } from "@/lib/utils";
 import type { ContractReviewCorrections } from "@/lib/commands/contracts";
 import type { ProductReviewCorrections } from "@/lib/commands/products";
 import { RecordValidationError } from "@/lib/commands/shared";
@@ -111,9 +112,13 @@ function reviewableFieldsFor(ownerType: ExtractionReviewOwnerType): readonly str
   return ownerType === "CONTRACT" ? CONTRACT_REVIEWABLE_FIELDS : PRODUCT_REVIEWABLE_FIELDS;
 }
 
-function fieldToInputValue(fieldName: string, value: unknown): string {
+const MONEY_FIELDS = new Set(["cost", "price"]);
+
+export function fieldToInputValue(fieldName: string, value: unknown, currency?: string | null): string {
   if (value == null) return "";
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  // A saved 510.10 is the float 510.1: show it with its currency's decimals.
+  if (typeof value === "number" && MONEY_FIELDS.has(fieldName)) return moneyInputValue(value, currency);
   return String(value);
 }
 
@@ -142,7 +147,7 @@ export async function getPendingExtractionReview(
 
   return relevant.map((f) => ({
     fieldName: f.fieldName,
-    currentValue: fieldToInputValue(f.fieldName, (record as Record<string, unknown>)[f.fieldName]),
+    currentValue: fieldToInputValue(f.fieldName, (record as Record<string, unknown>)[f.fieldName], record.currency),
     source: f.source,
     confidence: f.confidence,
   }));

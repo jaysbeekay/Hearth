@@ -43,7 +43,7 @@ import { SETTINGS_ROUTES, type SettingsRoute } from "@/lib/routeLabels";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass } from "@/lib/ui";
+import { cardClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
@@ -254,7 +254,7 @@ export default async function HouseholdSettingsPage() {
 function TimeZoneHeading() {
   return (
     <div>
-      <h2 className="font-medium">Household timezone</h2>
+      <h2 className={sectionHeadingClass()}>Household timezone</h2>
       <p className="text-xs text-muted mt-0.5">
         Reminders and due dates will use this timezone, so every member counts days the same way.
         Each member&apos;s own timezone only changes how times are shown to them.
@@ -266,7 +266,7 @@ function TimeZoneHeading() {
 function CurrencyHeading() {
   return (
     <div>
-      <h2 className="font-medium">Household currency</h2>
+      <h2 className={sectionHeadingClass()}>Household currency</h2>
       <p className="text-xs text-muted mt-0.5">
         Spend totals for the whole household, such as the MCP spend summary, use this currency, and new members
         start with it. Each member can still pick their own currency in My account.
