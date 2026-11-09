@@ -6,13 +6,16 @@ import type { DeviceReminder } from "@/lib/notifications/deviceReminders";
 // has no Web Push, so the app schedules the household's Reminders for the
 // days ahead as local notifications, and replaces them each time it opens.
 // Client-only. The standalone shell schedules its own (ios-shell/www/app.js);
-// these are tracked separately, by the ids kept here.
+// these are tracked separately, by the ids kept here and by their
+// extra.source tag.
 
 /** Which member turned this on, on this device. */
 const USER_KEY = "hearth.deviceReminders.user";
 /** The ids this page scheduled, so it cancels only its own. */
 const IDS_KEY = "hearth.deviceReminders.ids";
 const CHANNEL_ID = "hearth-reminders";
+/** Tags every notification this page schedules, so a cancel can find them without storage. */
+const SOURCE = "hearth-server";
 /** Local time a Reminder shows on its day, as in the standalone shell. */
 const REMINDER_HOUR = 9;
 
@@ -41,8 +44,8 @@ function write(key: string, value: string | null): void {
     else localStorage.setItem(key, value);
   } catch {
     // Storage blocked: the Reminders still go, but "on" isn't remembered and
-    // neither are their ids, so a later cancel can't reach them. Rare (the
-    // app's WebView has storage); nothing better to do here.
+    // neither are their ids. A cancel still finds them by their tag
+    // (pendingOwnIds).
   }
 }
 
@@ -103,7 +106,7 @@ export function notificationsFor(reminders: DeviceReminder[], now: Date): LocalN
       body: r.body,
       schedule: { at, allowWhileIdle: true },
       channelId: CHANNEL_ID,
-      extra: { source: "hearth-server", url: r.url },
+      extra: { source: SOURCE, url: r.url },
     }));
 }
 
@@ -151,6 +154,22 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/**
+ * The pending notifications this page scheduled, by their tag. Covers ids
+ * that never made it into storage (blocked, cleared, a write that failed).
+ * Empty if the plugin can't list them; the stored ids still go.
+ */
+async function pendingOwnIds(): Promise<number[]> {
+  try {
+    const { notifications } = await localNotifications().getPending();
+    return notifications
+      .filter((n) => (n.extra as { source?: unknown } | undefined)?.source === SOURCE)
+      .map((n) => n.id);
+  } catch {
+    return [];
+  }
+}
+
 async function cancelIds(ids: number[]): Promise<void> {
   if (ids.length > 0) await localNotifications().cancel({ notifications: ids.map((id) => ({ id })) });
 }
@@ -162,7 +181,7 @@ export function cancelDeviceReminders(): Promise<void> {
   generation++;
   if (!deviceRemindersAvailable()) return Promise.resolve();
   return serial(async () => {
-    await cancelIds(storedIds());
+    await cancelIds([...new Set([...storedIds(), ...(await pendingOwnIds())])]);
     // Only once they're gone: if the cancel fails, the ids stay for the next one.
     write(IDS_KEY, null);
   });
@@ -295,7 +314,7 @@ export function openTappedReminders(open: (path: string) => void): () => void {
   if (!deviceRemindersAvailable()) return () => {};
   const handle = localNotifications().addListener("localNotificationActionPerformed", ({ notification }) => {
     const extra = notification.extra as { source?: unknown; url?: unknown } | undefined;
-    const path = extra?.source === "hearth-server" ? safeReminderPath(extra.url) : null;
+    const path = extra?.source === SOURCE ? safeReminderPath(extra.url) : null;
     if (path) open(path);
   });
   return () => {

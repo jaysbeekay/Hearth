@@ -9,6 +9,7 @@ const plugin = {
   createChannel: vi.fn(async () => {}),
   schedule: vi.fn<(arg: unknown) => Promise<void>>(async () => {}),
   cancel: vi.fn<(arg: unknown) => Promise<void>>(async () => {}),
+  getPending: vi.fn<() => Promise<{ notifications: { id: number; extra?: unknown }[] }>>(async () => ({ notifications: [] })),
 };
 
 vi.mock("@capacitor/core", () => ({
@@ -177,6 +178,29 @@ describe("scheduleDeviceReminders", () => {
     expect(native.deviceRemindersUser()).toBe("u1"); // still scheduled, so still on
     await native.cancelDeviceReminders();
     expect(nativeLog.at(-1)).toBe(`cancel:${id("a")}`);
+  });
+});
+
+describe("cancelDeviceReminders without storage", () => {
+  it("still cancels this page's pending Reminders by their tag, and only those", async () => {
+    plugin.getPending.mockResolvedValueOnce({
+      notifications: [
+        { id: 11, extra: { source: "hearth-server", url: "/contracts/c1" } },
+        { id: 12, extra: { source: "standalone" } },
+        { id: 13 },
+      ],
+    });
+    // Nothing stored: the ids were never written, or storage was cleared.
+    await native.cancelDeviceReminders();
+    expect(cancelledIds()).toEqual([11]);
+  });
+
+  it("falls back to the stored ids when the plugin can't list pending ones", async () => {
+    await native.scheduleDeviceReminders("u1", [reminder("a", 2)], native.startDeviceReminderSync());
+    vi.clearAllMocks();
+    plugin.getPending.mockRejectedValueOnce(new Error("not implemented"));
+    await native.cancelDeviceReminders();
+    expect(cancelledIds()).toEqual([id("a")]);
   });
 });
 
