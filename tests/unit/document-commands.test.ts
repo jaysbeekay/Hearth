@@ -275,7 +275,9 @@ describe.each(OWNED_DOCUMENT_KINDS)("Document command: %s", (kind) => {
     const res = await getDocumentFile(fileRequest(doc.id), { params: Promise.resolve({ id: doc.id }) });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
-    expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="a _quoted_ name.pdf"');
+    expect(res.headers.get("Content-Disposition")).toBe(
+      "attachment; filename=\"a _quoted_ name.pdf\"; filename*=UTF-8''a%20%22quoted%22%20name.pdf",
+    );
     expect(res.headers.get("Content-Length")).toBe(String(doc.size));
     expect(await res.text()).toContain("%PDF-1.4");
 
