@@ -14,6 +14,9 @@ import {
   reviewFieldClass,
   disabledClass,
   dimmedClass,
+  offlineClass,
+  chipClass,
+  toneButtonClass,
 } from "@/lib/ui";
 
 // #411 — the shared UI rules, checked against the source so a new page
@@ -150,10 +153,15 @@ describe("lib/ui", () => {
 
 describe("disabled controls (#620)", () => {
   it("dim to 50% from the shared classes", () => {
-    for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
-      const cls = buttonClass(variant).split(" ");
-      expect(cls).toContain("disabled:opacity-50");
-      expect(cls).toContain("aria-disabled:opacity-50");
+    const buttons = [
+      ...(["primary", "secondary", "quiet", "danger"] as const).map((v) => buttonClass(v)),
+      chipClass(false),
+      chipClass(true),
+      toneButtonClass("neutral"),
+    ];
+    for (const cls of buttons) {
+      expect(cls.split(" ")).toContain("disabled:opacity-50");
+      expect(cls.split(" ")).toContain("aria-disabled:opacity-50");
     }
     for (const cls of [inputClass, selectClass, textareaClass, reviewFieldClass("extracted"), reviewFieldClass("ai")]) {
       expect(cls.split(" ")).toContain("disabled:opacity-50");
@@ -162,15 +170,39 @@ describe("disabled controls (#620)", () => {
     expect(dimmedClass).toBe("opacity-50");
   });
 
-  it("keeps offline-unavailable actions fainter, at 40%", () => {
-    const cls = buttonClass("secondary", { online: false }).split(" ");
-    expect(cls).toContain("opacity-40");
-    expect(cls).toContain("disabled:opacity-50");
+  it("keeps offline-unavailable actions fainter, at 40%, even when aria-disabled", () => {
+    expect(offlineClass).toBe("opacity-40");
+    for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
+      const cls = buttonClass(variant, { online: false }).split(" ");
+      // An offline link is aria-disabled too, and [aria-disabled="true"]
+      // outranks a bare opacity-40, so the 50% variants must be gone.
+      expect(cls).toEqual(expect.arrayContaining(["opacity-40", "aria-disabled:opacity-40", "disabled:opacity-40"]));
+      expect(cls).not.toContain("aria-disabled:opacity-50");
+      expect(cls).not.toContain("disabled:opacity-50");
+    }
   });
 
-  it("sets no disabled opacity outside lib/ui", () => {
-    expect(offenders((s) => /\b(aria-)?disabled:opacity-\d+/.test(s))).toEqual([]);
-    expect(offenders((s) => /(^|\s)opacity-60\b/.test(s))).toEqual([]);
+  // Every opacity utility outside lib/ui, bare, with a variant, or with an
+  // arbitrary value. The ones here aren't an unavailable control.
+  const OPACITY_ALLOWED: { file: string; cls: string; why: string }[] = [
+    { file: "components/ChatThreadList.tsx", cls: "opacity-0", why: "delete button hidden until the row is hovered" },
+    { file: "components/ChatThreadList.tsx", cls: "group-hover:opacity-100", why: "delete button shown on row hover" },
+    { file: path.join("app", "(app)", "calendar", "page.tsx"), cls: "opacity-70", why: "a snoozed calendar event, still usable" },
+  ];
+
+  it("sets no disabled, dimmed or offline opacity outside lib/ui", () => {
+    const found = files
+      .filter((f) => f.file !== UI_FILE)
+      .flatMap((f) =>
+        strings(f.text).flatMap((s) =>
+          s
+            .split(/\s+/)
+            .filter((cls) => /(^|:)opacity-(\d+|\[)/.test(cls))
+            .filter((cls) => !OPACITY_ALLOWED.some((a) => a.file === f.file && a.cls === cls))
+            .map((cls) => `${f.file}: ${cls}`),
+        ),
+      );
+    expect(found).toEqual([]);
   });
 });
 

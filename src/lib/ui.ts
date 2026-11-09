@@ -47,6 +47,8 @@ const CLASS_GROUPS: RegExp[] = [
   /^text-(xs|sm|base|xl|2xl)$/,
   /^leading-/,
   /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
+  /^disabled:opacity-/,
+  /^aria-disabled:opacity-/,
 ];
 
 /** Base classes plus extras, where an extra replaces a base class of the same group. */
@@ -172,14 +174,23 @@ export function bannerClass(tone: BannerTone = "neutral", className?: string) {
 // #620 — one dimmed look for a control that can't be used right now: 50%.
 // buttonClass and the input / select / textarea classes carry it already; a
 // one-off control uses disabledClass, and something that isn't a control
-// (a locked settings row) uses dimmedClass. Offline-unavailable actions stay
-// fainter, at 40% (buttonClass's online option).
+// (a locked settings row) uses dimmedClass. An action that needs a
+// connection is fainter while offline, at 40%: buttonClass's online option,
+// or offlineClass on anything else.
 
 /** For a plain <button> that doesn't use buttonClass. */
 export const disabledClass = "disabled:opacity-50";
 
 /** For an element shown as unavailable that has no disabled state of its own. */
 export const dimmedClass = "opacity-50";
+
+/** An action that needs a connection, while offline. */
+export const offlineClass = "opacity-40";
+
+// An offline link-as-button is usually aria-disabled too, and
+// aria-disabled:opacity-50 ([aria-disabled="true"]) outranks a bare
+// opacity-40, so offline replaces the base's disabled opacities as well.
+const BUTTON_OFFLINE = `pointer-events-none ${offlineClass} disabled:opacity-40 aria-disabled:opacity-40`;
 
 // ── Button ──────────────────────────────────────────────────────────────
 
@@ -221,12 +232,8 @@ export function buttonClass(
   { icon = false, destructive = false, online = true }: ButtonOptions = {},
   className?: string,
 ) {
-  const base = cn(
-    BUTTON_BASE,
-    BUTTON_VARIANT.get(variant),
-    destructive && "text-danger",
-    !online && "pointer-events-none opacity-40",
-  );
+  const styled = cn(BUTTON_BASE, BUTTON_VARIANT.get(variant), destructive && "text-danger");
+  const base = online ? styled : mergeClasses(styled, BUTTON_OFFLINE);
   // Merged rather than appended: beside the base's px-3, a plain px-0 lost
   // on stylesheet order and squeezed a 20px icon to 12px.
   return mergeClasses(icon ? mergeClasses(base, "w-9 shrink-0 px-0") : base, className);
