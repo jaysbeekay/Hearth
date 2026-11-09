@@ -8,6 +8,9 @@ import { saveOllamaSettings } from "@/lib/actions/app-settings";
 import { OllamaForm } from "@/components/AppSettingsForms";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { ChatSettingsForm } from "@/components/ChatSettingsForm";
+import { AssistantEnabledToggle } from "@/components/AssistantEnabledToggle";
+import { getAssistantAvailability } from "@/lib/assistant/enablement";
+import { bannerClass } from "@/lib/ui";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
@@ -19,7 +22,11 @@ export const metadata: Metadata = { title: SETTINGS_ROUTES.ai.label };
 
 // #363 — the AI half of the old System settings page: what reads uploaded
 // documents locally, and the optional local and cloud AI that can help.
-export default async function AiSettingsPage() {
+export default async function AiSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/settings");
 
@@ -33,6 +40,8 @@ export default async function AiSettingsPage() {
     chatApiKeyIsSet,
     extractionCapabilities,
     ollamaConfigured,
+    assistant,
+    { welcome },
   ] = await Promise.all([
     getOllamaConfig(),
     getAppSetting("ai.provider"),
@@ -43,6 +52,8 @@ export default async function AiSettingsPage() {
     isAppSettingSet("chat.apiKey"),
     getExtractionCapabilities(),
     isOllamaConfigured(),
+    getAssistantAvailability(),
+    searchParams,
   ]);
 
   return (
@@ -55,6 +66,17 @@ export default async function AiSettingsPage() {
           a key here.
         </p>
       </div>
+
+      {/* Arrived here from first-run setup with the assistant ticked. */}
+      {welcome === "assistant" && (
+        <div role="status" className={bannerClass("neutral")}>
+          Last step: choose the AI provider for your assistant under{" "}
+          <a href="#ai-assistant" className="underline">
+            AI Assistant
+          </a>
+          , or skip this and set it up later.
+        </div>
+      )}
 
       <Card as="section" className="space-y-4">
         <div>
@@ -95,7 +117,7 @@ export default async function AiSettingsPage() {
           />
         </Card>
 
-        <Card as="section" className="space-y-4">
+        <Card as="section" id="ai-assistant" className="scroll-mt-8 space-y-4">
           <div>
             <h2 className="font-medium">AI Assistant</h2>
             <p className="text-xs text-muted mt-0.5">
@@ -107,6 +129,10 @@ export default async function AiSettingsPage() {
               — the two are independent.
             </p>
           </div>
+          <AssistantEnabledToggle
+            enabled={assistant.enabled}
+            configured={assistant.configured}
+          />
           <ChatSettingsForm
             provider={(chatProvider || null) as AiProviderId | null}
             model={chatModel || null}

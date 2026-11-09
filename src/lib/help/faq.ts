@@ -21,7 +21,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
     entries: [
       {
         q: "What are modules, and can I turn them on or off later?",
-        a: "[[Travel]], [[Properties]], [[Vehicles]], [[Inventory]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
+        a: "[[Inventory]], [[Properties]], [[Travel]], [[Vehicles]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
       },
       {
         q: "How do I invite another household member?",
@@ -135,7 +135,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "The Assistant isn't in my navigation.",
-        a: "[[Assistant]] only appears once a chat AI provider is configured for the household, in [[Settings → Household → AI & privacy → AI Assistant]].",
+        a: "[[Assistant]] is off unless the household turns it on. An admin can turn it on and choose a chat AI provider in [[Settings → Household → AI & privacy → AI Assistant]]; it appears once both are done. Turning the Assistant off doesn't affect AI document extraction, which has its own settings on the same page.",
       },
       {
         q: "A record another household member added doesn't show up for me.",

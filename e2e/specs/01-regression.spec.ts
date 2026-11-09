@@ -41,6 +41,7 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/contracts", "Contracts"],
   ["/products", "Warranties"],
   ["/travel", "Travel"],
+  ["/inventory", "Inventory"],
   ["/home", "Properties"],
   ["/vehicles", "Vehicles"],
   ["/wealth", "Wealth"],

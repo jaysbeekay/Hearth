@@ -63,11 +63,12 @@ const CONTAINER_EQUIVALENTS = {
   ],
 };
 const GENERIC_MIME_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+// Listed A-Z by title, matching the web nav and Settings > Modules (#597).
 const OPTIONAL_MODULES = [
-  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
-  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "inventoryItems", title: "Inventory", copy: "Household items, serial numbers, locations and value.", recordType: "inventoryItems", countKey: "inventoryItems" },
+  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "trips", title: "Travel", copy: "Trips, bookings, confirmations and travel documents.", recordType: "trips", countKey: "trips" },
+  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
   { key: "portfolios", title: "Wealth", copy: "Portfolios, holdings and local trade history.", recordType: "portfolios", countKey: "portfolios" },
 ];
 const DEFAULT_STANDALONE_MODULE_KEYS = OPTIONAL_MODULES.map((module) => module.key);
