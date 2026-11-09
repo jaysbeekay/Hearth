@@ -5,6 +5,8 @@ import { Download } from "lucide-react";
 import { downloadForOffline, getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { showToast } from "@/components/Toast";
+import { offlineClass } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 // Wraps a document download <a> so it also works offline once explicitly
 // downloaded — replaces the plain `<a href="/api/.../documents/{id}">` used
@@ -70,7 +72,7 @@ export function DocumentLink({
       <a
         href={href}
         onClick={handleClick}
-        className={!online && !cached ? `${className} opacity-50` : className}
+        className={!online && !cached ? cn(className, offlineClass) : className}
         aria-disabled={!online && !cached}
       >
         {children}

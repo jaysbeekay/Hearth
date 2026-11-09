@@ -244,6 +244,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
   now shows the web app's 2px accent `:focus-visible` outline throughout
   the shell.
+
+- **Disabled controls all dim to the same 50% (#620, #558).** Disabled
+  buttons and fields were 60% from the shared classes, but 13 buttons added
+  their own 50%, the locked admin-only settings rows and the sign-in email
+  field (while a two-factor code is asked for) used 60%, and the always-on
+  Documents box on first-run setup used 70%. All of them are now 50%, set
+  once in `src/lib/ui.ts`; components no longer set their own opacity, and
+  `tests/unit/ui-rules.test.ts` keeps it that way. Actions that need a
+  connection are 40% while offline. The "Add" buttons on list pages and the
+  Inventory "Add item" link had been showing at 50% offline, because their
+  disabled state outranked the 40%, and an offline Document link that isn't
+  saved on the device was 50%; all of them are now 40%.
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body
   text at 400, too small a step to scan by. They are now weight 600 through
