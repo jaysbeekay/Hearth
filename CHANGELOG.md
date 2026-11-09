@@ -496,6 +496,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   field outside it no longer pulls focus back to the menu's button, so the
   field you clicked keeps it.
 
+- **The calendar feed button waits for the page to load (#609).** Clicking
+  "Create calendar feed" or "Generate new URL" before the page had finished
+  loading replaced the feed's URL (so the old one stopped working) and
+  reloaded the page without ever showing the new one. The button now stays
+  disabled until the page is ready, so the new URL is always shown.
+
 - **Money amounts keep two decimals in edit forms (#601).** A saved 510.10 came
   back as 510.1 because amounts are stored as numbers. Edit and Renew forms,
   trade fees, the scan's "Needs review" panel and Quick check, web and

@@ -92,7 +92,10 @@ export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <form action={genAction}>
-            <SubmitButton variant="secondary" pendingText="Generating…">
+            {/* The new URL is shown only from the action's client-side result, so a
+                native submit before hydration would replace the token without
+                ever showing it (#609). */}
+            <SubmitButton variant="secondary" pendingText="Generating…" disabledUntilHydrated>
               {active ? "Generate new URL" : "Create calendar feed"}
             </SubmitButton>
           </form>
