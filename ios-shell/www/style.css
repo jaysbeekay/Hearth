@@ -21,6 +21,9 @@
   /* The edge of a control (input, select, secondary button, tab, chip):
      >=3:1 on background and surface (WCAG 1.4.11). */
   --border-control: #8a8780;
+  /* --hover, --hover-surface and --danger-foreground aren't used by the
+     shell yet; they're kept so this block mirrors globals.css token for token
+     (tests/unit/contrast.test.ts checks the two stay equal). */
   --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   --hover-surface: color-mix(in srgb, var(--foreground) 5%, var(--surface));
   --accent: #1e5bb6;
@@ -459,11 +462,24 @@ button {
   background: var(--accent);
 }
 
-/* A pressed filter chip leads with a check mark, so it doesn't rely on the
-   accent colour alone. */
-.chip[aria-pressed="true"]::before {
-  content: "✓";
-  margin-right: 6px;
+/* A pressed filter chip leads with a check mark (an aria-hidden span from
+   app.js), so it doesn't rely on the accent colour alone. The mark sits in
+   the chip's left padding, and every chip has the same padding both sides,
+   so labels stay centred and pressing a chip doesn't change its width. */
+.chip {
+  padding-inline: 28px;
+}
+
+.chip-check {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  visibility: hidden;
+}
+
+.chip[aria-pressed="true"] .chip-check {
+  visibility: visible;
 }
 
 .search-row {
@@ -562,7 +578,14 @@ button {
 }
 
 /* An inline link in a hint: the text stays in the line, and the ::before
-   reaches past it so the hit area is 44px tall, as the web app's buttons. */
+   reaches past it so the hit area is 44px tall, as the web app's buttons.
+   The hint pads itself by the same 13px (an 18px line + 2 x 13px = 44px), so
+   the hit area stays inside the hint's own box and never reaches over the
+   field above or below; the link doesn't wrap, so it's one box. */
+.field-hint:has(.link-button) {
+  padding-block: 13px;
+}
+
 .field-hint .link-button {
   position: relative;
   display: inline;
@@ -571,6 +594,7 @@ button {
   font-size: inherit;
   font-weight: 500;
   text-decoration: underline;
+  white-space: nowrap;
 }
 
 .field-hint .link-button::before {
@@ -671,6 +695,7 @@ button {
 }
 
 .subtle-button {
+  min-width: 44px;
   min-height: 44px;
   padding: 7px 0;
 }

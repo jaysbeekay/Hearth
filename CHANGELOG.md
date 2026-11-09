@@ -229,7 +229,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   shell drops its own violet, beige and navy palette for the web app's
   colour tokens, value for value in light and dark, with its tints derived
   from them; `scripts/check-contrast.mjs` now checks the shell's tokens too,
-  and a unit test keeps them equal to `globals.css`. Controls, cards and
+  and a unit test keeps them equal to `globals.css` and the shell free of the
+  old palette. The in-app icon (`icon.svg`) and Android theme colours
+  (`colors.xml`) take the web accent; the launcher/store icon is still violet
+  pending a design decision (#629). Controls, cards and
   badges take the web app's 8px corners, control edges use
   `--border-control` (3:1), and cards lose their shadows. The current bottom
   nav entry gets the web app's bar along its top edge and
@@ -238,7 +241,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   filter chip a check mark and `aria-pressed`, so none rely on colour alone.
   Tabs, chips, the dashboard's text buttons, checkbox rows and Version
   history are now at least 44px tall, the Copy button and inline hint links
-  get a 44px hit area, and the Copy button's text is 12px.
+  get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
+  now shows the web app's 2px accent `:focus-visible` outline throughout
+  the shell.
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body
   text at 400, too small a step to scan by. They are now weight 600 through
