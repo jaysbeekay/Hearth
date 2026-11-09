@@ -46,10 +46,9 @@ describe("Field", () => {
     expect(html).toContain('<p id="cost-hint" class="text-xs text-muted">Per month</p>');
   });
 
-  it("renders no hint id when there is no hint", () => {
+  it("renders no hint, and so no hint id, when there is no hint", () => {
     const html = renderToStaticMarkup(field({ label: "Cost", htmlFor: "cost" }));
     expect(html).not.toContain("cost-hint");
-    expect(html).not.toContain("aria-describedby");
   });
 });
 

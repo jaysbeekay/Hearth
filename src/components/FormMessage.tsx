@@ -103,10 +103,12 @@ export function FormMessage({
     if (!control) return;
     // #615 — the error is listed first, ahead of the Field's hint, and only
     // its own id is taken out again, so ids added meanwhile are kept.
-    control.setAttribute("aria-invalid", "true");
+    // aria-invalid is only taken off again if this error put it there.
+    const markedInvalid = control.getAttribute("aria-invalid") !== "true";
+    if (markedInvalid) control.setAttribute("aria-invalid", "true");
     control.setAttribute("aria-describedby", addDescribedBy(control.getAttribute("aria-describedby"), errorId, true));
     return () => {
-      control.removeAttribute("aria-invalid");
+      if (markedInvalid) control.removeAttribute("aria-invalid");
       dropDescribedBy(control, errorId);
     };
   }, [error, field, errorId, attempt]);

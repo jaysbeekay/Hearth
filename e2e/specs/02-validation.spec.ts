@@ -107,4 +107,39 @@ test("a field's hint and its error are both linked to the control, error first",
   expect(errorId).toBeTruthy();
   await expect(from).toHaveAttribute("aria-describedby", `${errorId} smtpFrom-hint`);
   await expect(from).toHaveAccessibleDescription(/^Error: .*real domain.*Blank sends as the username/);
+
+  // Fixed and saved: the error's id and aria-invalid go, the hint's stays.
+  // (Clearing the field would match the last save, and Save changes would
+  // skip the form, so a valid address is saved, then cleared again.)
+  const save = page.getByRole("button", { name: "Save changes" });
+  const status = page.getByRole("region", { name: "Unsaved changes" });
+  await from.fill("Hearth <hearth@example.com>");
+  await save.click();
+  await expect(status).toContainText("No unsaved changes.");
+  await expect(page.getByRole("alert").filter({ hasText: "real domain" })).toHaveCount(0);
+  await expect(from).toHaveAttribute("aria-describedby", "smtpFrom-hint");
+  await expect(from).not.toHaveAttribute("aria-invalid", /./);
+  await from.fill("");
+  await save.click();
+  await expect(status).toContainText("No unsaved changes.");
+});
+
+test("a hint that comes and goes adds and removes its id on the control", async ({ page }) => {
+  // #615 — the contract form's billing-frequency hint shows only while a cost
+  // is set without a frequency.
+  await page.goto("/contracts/new");
+  const frequency = page.locator("#billingFrequency");
+  const hint = page.locator("#billingFrequency-hint");
+  await expect(hint).toHaveCount(0);
+  await expect(frequency).not.toHaveAttribute("aria-describedby", /./);
+
+  // A cost defaults the frequency to Monthly; choosing "Not set" shows the hint.
+  await page.locator("#cost").fill("50");
+  await frequency.selectOption("");
+  await expect(hint).toContainText("won't count toward the dashboard");
+  await expect(frequency).toHaveAttribute("aria-describedby", "billingFrequency-hint");
+
+  await frequency.selectOption("MONTHLY");
+  await expect(hint).toHaveCount(0);
+  await expect(frequency).not.toHaveAttribute("aria-describedby", /./);
 });
