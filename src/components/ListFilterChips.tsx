@@ -46,7 +46,7 @@ export function ListFilterChips({
               onToggle(chip);
             }}
             aria-pressed={active}
-            className={chipClass(active, count === 0 && !active ? "opacity-60" : undefined)}
+            className={chipClass(active)}
           >
             {count === undefined ? label : `${label} · ${count}`}
           </button>
