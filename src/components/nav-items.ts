@@ -42,7 +42,8 @@ export const FOOTER_NAV = {
 // Labels are fixed English strings, so pin the collation: a bare
 // localeCompare follows the server's LANG and the browser's locale, which can
 // disagree and reorder the nav on hydration.
-export const compareLabels = new Intl.Collator("en").compare;
+export const navLabelCollator = new Intl.Collator("en");
+export const compareLabels = navLabelCollator.compare;
 
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
   const optionalModuleItems = Object.values(MODULE_REGISTRY)

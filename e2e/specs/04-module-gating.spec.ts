@@ -45,6 +45,8 @@ test.describe.serial("module-toggle gating", () => {
 
     await page.goto("/inventory");
     await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/inventory/new");
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("re-enabling Inventory restores its sidebar link and route access", async ({ page }) => {

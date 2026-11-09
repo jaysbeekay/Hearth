@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { getNavItems } from "@/components/nav-items";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getNavItems, navLabelCollator } from "@/components/nav-items";
 import { MODULE_KEYS } from "@/lib/modules/registry";
 
 describe("getNavItems", () => {
@@ -30,5 +30,29 @@ describe("getNavItems", () => {
       "Upcoming",
       "Spending",
     ]);
+  });
+
+  describe("sort order does not depend on the runtime locale", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("pins the collator to English", () => {
+      expect(navLabelCollator.resolvedOptions().locale).toBe("en");
+    });
+
+    it("ignores a default-locale localeCompare that would reorder labels", () => {
+      // Stand-in for a server LANG (e.g. haw_US) whose default collation
+      // disagrees with English: reverse every comparison.
+      const original = String.prototype.localeCompare;
+      vi.spyOn(String.prototype, "localeCompare").mockImplementation(function (this: string, that: string) {
+        return -original.call(this, that, "en");
+      });
+      const labels = getNavItems(new Set(MODULE_KEYS), false)
+        .filter((item) => item.group === "modules")
+        .map((item) => item.label);
+      expect(labels).toEqual([...labels].sort(new Intl.Collator("en").compare));
+      expect(labels[0]).toBe("Contracts");
+    });
   });
 });
