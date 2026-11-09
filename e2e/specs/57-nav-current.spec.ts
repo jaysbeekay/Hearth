@@ -24,18 +24,31 @@ test.describe("desktop sidebar", () => {
   });
 
   test("marks a section above the current page as true, not page", async ({ page }) => {
+    // My account and Household settings are in the sidebar's account menu.
+    // /settings/users sits under Household settings, though its path also
+    // starts with /settings.
+    await page.goto("/settings/users");
+    const sidebarAside = page.locator("aside");
+    await sidebarAside.getByRole("button", { name: /account menu$/ }).click();
+    await expect(sidebarAside.getByRole("link", { name: "Household settings", exact: true })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await expect(sidebarAside.getByRole("link", { name: "My account", exact: true })).not.toHaveAttribute(
+      "aria-current",
+    );
+    await expect(page.locator('[aria-current="page"]:visible')).toHaveCount(0);
+
+    // On Household settings itself, its row is the one current page.
     await page.goto("/settings/household");
-    // Settings is in the sidebar's account menu.
-    await page.locator("aside").getByRole("button", { name: /account menu$/ }).click();
-    const settings = page.locator("aside").getByRole("link", { name: "Settings", exact: true });
-    await expect(settings).toHaveAttribute("aria-current", "true");
-    // The Settings tabs own the "page" marker on this route.
-    await expect(
-      page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Household" }),
-    ).toHaveAttribute("aria-current", "page");
-    await expect(page.locator('aside [aria-current="page"]')).toHaveCount(0);
-    // Across the whole page, sidebar and Settings tabs together, one link
-    // claims to be the current page.
+    await sidebarAside.getByRole("button", { name: /account menu$/ }).click();
+    await expect(sidebarAside.getByRole("link", { name: "Household settings", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(sidebarAside.getByRole("link", { name: "My account", exact: true })).not.toHaveAttribute(
+      "aria-current",
+    );
     await expect(page.locator('[aria-current="page"]:visible')).toHaveCount(1);
   });
 
@@ -72,5 +85,15 @@ test.describe("phone tab bar and More sheet", () => {
       await expect(moreSheet(page)).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
     await expect(moreSheet(page).getByRole("link", { name: "Vehicles" })).toHaveAttribute("aria-current", "page");
+  });
+
+  test("the More sheet marks only the Settings screen you're on", async ({ page }) => {
+    await page.goto("/settings/household");
+    await expect(async () => {
+      await bottomBar(page).getByRole("button", { name: /More navigation options/ }).click();
+      await expect(moreSheet(page)).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await expect(moreSheet(page).getByRole("link", { name: "Household settings" })).toHaveAttribute("aria-current", "page");
+    await expect(moreSheet(page).getByRole("link", { name: "My account" })).not.toHaveAttribute("aria-current");
   });
 });
