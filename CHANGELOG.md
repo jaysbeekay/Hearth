@@ -247,8 +247,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   entry is missing from the log. Needs review works as before.
 
 - **My account and Household settings are now two separate screens.**
-  The single Settings entry with two tabs is replaced by two nav entries,
-  in the sidebar and in the phone's More sheet: **My account** (`/settings`,
+  The single Settings entry with two tabs is replaced by two entries, in
+  the sidebar's account menu and in the phone's More sheet: **My account** (`/settings`,
   only your own sign-in, notifications and preferences) and **Household
   settings** (`/settings/household`, shared by everyone, with admin-only
   sections greyed out for members). Each screen links to the other, and only

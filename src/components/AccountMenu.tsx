@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, ScrollText, Megaphone } from "lucide-react";
+import { ScrollText, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { navCurrent } from "@/lib/navCurrent";
 import { SignOutButton } from "@/components/SignOutButton";
-import { FOOTER_NAV } from "@/components/nav-items";
+import { SETTINGS_NAV_ENTRIES, footerNavCurrent, isFooterNavActive } from "@/components/nav-items";
 import { accountCurrentClass, avatarClass, menuItemClass, overlayClass } from "@/lib/ui";
 import { CHANGELOG_URL, FEEDBACK_URL, initials, versionLabel } from "@/lib/account";
 
@@ -20,8 +19,8 @@ export function Avatar({ name, email, size = "md" }: { name: string; email: stri
   );
 }
 
-// The sidebar's account button and its popover (Settings, Changelog,
-// Feedback, Sign out, and the running version). Rendered inside a
+// The sidebar's account button and its popover (My account, Household
+// settings, Changelog, Feedback, Sign out, and the running version). Rendered inside a
 // `relative` footer, which the popover is placed against: to the right of
 // the sidebar, bottom-aligned with the footer. Not "menu" role, like
 // DetailOverflowMenu (#297): these are plain links and a button, without
@@ -63,10 +62,9 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
   };
   const displayName = userName || userEmail;
   const version = versionLabel();
-  const settings = FOOTER_NAV.settings;
-  const settingsActive = pathname === settings.href || pathname.startsWith(`${settings.href}/`);
-  // The trigger stands for Settings while the menu is closed, so it carries
-  // the current-page bar there; open, it is only tinted.
+  const settingsActive = SETTINGS_NAV_ENTRIES.some(({ key }) => isFooterNavActive(key, pathname));
+  // The trigger stands for both Settings screens while the menu is closed,
+  // so it carries the current-page bar on either; open, it is only tinted.
   let triggerState = "text-foreground hover:bg-hover";
   if (settingsActive) triggerState = accountCurrentClass;
   else if (open) triggerState = "bg-accent/10 text-accent";
@@ -112,15 +110,22 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
           </p>
         )}
         <div className="py-1">
-          <Link
-            href={settings.href}
-            onClick={close}
-            aria-current={navCurrent(settings.href, pathname)}
-            className={menuItemClass({}, settingsActive ? accountCurrentClass : undefined)}
-          >
-            <Settings size={16} className={settingsActive ? undefined : "text-muted"} />
-            {settings.label}
-          </Link>
+          {SETTINGS_NAV_ENTRIES.map((entry) => {
+            const { key, href, label, icon: Icon } = entry;
+            const current = isFooterNavActive(key, pathname);
+            return (
+              <Link
+                key={key}
+                href={href}
+                onClick={close}
+                aria-current={footerNavCurrent(entry, pathname)}
+                className={menuItemClass({}, current ? accountCurrentClass : undefined)}
+              >
+                <Icon size={16} className={current ? undefined : "text-muted"} />
+                {label}
+              </Link>
+            );
+          })}
           <a href={CHANGELOG_URL} target="_blank" rel="noreferrer" onClick={close} className={menuItemClass()}>
             <ScrollText size={16} className="text-muted" />
             Changelog

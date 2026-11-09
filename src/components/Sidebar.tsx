@@ -129,8 +129,9 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* The account lives behind its avatar (Settings, Changelog,
-          Feedback, Sign out, version), with Help beside it. */}
+      {/* The account lives behind its avatar (My account, Household
+          settings, Changelog, Feedback, Sign out, version), with Help
+          beside it. */}
       <div className="relative flex items-center gap-1 border-t border-border px-3 py-3">
         <AccountMenu userName={userName} userEmail={userEmail} />
         <Link

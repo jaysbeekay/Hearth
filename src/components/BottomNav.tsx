@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems, FOOTER_NAV, isFooterNavActive, FOOTER_NAV_KEYS } from "@/components/nav-items";
+import { getNavItems, isFooterNavActive, footerNavCurrent, FOOTER_NAV_ENTRIES } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
@@ -34,6 +34,7 @@ function MoreLink({
   active,
   ariaLabel,
   badge,
+  current,
 }: {
   href: string;
   label: string;
@@ -41,13 +42,14 @@ function MoreLink({
   active: boolean;
   ariaLabel?: string;
   badge?: React.ReactNode;
+  /** aria-current: navCurrent() for most links, footerNavCurrent() for the footer's. */
+  current: "page" | "true" | undefined;
 }) {
-  const pathname = usePathname();
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      aria-current={navCurrent(href, pathname)}
+      aria-current={current}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
         active ? cn(tabActiveClass, "bg-accent/10") : "text-muted hover:bg-hover",
@@ -100,7 +102,7 @@ export function BottomNav({
   const overflowTools = overflow.filter((i) => i.group === "tools");
   const overflowActive =
     overflow.some((i) => isActive(i.href, pathname)) ||
-    FOOTER_NAV_KEYS.some((key) => isFooterNavActive(key, pathname));
+    FOOTER_NAV_ENTRIES.some(({ key }) => isFooterNavActive(key, pathname));
   const inboxBadge = <InboxCountBadge count={inboxCount} className="absolute -right-3 -top-1.5" />;
 
   return (
@@ -174,7 +176,14 @@ export function BottomNav({
               <p className="mb-1.5 text-xs font-medium text-muted">Modules</p>
               <div className="mb-3 grid grid-cols-3 gap-2">
                 {overflowModules.map(({ href, label, icon }) => (
-                  <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
+                  <MoreLink
+                    key={href}
+                    href={href}
+                    label={label}
+                    icon={icon}
+                    active={isActive(href, pathname)}
+                    current={navCurrent(href, pathname)}
+                  />
                 ))}
               </div>
             </>
@@ -189,19 +198,24 @@ export function BottomNav({
                 label={label}
                 icon={icon}
                 active={isActive(href, pathname)}
+                current={navCurrent(href, pathname)}
                 ariaLabel={href === "/documents" ? inboxLinkLabel(label, inboxCount) : undefined}
                 badge={href === "/documents" ? inboxBadge : undefined}
               />
             ))}
-            {FOOTER_NAV_KEYS.map((key) => (
-              <MoreLink
-                key={key}
-                href={FOOTER_NAV[key].href}
-                label={FOOTER_NAV[key].label}
-                icon={FOOTER_NAV[key].icon}
-                active={isFooterNavActive(key, pathname)}
-              />
-            ))}
+            {FOOTER_NAV_ENTRIES.map((entry) => {
+              const current = footerNavCurrent(entry, pathname);
+              return (
+                <MoreLink
+                  key={entry.key}
+                  href={entry.href}
+                  label={entry.label}
+                  icon={entry.icon}
+                  active={current !== undefined}
+                  current={current}
+                />
+              );
+            })}
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">

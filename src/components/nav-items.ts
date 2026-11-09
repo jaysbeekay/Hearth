@@ -45,19 +45,30 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/spend", label: "Spending", icon: TrendingUp, group: "tools" },
 ];
 
-// Always shown below the module and tool groups, in every nav (Sidebar,
-// BottomNav's More sheet). Settings is two separate screens: My account
-// (only your own account) and Household settings (shared by everyone).
+// Always shown below the module and tool groups. Settings is two separate
+// screens: My account (only your own account) and Household settings
+// (shared by everyone). The phone's More sheet lists all three; the desktop
+// sidebar puts the two Settings screens in its account menu, with Help as
+// the icon beside it.
 export const FOOTER_NAV = {
-  settings: { href: SETTINGS_ROUTES.settings.href, label: SETTINGS_ROUTES.settings.label, icon: UserRound },
-  household: { href: SETTINGS_ROUTES.household.href, label: SETTINGS_ROUTES.household.label, icon: House },
-  help: { href: "/help", label: "Help", icon: HelpCircle },
-} as const satisfies Record<string, Omit<NavItem, "group">>;
+  settings: { key: "settings", href: SETTINGS_ROUTES.settings.href, label: SETTINGS_ROUTES.settings.label, icon: UserRound },
+  household: {
+    key: "household",
+    href: SETTINGS_ROUTES.household.href,
+    label: SETTINGS_ROUTES.household.label,
+    icon: House,
+  },
+  help: { key: "help", href: "/help", label: "Help", icon: HelpCircle },
+} as const satisfies Record<string, Omit<NavItem, "group"> & { key: string }>;
 
 export type FooterNavKey = keyof typeof FOOTER_NAV;
+export type FooterNavEntry = (typeof FOOTER_NAV)[FooterNavKey];
 
 /** The footer entries in the order every nav shows them. */
-export const FOOTER_NAV_KEYS: FooterNavKey[] = ["settings", "household", "help"];
+export const FOOTER_NAV_ENTRIES: readonly FooterNavEntry[] = [FOOTER_NAV.settings, FOOTER_NAV.household, FOOTER_NAV.help];
+
+/** The two Settings screens, in the order the account menu lists them. */
+export const SETTINGS_NAV_ENTRIES: readonly FooterNavEntry[] = [FOOTER_NAV.settings, FOOTER_NAV.household];
 
 /**
  * Whether a footer entry is the current page. /settings/household and its
@@ -65,10 +76,14 @@ export const FOOTER_NAV_KEYS: FooterNavKey[] = ["settings", "household", "help"]
  * settingsArea() rather than by prefix.
  */
 export function isFooterNavActive(key: FooterNavKey, pathname: string): boolean {
-  if (key === "settings") return settingsArea(pathname) === "account";
-  if (key === "household") return settingsArea(pathname) === "household";
-  const { href } = FOOTER_NAV[key];
-  return pathname === href || pathname.startsWith(`${href}/`);
+  switch (key) {
+    case "settings":
+      return settingsArea(pathname) === "account";
+    case "household":
+      return settingsArea(pathname) === "household";
+    case "help":
+      return pathname === FOOTER_NAV.help.href || pathname.startsWith(`${FOOTER_NAV.help.href}/`);
+  }
 }
 
 // Labels are fixed English strings, so pin the collation: a bare
@@ -76,6 +91,17 @@ export function isFooterNavActive(key: FooterNavKey, pathname: string): boolean 
 // disagree and reorder the nav on hydration.
 export const navLabelCollator = new Intl.Collator("en");
 export const compareLabels = navLabelCollator.compare;
+
+/**
+ * aria-current for a footer entry, with navCurrent's values (#558): "page" on
+ * the entry's own page, "true" on a page below it. The two Settings screens
+ * go by settingsArea(), so My account isn't marked on Household settings
+ * pages, which also start with /settings.
+ */
+export function footerNavCurrent(entry: FooterNavEntry, pathname: string): "page" | "true" | undefined {
+  if (!isFooterNavActive(entry.key, pathname)) return undefined;
+  return pathname === entry.href ? "page" : "true";
+}
 
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
   const optionalModuleItems = Object.values(MODULE_REGISTRY)

@@ -32,12 +32,16 @@ test.describe("as an admin", () => {
   test("Household settings lists every shared section, and no page says System settings", async ({ page }) => {
     await page.goto("/settings");
     await expect(page.getByRole("heading", { level: 1, name: "My account" })).toBeVisible();
+    // Both screens are in the sidebar's account menu.
     const sidebar = page.locator("aside");
+    const accountMenu = sidebar.getByRole("button", { name: /account menu$/ });
+    await accountMenu.click();
     await expect(sidebar.getByRole("link", { name: "My account" })).toHaveAttribute("aria-current", "page");
     await sidebar.getByRole("link", { name: "Household settings" }).click();
     await expect(page).toHaveURL(/\/settings\/household$/);
     await expect(page.getByRole("heading", { level: 1, name: "Household settings" })).toBeVisible();
     // /settings/household also starts with /settings: only one entry is current.
+    await accountMenu.click();
     await expect(sidebar.getByRole("link", { name: "Household settings" })).toHaveAttribute("aria-current", "page");
     await expect(sidebar.getByRole("link", { name: "My account" })).not.toHaveAttribute("aria-current", "page");
 

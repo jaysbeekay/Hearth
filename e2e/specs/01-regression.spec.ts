@@ -54,12 +54,12 @@ const TOP_LEVEL: Array<[string, string]> = [
   ["/help", "Help"],
 ];
 
-// Settings lives in the account menu, behind the sidebar's avatar button.
+// My account and Household settings live in the account menu, behind the sidebar's avatar button.
 // The sidebar is named: with the assistant panel open there's a second
 // complementary landmark (and a third on /assistant).
 async function sidebarLink(page: Page, label: string) {
   const sidebar = page.getByRole("complementary", { name: "Sidebar" });
-  if (label === "Settings") {
+  if (label === "My account" || label === "Household settings") {
     const account = sidebar.getByRole("button", { name: /account menu$/ });
     if ((await account.getAttribute("aria-expanded")) !== "true") await account.click();
   }
@@ -108,9 +108,22 @@ test("account footer: the current entry has aria-current and a bar, not just col
   expect(await barWidth(help)).not.toBe("2px");
   expect(await barWidth(account)).toBe("2px");
   await account.click();
-  const settings = page.getByRole("dialog", { name: "Account" }).getByRole("link", { name: "Settings", exact: true });
-  await expect(settings).toHaveAttribute("aria-current", "page");
-  expect(await barWidth(settings)).toBe("2px");
+  const menu = page.getByRole("dialog", { name: "Account" });
+  const myAccount = menu.getByRole("link", { name: "My account", exact: true });
+  const household = menu.getByRole("link", { name: "Household settings", exact: true });
+  await expect(myAccount).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(myAccount)).toBe("2px");
+  await expect(household).not.toHaveAttribute("aria-current", "page");
+
+  // /settings/household also starts with /settings: only its own row is current.
+  await household.click();
+  await expect(page).toHaveURL(/\/settings\/household$/);
+  expect(await barWidth(account)).toBe("2px");
+  await account.click();
+  await expect(household).toHaveAttribute("aria-current", "page");
+  expect(await barWidth(household)).toBe("2px");
+  await expect(myAccount).not.toHaveAttribute("aria-current", "page");
+  expect(await barWidth(myAccount)).not.toBe("2px");
 });
 
 test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
