@@ -326,7 +326,7 @@ export default async function PropertyDetailPage({
                         {canWrite && <AddDocumentButton action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} recordName={item.title} />}
                       </div>
                       {item.documents.length > 0 && (
-                        <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+                        <DocumentList kind="HOME_ITEM" ownerId={item.id} ownerName={item.title} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                       )}
                     </div>
                   )}

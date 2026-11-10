@@ -39,12 +39,15 @@ function TypePill({ label }: { label: string | null }) {
 export function DocumentList({
   kind,
   ownerId,
+  ownerName,
   documents,
   trashedLinks,
 }: {
   kind: OwnedDocumentKind;
   /** The record every Document in the list belongs to. */
   ownerId: string;
+  /** The record's name, for the preview image's alt text (#617). */
+  ownerName: string;
   documents: Row[];
   /**
    * Version links of this record's Documents in Trash (getTrashedVersionLinks),
@@ -114,7 +117,14 @@ export function DocumentList({
                     category={doc.category}
                   />
                 )}
-                <DocumentPreviewButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                <DocumentPreviewButton
+                  documentId={doc.id}
+                  href={href}
+                  filename={doc.filename}
+                  mimeType={doc.mimeType}
+                  typeLabel={documentTypeLabel(doc, productKind(doc))}
+                  ownerName={ownerName}
+                />
                 <DocumentShareButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
                 {star(doc)}
                 <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
@@ -149,6 +159,8 @@ export function DocumentList({
                         href={documentFileHref(v.id)}
                         filename={v.filename}
                         mimeType={v.mimeType}
+                        typeLabel={documentTypeLabel(v, productKind(v))}
+                        ownerName={ownerName}
                       />
                       <DocumentShareButton
                         documentId={v.id}

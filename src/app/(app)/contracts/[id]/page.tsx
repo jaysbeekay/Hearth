@@ -419,7 +419,7 @@ export default async function ContractDetailPage({
 
       <Card id="documents" className="scroll-mt-20">
         <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
-        <DocumentList kind="CONTRACT" ownerId={contract.id} documents={contract.documents} trashedLinks={trashedLinks.get(contract.id)} />
+        <DocumentList kind="CONTRACT" ownerId={contract.id} ownerName={contract.title} documents={contract.documents} trashedLinks={trashedLinks.get(contract.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={boundUpload} />
