@@ -24,7 +24,7 @@ describe("typeSourceNote", () => {
   it("names the detected type for a scan guess", () => {
     expect(typeSourceNote("CONTRACT", "scan")).toBe("Detected as a contract");
     expect(typeSourceNote("PRODUCT", "scan")).toBe("Detected as a warranty");
-    expect(typeSourceNote("INVENTORY", "scan")).toBe("Detected as an inventory item");
+    expect(typeSourceNote("INVENTORY", "scan")).toBe("Detected as an item");
   });
 
   it("asks the person to pick a type after a fallback", () => {

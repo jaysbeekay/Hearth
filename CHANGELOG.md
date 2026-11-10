@@ -241,6 +241,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **"Item", not "Inventory item", everywhere you read it (#637).** The
+  Upload page's "File as" options and its "Detected as an item" note, the
+  Inbox review type picker, MCP import review, Trash, the Warranty page's
+  linked-item line, the Warranties list's Items section, the Item page title,
+  Help, the MCP tool titles and "Item not found" errors now use the
+  glossary's word. The phone app's matching labels changed too. A unit test
+  now fails if "Inventory item" comes back in user-facing copy.
+
 - **Upload rows say whether their type was detected (#604).** Each queued
   file on Upload documents now has a visible "File as" label beside its type
   picker, and a note under the file name: "Detected as a contract" (or a

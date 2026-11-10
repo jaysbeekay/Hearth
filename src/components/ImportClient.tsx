@@ -522,7 +522,7 @@ export function ImportClient({
                     <option value="">No change</option>
                     <option value="CONTRACT">Contract</option>
                     <option value="PRODUCT">Warranty</option>
-                    {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                    {inventoryEnabled && <option value="INVENTORY">Item</option>}
                     <option value="INBOX">Save to review later</option>
                   </select>
                 </div>
@@ -645,7 +645,7 @@ export function ImportClient({
                           >
                             <option value="CONTRACT">Contract</option>
                             <option value="PRODUCT">Warranty</option>
-                            {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                            {inventoryEnabled && <option value="INVENTORY">Item</option>}
                             <option value="INBOX">Save to review later</option>
                           </select>
                           <button
