@@ -73,7 +73,7 @@ const DOMAIN_META: Record<
   vehicle: { label: "Vehicle", icon: Car, restore: restoreVehicle, permanentlyDelete: permanentlyDeleteVehicle },
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },
-  inventoryItem: { label: "Inventory item", icon: MODULE_REGISTRY.INVENTORY.icon, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
+  inventoryItem: { label: "Item", icon: MODULE_REGISTRY.INVENTORY.icon, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
   homeItem: { label: "Maintenance record", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
   vehicleItem: { label: "Service record", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
   tripSegment: { label: "Trip segment", icon: Plane, restore: restoreTripSegment, permanentlyDelete: permanentlyDeleteTripSegment },

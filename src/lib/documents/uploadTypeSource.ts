@@ -27,7 +27,7 @@ export function typeSourceNote(type: UploadRowType, source: TypeSource): string 
     case "PRODUCT":
       return "Detected as a warranty";
     case "INVENTORY":
-      return "Detected as an inventory item";
+      return "Detected as an item";
     default:
       return null;
   }
