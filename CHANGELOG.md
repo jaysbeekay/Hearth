@@ -241,6 +241,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Screen readers read a field's hint with the field, and say "Error:"
+  before a form error message (#615).** A form field's hint (the small text
+  under it) is now linked to its control through `aria-describedby`, after
+  the field's error when there is one, so both are read when the field takes
+  focus. The hint, a #406 field error and the auto-fill note each add and
+  remove only their own id, rather than restoring an earlier copy of the
+  attribute. Form error messages start with a visually hidden "Error:".
+  Nothing changes on screen.
+
 - **Motion respects your settings, and previews are described (#617).**
   With the system's reduce motion setting on, the Assistant chat jumps to the
   newest message instead of scrolling smoothly, its typing caret stops
@@ -279,6 +288,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Inventory "Add item" link had been showing at 50% offline, because their
   disabled state outranked the 40%, and an offline Document link that isn't
   saved on the device was 50%; all of them are now 40%.
+
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body
   text at 400, too small a step to scan by. They are now weight 600 through
