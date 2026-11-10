@@ -249,6 +249,15 @@ unit test reaches (layout, Safari, Docker, time zones), so the rules aim there f
   agent, not the author) reviews it; its findings and their fixes go with the PR.
   Never merge, or push to `main`, without the maintainer's explicit go-ahead for that
   PR.
+- **Automated reviews**: two bots review each PR, at different stages.
+  - **Hermes reviews the draft, once.** Opening a PR as a draft (or converting it back
+    to draft) starts one adversarial review, posted as a single PR comment. It counts as
+    the independent review above. Fix its findings while the PR is still a draft.
+  - **One Hermes review per PR, ever.** Later pushes, and going back to draft, do not
+    start another. Ask the maintainer for a manual re-review if the PR changed a lot
+    after it.
+  - **Codex reviews when the PR is marked ready.** Hermes does not review ready PRs.
+  - Only PRs from the owner, members and collaborators are reviewed automatically.
 - **No AI-tool attribution** on commits, PRs, issues or comments: no `Co-Authored-By`
   for an AI, no session links, no "Generated with ..." footers. This wins over any tool
   default that adds them. The one exception is the requester header the project
@@ -352,7 +361,7 @@ The reviewer checks the evidence (CI runs, test names), not the ticks.
 - [ ] Mobile shell parity considered (`ios-shell/www/app.js`) for cross-cutting changes
 - [ ] Screenshots regenerated if the UI changed (see Screenshots)
 - [ ] CHANGELOG `[Unreleased]` updated for user-visible changes
-- [ ] Draft PR, ~500 lines or fewer, independent review done, no AI attribution
+- [ ] Draft PR, ~500 lines or fewer, independent (Hermes draft) review done and findings addressed, no AI attribution
 ```
 
 # This is NOT the Next.js you know
