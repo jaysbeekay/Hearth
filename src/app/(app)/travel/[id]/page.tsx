@@ -364,6 +364,7 @@ export default async function TripDetailPage({
                         <DocumentList
                           kind="TRIP_SEGMENT"
                           ownerId={segment.id}
+                          ownerName={segment.title}
                           trashedLinks={trashedLinks.get(segment.id)}
                           documents={segment.documents}
                         />

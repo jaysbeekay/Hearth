@@ -111,3 +111,36 @@ test("assistant side panel opens beside any page, chats, and remembers open/clos
     await mock.close();
   }
 });
+
+// #617 — under reduced motion the chat jumps to the newest message instead of
+// scrolling smoothly. Records the behaviour every scrollTo asks for.
+test("the chat scrolls instantly under reduced motion", async ({ page }) => {
+  const mock = await startMockOllama();
+  try {
+    await configureMockAssistant(page, mock.url);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __scrollBehaviors: string[] };
+      w.__scrollBehaviors = [];
+      const original = Element.prototype.scrollTo;
+      Element.prototype.scrollTo = function (this: Element, ...args: unknown[]) {
+        const opts = args[0];
+        if (opts && typeof opts === "object") {
+          w.__scrollBehaviors.push(String((opts as ScrollToOptions).behavior));
+        }
+        return (original as (...a: unknown[]) => void).apply(this, args);
+      } as typeof Element.prototype.scrollTo;
+    });
+
+    await page.goto("/assistant");
+    await page.locator("textarea").fill("Anything due soon?");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Hello from the panel.")).toBeVisible();
+
+    const behaviors = await page.evaluate(() => (window as unknown as { __scrollBehaviors: string[] }).__scrollBehaviors);
+    expect(behaviors.length).toBeGreaterThan(0);
+    expect(behaviors).not.toContain("smooth");
+  } finally {
+    await mock.close();
+  }
+});
