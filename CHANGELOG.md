@@ -225,6 +225,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **The phone app looks like the web app (#616).** The standalone/connected
+  shell drops its own violet, beige and navy palette for the web app's
+  colour tokens, value for value in light and dark, with its tints derived
+  from them; `scripts/check-contrast.mjs` now checks the shell's tokens too,
+  and a unit test keeps them equal to `globals.css` and the shell free of the
+  old palette. The in-app icon (`icon.svg`) and Android theme colours
+  (`colors.xml`) take the web accent; the launcher/store icon is still violet
+  pending a design decision (#629). Controls, cards and
+  badges take the web app's 8px corners, control edges use
+  `--border-control` (3:1), and cards lose their shadows. The current bottom
+  nav entry gets the web app's bar along its top edge and
+  `aria-current="page"` (`"true"` under a detail or form screen), the
+  current record-type tab a bar and `aria-current="true"`, and a pressed
+  filter chip a check mark and `aria-pressed`, so none rely on colour alone.
+  Tabs, chips, the dashboard's text buttons, checkbox rows and Version
+  history are now at least 44px tall, the Copy button and inline hint links
+  get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
+  now shows the web app's 2px accent `:focus-visible` outline throughout
+  the shell.
+
 - **Disabled controls all dim to the same 50% (#620, #558).** Disabled
   buttons and fields were 60% from the shared classes, but 13 buttons added
   their own 50%, the locked admin-only settings rows and the sign-in email
