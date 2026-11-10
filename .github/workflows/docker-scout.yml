@@ -64,7 +64,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Reads the other Docker workflows' cache but never writes it, so a
       # scan can't evict the layers a release build needs.
