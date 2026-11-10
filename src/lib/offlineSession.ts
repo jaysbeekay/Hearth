@@ -332,8 +332,10 @@ export async function clearOfflineData(): Promise<void> {
  */
 export async function clearSignedOutData(): Promise<void> {
   if (typeof window === "undefined") return;
-  // The marker goes with the caches. If this page was reached by going Back
-  // while still signed in, going Forward must write it again.
+  // The marker goes with the caches. The sign-in page clears only once it
+  // knows nobody is signed in, or couldn't ask (#576); in that last case, if
+  // this page was reached by going Back while still signed in, going
+  // Forward must write it again.
   markerWritten = null;
   await Promise.allSettled([
     withTimeout(clearRuntimeCaches(), STEP_TIMEOUT_MS),
