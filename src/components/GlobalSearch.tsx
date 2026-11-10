@@ -92,7 +92,8 @@ export function GlobalSearch() {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      // #618 — an Escape a toast already handled is not for search.
+      if (e.key === "Escape" && !e.defaultPrevented) {
         setOpen(false);
         previouslyFocusedRef.current?.focus();
       }

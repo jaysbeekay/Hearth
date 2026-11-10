@@ -463,6 +463,20 @@ const BACKUP_TABLES = [
   { key: "reminderLogs", table: "reminder_delivery_logs", columns: ["id", "owner_type", "owner_id", "field", "channel", "threshold_days", "status", "sent_at", "error"] },
 ];
 
+// #616: mirrors src/lib/navCurrent.ts (#558). The bottom-nav entry for the
+// screen being shown is the current "page"; the section a detail, form or
+// More screen sits under is "true", so it isn't announced as a second current
+// page. style.css draws the entry's bar from this attribute.
+function navCurrentFor(button, route) {
+  const nav = button.dataset.nav;
+  const navRecordType = button.dataset.recordType;
+  const recordTypeMatches = navRecordType ? state.recordType === navRecordType : true;
+  if (route === nav && recordTypeMatches) return "page";
+  if (["detail", "form"].includes(route) && nav === "records" && recordTypeMatches) return "true";
+  if (isSecondaryRoute(route) && nav === "more") return "true";
+  return null;
+}
+
 function isSecondaryRoute(route) {
   return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
 }
@@ -1768,14 +1782,9 @@ async function render() {
   backButton.toggleAttribute("aria-hidden", !canGoBack);
   backButton.disabled = !canGoBack;
   document.querySelectorAll(".nav-item").forEach((button) => {
-    const nav = button.dataset.nav;
-    const navRecordType = button.dataset.recordType;
-    const activeRecordType = navRecordType ? state.recordType === navRecordType : true;
-    const active =
-      (route === nav && activeRecordType) ||
-      (["detail", "form"].includes(route) && nav === "records" && activeRecordType) ||
-      (isSecondaryRoute(route) && nav === "more");
-    button.classList.toggle("active", active);
+    const current = navCurrentFor(button, route);
+    if (current) button.setAttribute("aria-current", current);
+    else button.removeAttribute("aria-current");
   });
 
   if (route === "dashboard") mobileView.innerHTML = renderDashboard();
@@ -2873,11 +2882,17 @@ function renderRecords() {
 }
 
 function recordTab(type, label) {
-  return `<button class="tab ${state.recordType === type ? "active" : ""}" data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
+  return `<button class="tab"${state.recordType === type ? ' aria-current="true"' : ""} data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
 }
 
+// #616: a pressed chip leads with a check mark so it doesn't rely on the
+// accent colour alone. It's a real element, hidden from screen readers
+// (aria-pressed already says it), and every chip reserves its space so a
+// chip doesn't grow when it's pressed.
+const chipCheck = '<span class="chip-check" aria-hidden="true">✓</span>';
+
 function filterChip(filter, label) {
-  return `<button class="chip ${state.recordFilter === filter ? "active" : ""}" data-record-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.recordFilter === filter}" data-record-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredRecords() {
@@ -3401,7 +3416,7 @@ function renderDocuments() {
 }
 
 function documentChip(filter, label) {
-  return `<button class="chip ${state.documentFilter === filter ? "active" : ""}" data-document-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.documentFilter === filter}" data-document-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredDocuments() {
