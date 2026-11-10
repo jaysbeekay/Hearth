@@ -47,7 +47,8 @@ export function AccountMenu({ userName, userEmail }: { userName: string; userEma
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      // #618 — an Escape a toast already handled is not for this menu.
+      if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
     };
     document.addEventListener("click", onClick);
     document.addEventListener("keydown", onKeyDown);

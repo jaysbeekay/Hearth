@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MessagesSquare, X } from "lucide-react";
 import { ChatThreadList, type ThreadSummary } from "@/components/ChatThreadList";
 import { ChatMessageList, type DisplayMessage } from "@/components/ChatMessageList";
@@ -20,10 +20,19 @@ export function AssistantClient({
   initialMessages: DisplayMessage[];
 }) {
   const router = useRouter();
-  const { threadId, messages, pending, toolStatus, error, send, resolveAction } = useAssistantChat({
+  // Set when a new chat's first reply was stopped: the URL already points at
+  // the chat, but the server may still be saving the stopped reply, so the
+  // page (and its chat list) is refreshed on the next message instead of now.
+  const refreshOnNextSend = useRef(false);
+  const { threadId, messages, pending, toolStatus, error, send, stop, resolveAction } = useAssistantChat({
     initialThreadId: activeThreadId,
     initialMessages,
-    onThreadCreated: (id) => {
+    onThreadCreated: (id, { stopped }) => {
+      if (stopped) {
+        window.history.replaceState(null, "", `/assistant?thread=${id}`);
+        refreshOnNextSend.current = true;
+        return;
+      }
       router.replace(`/assistant?thread=${id}`, { scroll: false });
       router.refresh();
     },
@@ -61,7 +70,17 @@ export function AssistantClient({
             {error}
           </p>
         )}
-        <ChatComposer onSend={send} disabled={pending} />
+        <ChatComposer
+          onSend={(text) => {
+            if (refreshOnNextSend.current) {
+              refreshOnNextSend.current = false;
+              router.refresh();
+            }
+            void send(text);
+          }}
+          onStop={stop}
+          pending={pending}
+        />
       </div>
 
       {threadsOpen && (
