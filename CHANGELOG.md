@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Stop an Assistant reply (#611).** While a reply is streaming, a Stop
+  button takes Send's place in the Assistant's composer. Stopping, closing
+  the side panel, starting a new chat or leaving the Assistant page ends the
+  reply with no error: the text already shown stays, marked "(stopped)", and
+  is saved that way so it shows when the conversation is reopened (a reply
+  stopped before any text arrived saves nothing). The server aborts the
+  provider request in flight and makes no further provider calls or tool
+  rounds for it, so a stopped reply stops using the household's provider key.
+  A message sent straight after Stop waits briefly for the stopped reply to
+  finish saving, and the conversation's history is replayed to the provider
+  with every tool call paired with its result. A reply that fails partway
+  now shows an error instead of ending as if it had finished.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order
@@ -232,6 +244,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   "Couldn't tell what this is. Pick a type." when it fell back to Contract.
   The note goes once you pick a type, on the row or through "Apply to
   selected". Scanning, extraction and saving are unchanged.
+
+- **The phone app looks like the web app (#616).** The standalone/connected
+  shell drops its own violet, beige and navy palette for the web app's
+  colour tokens, value for value in light and dark, with its tints derived
+  from them; `scripts/check-contrast.mjs` now checks the shell's tokens too,
+  and a unit test keeps them equal to `globals.css` and the shell free of the
+  old palette. The in-app icon (`icon.svg`) and Android theme colours
+  (`colors.xml`) take the web accent; the launcher/store icon is still violet
+  pending a design decision (#629). Controls, cards and
+  badges take the web app's 8px corners, control edges use
+  `--border-control` (3:1), and cards lose their shadows. The current bottom
+  nav entry gets the web app's bar along its top edge and
+  `aria-current="page"` (`"true"` under a detail or form screen), the
+  current record-type tab a bar and `aria-current="true"`, and a pressed
+  filter chip a check mark and `aria-pressed`, so none rely on colour alone.
+  Tabs, chips, the dashboard's text buttons, checkbox rows and Version
+  history are now at least 44px tall, the Copy button and inline hint links
+  get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
+  now shows the web app's 2px accent `:focus-visible` outline throughout
+  the shell.
 - **Disabled controls all dim to the same 50% (#620, #558).** Disabled
   buttons and fields were 60% from the shared classes, but 13 buttons added
   their own 50%, the locked admin-only settings rows and the sign-in email
@@ -508,6 +540,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Toasts wait while you're using them (#618).** A toast, such as "Moved to
+  Recently deleted · Undo", no longer closes while the pointer is over it or
+  keyboard focus is inside it; once both leave it closes after the time it
+  had left. Escape now dismisses a focused toast without also closing an
+  open menu, search or dialog, and the close button still does too; either
+  way focus goes back to where it was instead of dropping to the page
+  (WCAG 2.2.1).
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a

@@ -5,6 +5,7 @@ import {
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { forwardAbort } from "@/lib/ai/chat/abort";
 import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 interface AnthropicContentBlock {
@@ -60,9 +61,11 @@ export const callAnthropicChat: ChatProviderCall = async ({
   system,
   messages,
   tools,
+  signal,
 }, onDelta) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
+  const stopForwardingAbort = forwardAbort(signal, controller);
   try {
     const res = await aiProviderFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -159,5 +162,6 @@ export const callAnthropicChat: ChatProviderCall = async ({
     };
   } finally {
     clearTimeout(timeout);
+    stopForwardingAbort();
   }
 };
