@@ -341,6 +341,7 @@ services:
       # ("mailto:..." or "https://..."). See .env.example.
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
+      DISABLE_INTERNAL_SCHEDULER: ${DISABLE_INTERNAL_SCHEDULER:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
       MCP_IMPORT_LABELS: ${MCP_IMPORT_LABELS:-}
@@ -1056,7 +1057,8 @@ for the full list with defaults. Notable ones:
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
 | `VAPID_SUBJECT` | Optional. The contact (`mailto:…` or `https://…`) Web Push services see on every push. Defaults to `APP_URL` when that's https, otherwise the first admin's email address. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |
-| `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
+| `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can run every scheduled job that's due, instead of or alongside the built-in scheduler. See "Running scheduled jobs from an external scheduler" below. |
+| `DISABLE_INTERNAL_SCHEDULER` | Optional. Set to `true` to turn off the built-in scheduler when `/api/cron` is called from outside. The job runner keeps running. Without a caller, no scheduled job is queued. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
 | `MCP_TOKEN` | Optional. If set, enables `GET/POST /api/mcp`, a read-only MCP server for querying contracts from an LLM agent — see "Querying contracts from an LLM (MCP)" above. |
 | `MCP_TOKENS` | Optional. Comma-separated `label:token` pairs, one per MCP client, so each can be revoked on its own and is named in the access log. Enables the endpoint like `MCP_TOKEN`; both can be set. |
@@ -1121,6 +1123,42 @@ sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
 since older builds don't know that channel and fail reading those rows.
 Leave the `push_subscriptions` table and its `_prisma_migrations` row in
 place: older builds ignore both, and dropping either breaks upgrading again.
+
+### Running scheduled jobs from an external scheduler
+
+Out of the box, Hearth's own scheduler checks every minute which scheduled
+jobs are owed (the reminder check, backups, email ingestion and price
+refreshes) and queues them. If you'd rather drive them from a systemd timer,
+host cron, a NAS task scheduler or an uptime pinger, set `CRON_SECRET` and
+call the endpoint:
+
+```bash
+curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://hearth.example.com/api/cron
+```
+
+One call queues every job that is due, using the same schedules as the
+built-in scheduler (`REMINDER_CRON_SCHEDULE`, `BACKUP_CRON_SCHEDULE`,
+`EMAIL_INGEST_CRON_SCHEDULE`, and Settings), then runs them. Backups and email
+ingestion are only queued when they're set up; a price refresh is queued when
+the Wealth module is on and the last one was at least 15 minutes ago. The
+reminder check runs on every call, and sends only what hasn't been sent. Call
+it as often as the shortest schedule you want kept, every 5 to 15 minutes
+being typical: a call before a job is due leaves it alone, and one after a
+missed time catches it up. Calls that overlap, or overlap with the built-in
+scheduler, run each job once.
+
+The response lists the job types that call queued:
+`{"triggered":"REMINDER_CHECK","status":"DONE","enqueued":["REMINDER_CHECK","BACKUP_RUN"]}`.
+A call starts jobs for up to about 30 seconds; anything not started by then
+stays queued for the next call or for Hearth's job runner. A wrong secret gets
+a 401, and the endpoint 404s while `CRON_SECRET` is unset.
+
+To use only the external trigger, set `DISABLE_INTERNAL_SCHEDULER=true`. That
+turns off the built-in scheduler and nothing else: Hearth's job runner
+still works through queued jobs every 20 seconds, so a job queued by a call
+that ran out of time (or the low-priority document text catch-up) is still
+run. Don't set it without also calling `/api/cron`, or no scheduled job is
+queued: no reminders, no backups.
 
 ## Security notes
 

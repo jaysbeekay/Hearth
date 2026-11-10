@@ -222,6 +222,12 @@ interface RunOptions {
   timeoutMs?: number;
   /** Only claim jobs at this priority or above (JOB_PRIORITY). */
   minPriority?: number;
+  /**
+   * runPendingJobs only: stop claiming new jobs once this long has passed
+   * since it started. A job already running isn't cut short, and what's left
+   * stays queued for the next call or the in-process runner.
+   */
+  budgetMs?: number;
 }
 
 export async function runOneJob(options: RunOptions = {}) {
@@ -279,7 +285,9 @@ async function processOcr(payload: ExtractionJobPayload) {
 }
 
 export async function runPendingJobs(limit = 4, options: RunOptions = {}): Promise<void> {
+  const startedAt = Date.now();
   for (let i = 0; i < limit; i += 1) {
+    if (options.budgetMs !== undefined && Date.now() - startedAt >= options.budgetMs) break;
     if (!(await runOneJob(options))) break;
   }
 }
