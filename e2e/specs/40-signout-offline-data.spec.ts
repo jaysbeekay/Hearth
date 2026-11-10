@@ -492,7 +492,7 @@ test.describe("sign-out clears offline data (#424)", () => {
     const checked = page.waitForResponse("**/api/auth/session");
     await page.goBack();
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     await checked;
     // A short settle, so a clear or broadcast, were one sent, would land.
     await page.waitForTimeout(1_000);
