@@ -2619,7 +2619,7 @@ function renderHelp() {
       <h2>Need the full web app?</h2>
       <p class="muted">Connected mode opens your self-hosted Hearth server with users, passkeys, household settings, integrations and AI-backed extraction.</p>
       <div class="actions">
-        <button data-switch-runtime-mode>Switch mode</button>
+        <button class="secondary" data-switch-runtime-mode>Switch mode</button>
       </div>
     </section>
   `;
@@ -3111,7 +3111,6 @@ function renderNeedsReviewBanner(type, row) {
       <p class="card-meta">This mirrors the connected app's extraction confirmation gate. Review the critical fields, then confirm them here.</p>
       <div class="actions">
         <button data-confirm-details="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Confirm details</button>
-        <button class="secondary" data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Edit</button>
       </div>
     </section>
   `;

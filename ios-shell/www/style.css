@@ -219,6 +219,21 @@ button {
   color: var(--danger);
 }
 
+/* On a warning or danger card the 10% tint leaves the control border under
+   3:1, so a secondary button there sits on the surface colour, where the
+   border clears 3:1 in both themes (scripts/check-contrast.mjs). */
+.warning-card .secondary,
+.danger-card .secondary {
+  background: var(--surface);
+}
+
+/* The web app's disabled:opacity-50, so a disabled primary doesn't look
+   active. */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .status {
   color: var(--danger);
   font-size: 13px;
@@ -541,11 +556,8 @@ button {
   color: var(--warning);
 }
 
-.badge/* #630, the web app's Buttons rule (src/lib/ui.ts, #411): at most one primary
-   (the bare filled button) per screen, record and row actions .secondary, and
-   a Delete outside a confirm dialog is secondary with danger text, as
-   buttonClass("secondary", { destructive: true }). */
-.secondary.danger {
+.badge.danger {
+  background: var(--danger-soft);
   color: var(--danger);
 }
 
