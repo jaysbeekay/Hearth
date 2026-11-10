@@ -5,7 +5,7 @@ import { Download, X } from "lucide-react";
 import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
-import { isPreviewable } from "@/lib/documents/documentList";
+import { documentPreviewAlt, isPreviewable } from "@/lib/documents/documentList";
 import { inlineViewHref } from "@/lib/documents/inlineView";
 import { overlayClass, buttonClass } from "@/lib/ui";
 
@@ -15,6 +15,10 @@ export interface PreviewableDoc {
   filename: string;
   mimeType: string;
   downloadHref: string;
+  /** The Document's type (Invoice, Photo…), for the image's alt text (#617). */
+  typeLabel?: string | null;
+  /** The record the Document belongs to, for the image's alt text (#617). */
+  ownerName?: string | null;
 }
 
 export { isPreviewable };
@@ -157,7 +161,7 @@ export function DocumentPreviewModal({
             <iframe src={objectUrl} title={doc.filename} className="h-[70vh] w-full border-0" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob: URL, not an optimizable remote image
-            <img src={objectUrl} alt={doc.filename} className="max-h-[70vh] max-w-full object-contain" />
+            <img src={objectUrl} alt={documentPreviewAlt(doc)} className="max-h-[70vh] max-w-full object-contain" />
           )}
         </div>
       </div>
