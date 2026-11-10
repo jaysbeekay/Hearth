@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reach a notification's button from the keyboard (#631).** Alt+T
+  (Option+T on a Mac) moves focus to the newest notification's action, such
+  as Undo after a delete, or to its Dismiss button, so keyboard and switch
+  users can reach it before it times out without tabbing through the page.
+  The notification stays open while it has focus, Escape closes it, and focus
+  goes back to where it was. Notifications with an action tell screen-reader
+  users about the shortcut, and Help lists it under "Are there keyboard
+  shortcuts?". The phone app's own notifications don't have it yet.
+
 - **Onboarding has an ending (#617).** Once every getting-started step is
   done, the dashboard's checklist shows a short "You're set up" note with a
   Dismiss button instead of a list of struck-through steps.
