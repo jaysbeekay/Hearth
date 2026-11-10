@@ -533,6 +533,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Scans read amounts in £, €, ¥ and R, and European-style numbers (#613).**
+  Document text extraction only picked up an amount after `$` or AUD/USD/NZD/
+  GBP/EUR, and read `$1.234,56` as 1.23. One shared amount reader now handles
+  `$`, `£`, `€`, `¥`, `R` and the codes AUD, USD, NZD, GBP, EUR, JPY and ZAR,
+  with comma, dot or space thousands separators and a dot or comma decimal
+  (`€1.234,56`, `R 1 234,56` → 1234.56); yen amounts have no decimals. Cost
+  and price fields, lease rent and bond, and rental statement amounts all use
+  it. An "R" amount is only used when there's no other amount on the line,
+  and never for a reference like "R2D2" / "R2 D2" or a number starting with
+  0, so "Unit R2 total $500" reads as 500. Plain-space grouping needs a
+  decimal part or the end of the line ("$50 100 items" reads as 50), and a
+  malformed grouping like "$1.234.56" is skipped rather than cut short.
+
 - **Toasts wait while you're using them (#618).** A toast, such as "Moved to
   Recently deleted · Undo", no longer closes while the pointer is over it or
   keyboard focus is inside it; once both leave it closes after the time it
