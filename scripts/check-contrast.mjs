@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Contrast check for the colour tokens in src/app/globals.css (#408).
+// Contrast check for the colour tokens in src/app/globals.css (#408) and the
+// phone shell's ios-shell/www/style.css (#616), which takes the same values.
 //
 // Parses the light (`:root`) and dark (`prefers-color-scheme: dark`) token
 // blocks and checks every text pairing the UI uses against WCAG 2.x:
@@ -166,17 +167,26 @@ export function checkContrast(css) {
   return rows;
 }
 
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 export function readGlobalsCss() {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return readFileSync(path.join(here, "..", "src", "app", "globals.css"), "utf8");
+  return readFileSync(path.join(ROOT, "src", "app", "globals.css"), "utf8");
+}
+
+/** The phone shell's stylesheet, whose tokens mirror globals.css (#616). */
+export function readShellCss() {
+  return readFileSync(path.join(ROOT, "ios-shell", "www", "style.css"), "utf8");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const rows = checkContrast(readGlobalsCss());
+  const rows = [
+    ...checkContrast(readGlobalsCss()).map((r) => ({ ...r, source: "web" })),
+    ...checkContrast(readShellCss()).map((r) => ({ ...r, source: "shell" })),
+  ];
   const width = Math.max(...rows.map((r) => r.pair.length));
   for (const r of rows) {
     console.log(
-      `${r.pass ? "ok  " : "FAIL"} ${r.theme.padEnd(5)} ${r.pair.padEnd(width)} ${r.ratio.toFixed(2).padStart(5)}:1 (min ${r.min})`,
+      `${r.pass ? "ok  " : "FAIL"} ${r.source.padEnd(5)} ${r.theme.padEnd(5)} ${r.pair.padEnd(width)} ${r.ratio.toFixed(2).padStart(5)}:1 (min ${r.min})`,
     );
   }
   const failed = rows.filter((r) => !r.pass);
