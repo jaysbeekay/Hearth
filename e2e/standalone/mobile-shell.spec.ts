@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { destructiveButtonStyle, filledPrimaryButtons } from "./buttons";
 import { tooSmallHitAreas } from "./hitArea";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
@@ -777,6 +778,82 @@ test("standalone interactive elements have a 44px hit area (#616)", async ({ pag
   await view.getByRole("button", { name: "Add", exact: true }).click();
   await expect(title).toHaveText("Add record");
   await check("Add warranty");
+});
+
+test("standalone Contract detail that needs review has one filled primary button, Confirm details (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByText("Confirm details before reminders run")).toBeVisible();
+  await expect(page.locator('button[data-form-type="contractRenewal"]')).toBeVisible();
+
+  expect(await filledPrimaryButtons(page)).toEqual(["Confirm details"]);
+  const secondaryDanger = { transparent: true, dangerText: true, controlBorder: true };
+  expect(await destructiveButtonStyle(page, "[data-delete-record]")).toEqual(secondaryDanger);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  for (const selector of ["[data-delete-document]", "[data-delete-inbox-document]"]) {
+    expect(await destructiveButtonStyle(page, selector), selector).toEqual(secondaryDanger);
+  }
+});
+
+test("standalone screens have at most one filled primary button (#630)", async ({ page }) => {
+  const nav = page.locator(".bottom-nav");
+  const view = page.locator("#mobile-view");
+  const title = page.locator("#view-title");
+  const check = async (screen: string) => {
+    const filled = await filledPrimaryButtons(page);
+    expect(filled.length, `${screen}: ${filled.join(", ")}`).toBeLessThanOrEqual(1);
+  };
+  const openFromMore = async (navKey: string, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-nav="${navKey}"]`).click();
+    await expect(title).toHaveText(screen);
+    await check(screen);
+  };
+  const openModule = async (recordType: string, record: RegExp, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-record-type="${recordType}"]`).click();
+    await check(screen);
+    await page.getByRole("button", { name: record }).first().click();
+    await check(`${screen} detail`);
+  };
+
+  await check("Dashboard");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await check("Contracts");
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await check("Contract detail");
+  await view.locator('button[data-form-type="contractRenewal"]').click();
+  await check("Renew contract");
+
+  await nav.getByRole("button", { name: "Warranties" }).click();
+  await page.getByRole("button", { name: /Laptop/ }).click();
+  await check("Warranty detail");
+  await view.locator('button[data-form-type="products"][data-id]').first().click();
+  await check("Edit warranty");
+
+  await nav.getByRole("button", { name: "Documents" }).click();
+  await check("Documents");
+  await view.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(title).toHaveText("Recently deleted documents");
+  await check("Recently deleted documents");
+
+  await nav.getByRole("button", { name: "More" }).click();
+  await check("More");
+  for (const [navKey, screen] of [
+    ["search", "Search"],
+    ["reminders", "Reminders"],
+    ["import", "Import"],
+    ["assistant", "Assistant"],
+    ["settings", "Settings"],
+    ["help", "Help"],
+  ] as const) {
+    await openFromMore(navKey, screen);
+  }
+
+  await openModule("vehicles", /Family Car/, "Vehicles");
+  await openModule("properties", /Home.*1 Hearth Street/, "Properties");
+  await openModule("portfolios", /Family Portfolio/, "Wealth");
 });
 
 test("standalone warranty form's inline \"add one\" link has a 44px hit area inside its hint (#616)", async ({ page }) => {

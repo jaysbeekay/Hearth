@@ -237,6 +237,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One primary button per phone screen (#630).** The phone app now follows
+  the web app's Buttons rule: a screen has at most one filled primary button.
+  A Contract that needs review keeps "Confirm details" as its only primary;
+  Edit, Renew, Archive, Attach document, the child-record Add buttons,
+  document actions, the dashboard's Quick add and the Settings actions are
+  secondary (outlined), and Delete is a secondary button with danger text
+  instead of a tinted one. The status toast's Undo and the inline Copy button
+  are quiet, as on the web.
 - **The phone app looks like the web app (#616).** The standalone/connected
   shell drops its own violet, beige and navy palette for the web app's
   colour tokens, value for value in light and dark, with its tints derived
