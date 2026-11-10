@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Onboarding has an ending (#617).** Once every getting-started step is
+  done, the dashboard's checklist shows a short "You're set up" note with a
+  Dismiss button instead of a list of struck-through steps.
+
 - **Stop an Assistant reply (#611).** While a reply is streaming, a Stop
   button takes Send's place in the Assistant's composer. Stopping, closing
   the side panel, starting a new chat or leaving the Assistant page ends the
@@ -251,6 +255,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sit on the surface colour so their border keeps 3:1 contrast, disabled
   buttons are dimmed to 50%, and the status toast's Undo and the inline Copy
   button are quiet, as on the web.
+
+- **Motion respects your settings, and previews are described (#617).**
+  With the system's reduce motion setting on, the Assistant chat jumps to the
+  newest message instead of scrolling smoothly, its typing caret stops
+  pulsing, and swipe-to-delete rows move without animating. A previewed
+  image's alt text now names the Document type and the record it belongs to
+  ("Preview of invoice for Home insurance") rather than its filename; an
+  Inbox file names no record.
 - **The phone app looks like the web app (#616).** The standalone/connected
   shell drops its own violet, beige and navy palette for the web app's
   colour tokens, value for value in light and dark, with its tints derived
@@ -270,7 +282,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
   now shows the web app's 2px accent `:focus-visible` outline throughout
   the shell.
-
 - **Disabled controls all dim to the same 50% (#620, #558).** Disabled
   buttons and fields were 60% from the shared classes, but 13 buttons added
   their own 50%, the locked admin-only settings rows and the sign-in email
@@ -546,6 +557,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   The due-soon window and Contract rule differences (#386) are tracked there.
 
 ### Fixed
+
+- **Scans read amounts in £, €, ¥ and R, and European-style numbers (#613).**
+  Document text extraction only picked up an amount after `$` or AUD/USD/NZD/
+  GBP/EUR, and read `$1.234,56` as 1.23. One shared amount reader now handles
+  `$`, `£`, `€`, `¥`, `R` and the codes AUD, USD, NZD, GBP, EUR, JPY and ZAR,
+  with comma, dot or space thousands separators and a dot or comma decimal
+  (`€1.234,56`, `R 1 234,56` → 1234.56); yen amounts have no decimals. Cost
+  and price fields, lease rent and bond, and rental statement amounts all use
+  it. An "R" amount is only used when there's no other amount on the line,
+  and never for a reference like "R2D2" / "R2 D2" or a number starting with
+  0, so "Unit R2 total $500" reads as 500. Plain-space grouping needs a
+  decimal part or the end of the line ("$50 100 items" reads as 50), and a
+  malformed grouping like "$1.234.56" is skipped rather than cut short.
 
 - **Toasts wait while you're using them (#618).** A toast, such as "Moved to
   Recently deleted · Undo", no longer closes while the pointer is over it or

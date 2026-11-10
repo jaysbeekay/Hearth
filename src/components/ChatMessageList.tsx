@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { scrollBehavior } from "@/lib/reducedMotion";
 import { ProposedActionCard, type ProposedAction } from "@/components/ProposedActionCard";
 
 export interface DisplayMessage {
@@ -29,10 +30,10 @@ export function ChatMessageList({
   const listRef = useRef<HTMLDivElement>(null);
 
   // Scrolls this list only: scrollIntoView would also scroll the page behind
-  // the side panel.
+  // the side panel. Instant under reduced motion (#617).
   useEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: scrollBehavior() });
   }, [messages, toolStatus]);
 
   if (messages.length === 0) {
@@ -64,7 +65,7 @@ export function ChatMessageList({
                 ? (toolStatus ?? "Thinking…")
                 : message.content}
               {message.streaming && message.content && (
-                <span className="ml-0.5 inline-block w-1.5 animate-pulse">▍</span>
+                <span className="ml-0.5 inline-block w-1.5 animate-pulse motion-reduce:animate-none">▍</span>
               )}
             </div>
             {message.proposedActions?.map((action) => (

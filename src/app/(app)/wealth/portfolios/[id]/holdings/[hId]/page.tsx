@@ -497,6 +497,7 @@ export default async function HoldingPage({
                         <DocumentList
                           kind="TRADE"
                           ownerId={trade.id}
+                          ownerName={`trade ${formatDate(trade.date, dateFormat)}`}
                           documents={trade.documents}
                           trashedLinks={trashedLinks.get(trade.id)}
                         />
