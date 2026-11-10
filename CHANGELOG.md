@@ -250,6 +250,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Upload rows say whether their type was detected (#604).** Each queued
+  file on Upload documents now has a visible "File as" label beside its type
+  picker, and a note under the file name: "Detected as a contract" (or a
+  warranty, or an inventory item) when the scan guessed the type, or
+  "Couldn't tell what this is. Pick a type." when it fell back to Contract.
+  The note goes once you pick a type, on the row or through "Apply to
+  selected". Scanning, extraction and saving are unchanged.
+
 - **Screen readers read a field's hint with the field, and say "Error:"
   before a form error message (#615).** A form field's hint (the small text
   under it) is now linked to its control through `aria-describedby`, after
