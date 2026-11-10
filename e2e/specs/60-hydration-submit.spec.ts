@@ -68,9 +68,22 @@ test("the other useActionState submit buttons wait for hydration too", async ({ 
   const roleSave = main.getByRole("button", { name: "Save", exact: true }).first();
   await expect(roleSave).toBeDisabled();
 
-  await page.goto("/settings");
+  const response = await page.goto("/settings");
+  // Without the script the buttons never enable, so the page says why.
+  // Playwright's JS switch doesn't make Chromium render <noscript>, so check
+  // the served HTML rather than what's on screen.
+  expect(await response?.text()).toMatch(/<noscript>(?:(?!<\/noscript>)[\s\S])*Hearth needs JavaScript\./);
   await main.getByText("Password", { exact: true }).click();
   await expect(main.getByRole("button", { name: "Update password" })).toBeDisabled();
+
+  // Enter in a field submits through the form's default button; with that
+  // button disabled, no POST is sent.
+  const post = page
+    .waitForEvent("request", { predicate: (r) => r.method() === "POST", timeout: 2_000 })
+    .then((r) => r.url())
+    .catch(() => null);
+  await main.locator('input[type="password"]').first().press("Enter");
+  expect(await post).toBeNull();
 
   await page.context().close();
 });

@@ -506,7 +506,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   without the app's script, which the server refused, so the click did
   nothing useful; on the calendar feed it meant the new feed URL was never
   shown. Form buttons now stay disabled for that moment and work on the first
-  click once the page is ready.
+  click once the page is ready. With JavaScript turned off, a notice says the
+  app needs it.
 
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
