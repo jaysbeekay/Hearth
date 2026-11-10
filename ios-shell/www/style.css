@@ -19,8 +19,9 @@
   /* Decorative lines: card edges, dividers. */
   --border: #cfccc6;
   /* The edge of a control (input, select, secondary button, tab, chip):
-     >=3:1 on background and surface (WCAG 1.4.11). */
-  --border-control: #8a8780;
+     >=3:1 on background and surface (WCAG 1.4.11), and on the warning and
+     danger 10% tints behind controls in banners and tinted cards (#640). */
+  --border-control: #84827b;
   /* --hover, --hover-surface and --danger-foreground aren't used by the
      shell yet; they're kept so this block mirrors globals.css token for token
      (tests/unit/contrast.test.ts checks the two stay equal). */
@@ -49,7 +50,7 @@
     --muted: #a3a19c;
     --surface: #1d1d1c;
     --border: #45443f;
-    --border-control: #6e6c67;
+    --border-control: #777671;
     --accent: #7eaaf2;
     --accent-foreground: #141414;
     --success: #5fc48a;

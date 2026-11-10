@@ -554,6 +554,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Control edges stay visible inside warning and danger banners (#640).**
+  Inputs, secondary buttons and chips sitting on a warning or danger tint had
+  a border of about 2.65–3.08:1 against it, below the 3:1 WCAG 1.4.11 minimum.
+  The control border colour is slightly darker in light mode and slightly
+  lighter in dark mode, in the web app and the phone app, and the contrast
+  check now covers controls on those tints.
+
 - **Going Back to the sign-in page no longer signs out your other tabs
   (#576).** After a password sign-in the sign-in page stays in history, and
   going Back to it while still signed in cleared this browser's offline
