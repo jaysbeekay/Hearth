@@ -34,6 +34,9 @@ function isConsoleCall(node: ts.Node): boolean {
 
 /** Every piece of copy in the source that uses the phrase, as "line: text". */
 export function offendingCopy(source: string, fileName: string): string[] {
+  // Only a file that mentions the phrase somewhere can have it in copy, so
+  // the compiler only parses those (a few dozen), not all of src/.
+  if (!PHRASE.test(source)) return [];
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : fileName.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS;
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
   const found: string[] = [];
