@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
 import { createDismissTimer, type DismissTimer } from "@/lib/dismissTimer";
+import { isToastShortcut, toastShortcutHint } from "@/lib/toastShortcut";
 
 const TOAST_EVENT = "hearth:toast";
 type ToastVariant = "success" | "error" | "info";
@@ -65,9 +66,23 @@ function restoreFocus(previous: HTMLElement | null) {
   main.focus({ preventScroll: true });
 }
 
+// #631 — Alt+T moves focus to the newest toast's action, or to its Dismiss
+// button when it has none. Focusing it pauses its timer (#618) and records
+// where focus came from, so it goes back there afterwards.
+function focusNewestToast(stack: HTMLElement): boolean {
+  const toasts = stack.querySelectorAll<HTMLElement>("[data-toast]");
+  const newest = toasts[toasts.length - 1];
+  const target = newest?.querySelector<HTMLElement>("[data-toast-action]") ?? newest?.querySelector<HTMLElement>("[data-toast-dismiss]");
+  if (!target) return false;
+  target.focus();
+  return true;
+}
+
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const stackRef = useRef<HTMLDivElement>(null);
   const dismiss = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  const hasToasts = toasts.length > 0;
 
   useEffect(() => {
     const onToast = (e: Event) => {
@@ -79,10 +94,24 @@ export function ToastContainer() {
     return () => window.removeEventListener(TOAST_EVENT, onToast);
   }, []);
 
-  if (toasts.length === 0) return null;
+  // Only listening while a toast is showing, so with none visible Alt+T is
+  // left alone everywhere, including in text fields. Capture phase, so a
+  // field or widget that handles its own keys can't swallow it first.
+  useEffect(() => {
+    if (!hasToasts) return;
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (!isToastShortcut(e) || !stackRef.current) return;
+      if (focusNewestToast(stackRef.current)) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [hasToasts]);
+
+  if (!hasToasts) return null;
 
   return (
     <div
+      ref={stackRef}
       role="status"
       aria-live="polite"
       className="toast-stack fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6 md:items-end md:pr-6"
@@ -161,6 +190,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       onFocus={onFocus}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
+      data-toast=""
       className={cn(
         "flex w-full max-w-sm items-center gap-2 rounded-lg border bg-surface px-4 py-3 text-sm shadow-overlay",
         tone,
@@ -168,9 +198,13 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     >
       <Icon size={16} className="shrink-0" />
       <span className="flex-1 text-foreground">{toast.message}</span>
+      {/* A sibling, not inside the message, so the message's own text is
+          unchanged for anything that reads it. */}
+      {action && <span className="sr-only">{toastShortcutHint(action.label)}</span>}
       {action && (
         <button
           type="button"
+          data-toast-action=""
           onClick={() => {
             dismissByUser();
             action.onClick();
@@ -183,6 +217,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <button
         type="button"
         onClick={dismissByUser}
+        data-toast-dismiss=""
         aria-label="Dismiss"
         className="-mr-1 shrink-0 rounded-lg p-1 text-muted hover:text-foreground"
       >

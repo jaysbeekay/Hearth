@@ -14,6 +14,8 @@
 //   - decorative borders against background and surface: >= 1.4:1 (visible)
 //   - control borders (inputs, secondary buttons, chips) against background
 //     and surface: >= 3:1 (WCAG 1.4.11, #558)
+//   - control borders against the warning and danger 10% tints that banners
+//     and tinted cards use, over both surface and background: >= 3:1 (#640)
 //
 // Run directly (`node scripts/check-contrast.mjs`) for a table, or through
 // `npm run test:unit` (tests/unit/contrast.test.ts), which fails on any miss.
@@ -30,6 +32,8 @@ const TINT_ALPHA = 0.1;
 const TEXT_TOKENS = ["foreground", "muted", "accent", "danger", "warning", "success"];
 const SEMANTIC_TOKENS = ["muted", "accent", "danger", "warning", "success"];
 const GROUNDS = ["background", "surface"];
+// The tints that banners and tinted cards use behind controls (#640).
+const CONTROL_TINT_TOKENS = ["warning", "danger"];
 
 function hexToRgb(hex) {
   const h = hex.replace("#", "");
@@ -162,6 +166,13 @@ export function checkContrast(css) {
     for (const ground of GROUNDS) {
       add(`border on ${ground}`, contrast(need("border"), need(ground)), BORDER_MIN);
       add(`border-control on ${ground}`, contrast(need("border-control"), need(ground)), CONTROL_BORDER_MIN);
+      // A control (input, secondary button, chip) sitting inside a warning or
+      // danger banner or tinted card: its border is the visible edge against
+      // the tint, not against the plain ground (#640).
+      for (const tone of CONTROL_TINT_TOKENS) {
+        const tint = mix(need(tone), need(ground), TINT_ALPHA);
+        add(`border-control on ${tone}/10 over ${ground}`, contrast(need("border-control"), tint), CONTROL_BORDER_MIN);
+      }
     }
   }
   return rows;

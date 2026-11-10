@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reach a notification's button from the keyboard (#631).** Alt+T
+  (Option+T on a Mac) moves focus to the newest notification's action, such
+  as Undo after a delete, or to its Dismiss button, so keyboard and switch
+  users can reach it before it times out without tabbing through the page.
+  The notification stays open while it has focus, Escape closes it, and focus
+  goes back to where it was. Notifications with an action tell screen-reader
+  users about the shortcut, and Help lists it under "Are there keyboard
+  shortcuts?". The phone app's own notifications don't have it yet.
+
 - **Onboarding has an ending (#617).** Once every getting-started step is
   done, the dashboard's checklist shows a short "You're set up" note with a
   Dismiss button instead of a list of struck-through steps.
@@ -569,6 +578,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   The due-soon window and Contract rule differences (#386) are tracked there.
 
 ### Fixed
+
+- **Control edges stay visible inside warning and danger banners (#640).**
+  Inputs, secondary buttons and chips sitting on a warning or danger tint had
+  a border of about 2.65–3.08:1 against it, below the 3:1 WCAG 1.4.11 minimum.
+  The control border colour is slightly darker in light mode and slightly
+  lighter in dark mode, in the web app and the phone app, and the contrast
+  check now covers controls on those tints.
 
 - **Going Back to the sign-in page no longer signs out your other tabs
   (#576).** After a password sign-in the sign-in page stays in history, and
