@@ -113,13 +113,14 @@ test("the iCal feed covers the whole household, whichever member's token is used
   const memberContext = await browser.newContext({ storageState: MEMBER_AUTH_FILE });
   const memberPage = await memberContext.newPage();
 
-  await memberPage.goto("/settings");
-  await memberPage
-    .getByRole("button", { name: /Create calendar feed|Generate new URL/i })
-    .click();
+  await memberPage.goto("/settings#calendar-feed");
 
   // Only stored as a hash, so the URL appears exactly once — right here.
-  const feedInput = memberPage.locator('section:has-text("Calendar feed") input[readonly]');
+  const feedInput = memberPage.locator("#calendar-feed input[readonly]");
+  // One click, no retry. The button stays disabled until React hydrates
+  // (#609), and click() waits for it to be enabled, so this click is the
+  // one the app handles and shows the URL for.
+  await memberPage.getByRole("button", { name: /Create calendar feed|Generate new URL/i }).click();
   await expect(feedInput).toBeVisible();
   const feedUrl = await feedInput.inputValue();
   expect(feedUrl).toContain("/api/ical?token=");
@@ -149,7 +150,7 @@ test("the iCal feed covers the whole household, whichever member's token is used
   // Revisiting Settings can't reproduce the URL.
   await memberPage.reload();
   await expect(
-    memberPage.locator('section:has-text("Calendar feed") input[readonly]'),
+    memberPage.locator('#calendar-feed input[readonly]'),
   ).toHaveCount(0);
   await expect(memberPage.locator("body")).toContainText("A calendar feed is active");
 

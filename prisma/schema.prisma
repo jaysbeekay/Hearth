@@ -76,6 +76,8 @@ enum SecurityEventType {
   LOGIN_FAILED
   LOGIN_THROTTLED
   PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_EMAIL_FAILED
   PASSWORD_RESET_COMPLETED
   TOTP_DISABLED
   ROLE_CHANGED
@@ -84,6 +86,7 @@ enum SecurityEventType {
   MCP_THROTTLED
   DOCUMENT_SHARE_LINK_CREATED
   DOCUMENT_SHARE_LINK_REVOKED
+  AUTOFILL_CONFIRMED
 }
 
 enum ProductDocumentKind {
@@ -610,6 +613,12 @@ model Item {
   notes           String?
   createdById     String
   deletedAt       DateTime?
+  // #355/#380 — Archived: the household no longer has it (sold, given away).
+  // Set deliberately, never by a date passing, as on Property and Vehicle.
+  // An archived Item is never missing anything and never Due. Legacy
+  // Products/InventoryItems had no archive column, so there is nothing to
+  // backfill; the archive flow itself lands with #355 on the Item surface.
+  archivedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   legacyProductId String?  @unique
@@ -1463,6 +1472,8 @@ model BackgroundJob {
   priority        Int       @default(0)
 
   @@index([status, availableAt])
+  // The scheduled-job ticker reads each job type's last run every minute.
+  @@index([type, createdAt])
   @@map("background_jobs")
 }
 

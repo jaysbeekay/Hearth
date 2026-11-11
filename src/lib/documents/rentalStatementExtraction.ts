@@ -2,6 +2,7 @@ import { getOllamaConfig, isOllamaConfigured } from "@/lib/appSettings";
 import {
   findCompanyLine,
   findCost,
+  findLabeledAmount,
   findLabeledDate,
   findLabeledValue,
 } from "@/lib/documents/textHeuristics";
@@ -31,17 +32,28 @@ const FIELD_KEYS = [
   "netAmount",
 ] as const;
 
-const AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
+// A bare amount must have cents ("2600.00"), so a statement number, account
+// number or date on the labelled line isn't read as money.
+const DECIMAL_AMOUNT_PATTERN = /(?<![\d.,])((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})(?![\d.])/;
 
-function heuristicExtract(text: string): ExtractedRentalStatementFields {
+// A currency-marked amount ("$2,600.00", "€2.600,00", "R 2 600,00") comes back
+// already normalised; a bare one has its thousands commas stripped ("2,600.00"
+// → "2600.00"), as the form's number inputs would otherwise blank it out.
+function labeledAmount(text: string, label: RegExp): string | undefined {
+  return (
+    findLabeledAmount(text, label) ?? findLabeledValue(text, label, DECIMAL_AMOUNT_PATTERN)?.replace(/,/g, "")
+  );
+}
+
+export function heuristicExtract(text: string): ExtractedRentalStatementFields {
   return {
     statementDate: findLabeledDate(text, /(statement date|invoice date|date|issued)/i),
     periodStart: findLabeledDate(text, /(period (from|start)|from|rental period start)/i),
     periodEnd: findLabeledDate(text, /(period (to|end)|to|rental period end)/i),
-    grossRent: findLabeledValue(text, /(gross rent|rent received|rental income|rent)/i, AMOUNT_PATTERN),
-    managementFee: findLabeledValue(text, /(management fee|mgmt fee|management commission)/i, AMOUNT_PATTERN),
-    otherDeductions: findLabeledValue(text, /(other deductions?|deductions?|repairs?|water|council)/i, AMOUNT_PATTERN),
-    netAmount: findLabeledValue(text, /(net (amount|proceeds|remittance)|amount (payable|remitted)|total payable)/i, AMOUNT_PATTERN) ?? findCost(text),
+    grossRent: labeledAmount(text, /(gross rent|rent received|rental income|\brent\b)/i),
+    managementFee: labeledAmount(text, /(management fee|mgmt fee|management commission)/i),
+    otherDeductions: labeledAmount(text, /(other deductions?|deductions?|repairs?|water|council)/i),
+    netAmount: labeledAmount(text, /(net (amount|proceeds|remittance)|amount (payable|remitted)|total payable)/i) ?? findCost(text),
   };
 }
 

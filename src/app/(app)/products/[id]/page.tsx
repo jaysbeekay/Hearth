@@ -34,9 +34,15 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("product", id, detailTitle("product"), "Warranty");
+}
 
 export default async function ProductDetailPage({
   params,
@@ -127,7 +133,7 @@ export default async function ProductDetailPage({
                 <ConfirmForm
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
-                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
@@ -204,7 +210,7 @@ export default async function ProductDetailPage({
 
       {(product.property || product.warrantyForItems.length > 0) && (
         <Card>
-          <h2 className="mb-3 font-medium">Linked to</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {product.property && (
               <Link
@@ -227,7 +233,7 @@ export default async function ProductDetailPage({
                 <Package size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{invItem.label}</span>
-                  <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
+                  <span className="block text-xs text-muted">Item — warranty registered here</span>
                 </span>
               </Link>
             ))}
@@ -237,14 +243,14 @@ export default async function ProductDetailPage({
 
       {product.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{product.notes}</p>
         </Card>
       )}
 
       <Card id="documents" className="scroll-mt-20">
-        <h2 className="mb-3 font-medium">Documents</h2>
-        <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
+        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
+        <DocumentList kind="PRODUCT" ownerId={product.id} ownerName={product.description} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <ProductDocumentUploadForm action={boundUpload} />
@@ -257,7 +263,6 @@ export default async function ProductDetailPage({
         updatedByName={product.updatedBy?.name}
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
-        extractionConfirmedAt={product.extractionConfirmedAt}
         memberCount={memberCount}
       />
     </PageShell>

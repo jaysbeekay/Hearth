@@ -13,7 +13,7 @@ export function DocFallbackBanner({ docFallback }: { docFallback?: string }) {
 
   return (
     <Banner tone="warning" className="flex items-start gap-2">
-      <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+      <AlertTriangle size={16} className="mt-1 shrink-0" aria-hidden />
       {docFallback === "inbox" ? (
         <p>
           This record saved, but your document couldn&apos;t be attached automatically — we saved it

@@ -19,6 +19,7 @@ import { RecordNotFoundError, RecordValidationError } from "@/lib/commands/share
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 import {
   createInventoryItem,
+  updateInventoryItem,
   deleteInventoryItem,
   restoreInventoryItem,
   permanentlyDeleteInventoryItem,
@@ -136,6 +137,26 @@ describe("Inventory create command", () => {
   it("is refused while the Inventory module is off", async () => {
     await setModuleEnabled("INVENTORY", false);
     await expect(createInventoryItemCommand(itemInput(), actorId)).rejects.toBeInstanceOf(ModuleDisabledError);
+  });
+
+  // #597: hiding Inventory from the nav isn't the gate; every write action
+  // refuses while the module is off, so a stale tab or direct POST can't write.
+  it("refuses every Inventory server action while the module is off, and writes nothing", async () => {
+    const item = await createInventoryItemCommand(itemInput(), actorId);
+    await setModuleEnabled("INVENTORY", false);
+
+    const writes = [
+      () => createInventoryItem(null, formData({ label: "Saw", category: "TOOL" })),
+      () => updateInventoryItem(item.id, null, formData({ label: "Renamed", category: "TOOL" })),
+      () => deleteInventoryItem(item.id),
+      () => restoreInventoryItem(item.id),
+      () => permanentlyDeleteInventoryItem(item.id),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toThrow("Inventory module is disabled");
+    }
+    expect(await db.prisma.inventoryItem.count()).toBe(1);
+    expect(await row(item.id)).toMatchObject({ label: "Drill", deletedAt: null });
   });
 
   it("the create form reports the refused link with the values entered", async () => {

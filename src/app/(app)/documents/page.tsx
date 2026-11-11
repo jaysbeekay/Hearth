@@ -8,6 +8,9 @@ import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTab
 import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
 import { auth } from "@/lib/auth";
 import { documentFileHref } from "@/lib/documents/kinds";
+import { documentTypeLabel } from "@/lib/documents/documentList";
+import { getUserPreferences } from "@/lib/userPreferences";
+import { formatDate } from "@/lib/utils";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -37,7 +40,9 @@ interface TypeSource {
   fetchPage: (skip: number, take: number) => Promise<DocRow[]>;
 }
 
-function buildSources(enabledModules: Set<string>): TypeSource[] {
+// #617 — `typeLabel` and `ownerName` describe a previewed image the same way
+// the record's own Document list does (DocumentList), so the alt text matches.
+function buildSources(enabledModules: Set<string>, dateFormat: string | null): TypeSource[] {
   const sources: TypeSource[] = [
     {
       type: "Contracts",
@@ -69,6 +74,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               category: r.category,
               type: "Contracts",
               parentTitle: r.contract.title,
+              typeLabel: documentTypeLabel(r),
+              ownerName: r.contract.title,
               parentHref: `/contracts/${r.contract.id}`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -91,6 +98,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               uploadedAt: true,
               mimeType: true,
               category: true,
+              kind: true,
               product: { select: { id: true, description: true } },
             },
           })
@@ -104,6 +112,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               category: r.category,
               type: "Warranties",
               parentTitle: r.product.description,
+              typeLabel: documentTypeLabel(r, r.kind),
+              ownerName: r.product.description,
               parentHref: `/products/${r.product.id}`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -129,7 +139,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               uploadedAt: true,
               mimeType: true,
               category: true,
-              vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
+              vehicleItem: { select: { vehicleId: true, title: true, vehicle: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -142,6 +152,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               category: r.category,
               type: "Vehicles",
               parentTitle: r.vehicleItem.vehicle.label,
+              typeLabel: documentTypeLabel(r),
+              ownerName: r.vehicleItem.title,
               parentHref: `/vehicles/${r.vehicleItem.vehicleId}`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -166,7 +178,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
-              tripSegment: { select: { tripId: true, trip: { select: { title: true } } } },
+              category: true,
+              tripSegment: { select: { tripId: true, title: true, trip: { select: { title: true } } } },
             },
           })
           .then((rows) =>
@@ -176,8 +189,11 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Travel",
               parentTitle: r.tripSegment.trip.title,
+              typeLabel: documentTypeLabel(r),
+              ownerName: r.tripSegment.title,
               parentHref: `/travel/${r.tripSegment.tripId}`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -223,7 +239,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
-              rentalStatement: { select: { propertyId: true } },
+              category: true,
+              rentalStatement: { select: { propertyId: true, statementDate: true, periodEnd: true } },
             },
           }),
         ]).then(([homeItemRows, rentalRows]) => {
@@ -236,6 +253,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             category: r.category,
             type: "Properties",
             parentTitle: r.homeItem.title,
+            typeLabel: documentTypeLabel(r),
+            ownerName: r.homeItem.title,
             parentHref: `/home/${r.homeItem.propertyId}`,
             downloadHref: documentFileHref(r.id),
           }));
@@ -246,8 +265,11 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Properties",
               parentTitle: "Rental statement",
+              typeLabel: documentTypeLabel(r),
+              ownerName: `statement ${formatDate(r.rentalStatement.statementDate ?? r.rentalStatement.periodEnd, dateFormat)}`,
               parentHref: `/home/${r.rentalStatement.propertyId}/rental`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -288,6 +310,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             category: r.category,
               type: "Inventory",
               parentTitle: r.inventoryItem.label,
+              typeLabel: documentTypeLabel(r),
+              ownerName: r.inventoryItem.label,
               parentHref: `/inventory/${r.inventoryItem.id}`,
               downloadHref: documentFileHref(r.id),
             })),
@@ -312,7 +336,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
-              trade: { select: { holding: { select: { id: true, ticker: true, portfolioId: true } } } },
+              category: true,
+              trade: { select: { date: true, holding: { select: { id: true, ticker: true, portfolioId: true } } } },
             },
           })
           .then((rows) =>
@@ -322,7 +347,10 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Wealth",
+              typeLabel: documentTypeLabel(r),
+              ownerName: `trade ${formatDate(r.trade.date, dateFormat)}`,
               parentTitle: r.trade.holding.ticker,
               parentHref: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
               downloadHref: documentFileHref(r.id),
@@ -354,6 +382,8 @@ const INBOX_SOURCE: TypeSource = {
           mimeType: d.mimeType,
           type: "Inbox",
           parentTitle: "Inbox",
+          // The Inbox is a location, not a record: the alt names no owner.
+          ownerName: null,
           parentHref: "/documents/inbox",
           downloadHref: `/api/documents/inbox/${d.id}`,
         })),
@@ -371,9 +401,9 @@ export default async function DocumentsPage({
   const showAll = view === "all";
   const page = Math.max(0, Number(pageParam) || 0);
 
-  const enabledModules = await getEnabledModuleKeys();
+  const [enabledModules, { dateFormat }] = await Promise.all([getEnabledModuleKeys(), getUserPreferences()]);
 
-  const filedSources = buildSources(enabledModules);
+  const filedSources = buildSources(enabledModules, dateFormat);
   const activeSources = showAll ? [...filedSources, INBOX_SOURCE] : filedSources;
 
   const [filedCount, inboxCount, counts] = await Promise.all([

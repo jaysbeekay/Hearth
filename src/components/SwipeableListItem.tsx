@@ -73,7 +73,7 @@ export function SwipeableListItem({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         style={{ transform: `translateX(${dragX}px)` }}
-        className="relative touch-pan-y bg-background transition-transform duration-150 ease-out"
+        className="relative touch-pan-y bg-background transition-transform duration-150 ease-out motion-reduce:transition-none"
       >
         {children}
       </div>

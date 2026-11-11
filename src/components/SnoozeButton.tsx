@@ -9,7 +9,7 @@ import { useCanWrite } from "@/components/CanWriteProvider";
 import { showToast } from "@/components/Toast";
 import { snoozeRecord, unsnoozeRecord } from "@/lib/actions/snooze";
 import { SNOOZE_PRESETS, type SnoozeKind } from "@/lib/snooze";
-import { bannerClass, buttonClass, inputClass } from "@/lib/ui";
+import { bannerClass, buttonClass, inputClass, sectionHeadingClass } from "@/lib/ui";
 import { formatDate } from "@/lib/utils";
 
 // #354 — "I know, remind me later": takes a Due Contract, Warranty or
@@ -74,7 +74,7 @@ export function SnoozeButton({
         Snooze
       </button>
       <Dialog open={open} onClose={close} disableClose={pending} labelledBy={headingId} describedBy={textId}>
-        <h2 id={headingId} className="text-sm font-medium">
+        <h2 id={headingId} className={sectionHeadingClass()}>
           Snooze {title}
         </h2>
         <p id={textId} className="mt-1 text-sm text-muted">
@@ -97,7 +97,7 @@ export function SnoozeButton({
                 name="days"
                 value={preset.days}
                 disabled={pending}
-                className={`${buttonClass("secondary")} disabled:opacity-50`}
+                className={buttonClass("secondary")}
               >
                 {preset.label}
               </button>
@@ -114,7 +114,7 @@ export function SnoozeButton({
               <button
                 type="submit"
                 disabled={pending}
-                className={`${buttonClass("primary")} disabled:opacity-50`}
+                className={buttonClass("primary")}
               >
                 Snooze until date
               </button>
@@ -130,7 +130,7 @@ export function SnoozeButton({
               type="button"
               onClick={close}
               disabled={pending}
-              className={`${buttonClass("quiet")} disabled:opacity-50`}
+              className={buttonClass("quiet")}
             >
               Cancel
             </button>
@@ -192,7 +192,7 @@ export function SnoozedNotice({
             void unsnooze();
           }}
           disabled={pending}
-          className={`${buttonClass("secondary")} disabled:opacity-50`}
+          className={buttonClass("secondary")}
         >
           {pending ? "Working…" : "Unsnooze"}
         </button>

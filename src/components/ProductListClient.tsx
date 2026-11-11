@@ -25,7 +25,7 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, inputClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { TrashHint } from "@/components/TrashHint";
 import { cn } from "@/lib/utils";
@@ -248,7 +248,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-medium">Inventory items</h2>
+              <h2 className={sectionHeadingClass()}>Items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -265,7 +265,7 @@ export function ProductListClient({
           </div>
           {inventoryItems.length === 0 ? (
             <p className={emptyStateClass()}>
-              No inventory items yet.
+              No items yet.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

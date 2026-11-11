@@ -12,6 +12,11 @@ const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
+const Share = Plugins.Share;
+// ios/App/App/SecureClipboardPlugin.swift and its Android counterpart.
+const SecureClipboard = Plugins.SecureClipboard;
+// ios-shell/www/backup-format.js, loaded before this file.
+const BackupFormat = window.HearthBackupFormat;
 const Intents = Plugins.Intents;
 const AppLifecycle = Plugins.App;
 
@@ -41,14 +46,40 @@ const CLEARTEXT_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const FILE_DIRECTORY = "DATA";
-const BACKUP_DIRECTORY = "DOCUMENTS";
+// Backups are built in the app cache and leave it only through the share
+// sheet, never through a shared folder (#226).
+const BACKUP_EXPORT_DIRECTORY = "CACHE";
+// A shared copy left in the cache (Android, below, or an export the app
+// was killed in) is deleted at the next launch or export once this old.
+const BACKUP_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
+// How long a copied backup password stays on the clipboard.
+const BACKUP_PASSWORD_CLIPBOARD_MS = 60 * 1000;
+const RESTORE_STAGING_ROOT = "standalone-restore-staging";
+// Files a restore replaced, kept until its database write commits.
+const RESTORE_ASIDE_ROOT = "standalone-restore-previous";
+const RESTORE_JOURNAL_KEY = "hearth.mobile.restoreJournal";
 const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
+// Where versions before #226 wrote unencrypted JSON backups (on Android, the
+// public Documents folder). Hearth only lists and offers to delete them.
+const LEGACY_BACKUP_DIRECTORY = "DOCUMENTS";
+const LEGACY_BACKUP_NOTICE_KEY = "hearth.mobile.legacyBackupNoticeDismissed";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
 const STANDALONE_SCHEMA_VERSION = 11;
 const MAX_IMPORTED_TRADES = 5000;
+const LAST_BACKUP_KEY = "hearth.mobile.lastBackupAt";
+const BACKUP_NUDGE_DAYS = 30;
+// Preferences that travel with a backup. Backup bookkeeping does not.
+// The household's default Reminder thresholds (#536) travel with a backup
+// too; an unreadable value falls back to 30,14,7,1 when it's loaded.
+const BACKUP_PREFERENCE_KEYS = [STANDALONE_MODULES_KEY, LOCAL_REMINDERS_KEY, DEFAULT_REMINDER_DAYS_KEY];
+const BACKUP_PREFERENCE_LABELS = {
+  [STANDALONE_MODULES_KEY]: "which modules are turned on",
+  [LOCAL_REMINDERS_KEY]: "device reminders on or off",
+  [DEFAULT_REMINDER_DAYS_KEY]: "default reminder thresholds",
+};
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -65,11 +96,12 @@ const CONTAINER_EQUIVALENTS = {
   ],
 };
 const GENERIC_MIME_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+// Listed A-Z by title, matching the web nav and Settings > Modules (#597).
 const OPTIONAL_MODULES = [
-  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
-  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "inventoryItems", title: "Inventory", copy: "Household items, serial numbers, locations and value.", recordType: "inventoryItems", countKey: "inventoryItems" },
+  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "trips", title: "Travel", copy: "Trips, bookings, confirmations and travel documents.", recordType: "trips", countKey: "trips" },
+  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
   { key: "portfolios", title: "Wealth", copy: "Portfolios, holdings and local trade history.", recordType: "portfolios", countKey: "portfolios" },
 ];
 const DEFAULT_STANDALONE_MODULE_KEYS = OPTIONAL_MODULES.map((module) => module.key);
@@ -432,6 +464,19 @@ const state = {
   assistantQuery: "",
   localRemindersEnabled: false,
   pendingNotificationCount: null,
+  lastBackupAt: null,
+  legacyPlaintextBackups: [],
+  legacyBackupNoticeDismissed: false,
+  // The password just chosen for an export, shown once so it can be saved
+  // in a password manager; cleared once the backup is shared, on Cancel, and
+  // as soon as Settings is left. A failed or cancelled share keeps it, so
+  // "Try again" makes the backup with the password already saved.
+  pendingBackupPassword: null,
+  pendingBackupName: null,
+  backupExportFailed: false,
+  backupExportRunning: false,
+  // A restore journal this build can't read, with files still set aside.
+  unreadableRestoreJournal: false,
   defaultReminderDays: null,
   enabledStandaloneModules: [...DEFAULT_STANDALONE_MODULE_KEYS],
   detail: null,
@@ -466,6 +511,20 @@ const BACKUP_TABLES = [
   { key: "inboxDocuments", table: "inbox_documents", columns: ["id", "filename", "storage_key", "mime_type", "size", "status", "target_type", "extracted_text", "sha256", "uploaded_at", "deleted_at", "version"] },
   { key: "reminderLogs", table: "reminder_delivery_logs", columns: ["id", "owner_type", "owner_id", "field", "channel", "threshold_days", "status", "sent_at", "error"] },
 ];
+
+// #616: mirrors src/lib/navCurrent.ts (#558). The bottom-nav entry for the
+// screen being shown is the current "page"; the section a detail, form or
+// More screen sits under is "true", so it isn't announced as a second current
+// page. style.css draws the entry's bar from this attribute.
+function navCurrentFor(button, route) {
+  const nav = button.dataset.nav;
+  const navRecordType = button.dataset.recordType;
+  const recordTypeMatches = navRecordType ? state.recordType === navRecordType : true;
+  if (route === nav && recordTypeMatches) return "page";
+  if (["detail", "form"].includes(route) && nav === "records" && recordTypeMatches) return "true";
+  if (isSecondaryRoute(route) && nav === "more") return "true";
+  return null;
+}
 
 function isSecondaryRoute(route) {
   return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
@@ -706,8 +765,43 @@ function generatePassphrase() {
   return btoa(binary);
 }
 
-async function run(statement, values = []) {
+// Backup export reads every table, and restore rewrites them, as one
+// exclusive step: other writes wait for it, so a backup is a consistent
+// snapshot and a restore never interleaves with an edit (#226).
+let dbGate = Promise.resolve();
+
+async function withExclusiveDb(work) {
+  const previous = dbGate;
+  let release;
+  dbGate = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+
+// Every write takes its own turn at the gate (waiting on it is not enough:
+// two waiters released together could interleave with the next exclusive
+// step). Never call run()/runSet() from inside withExclusiveDb, which would
+// wait on itself: code already holding the gate uses the *Locked forms.
+async function runSetLocked(set) {
+  await SQLite.executeSet({ database: DB, set, transaction: true });
+}
+
+async function runLocked(statement, values = []) {
   await SQLite.run({ database: DB, statement, values, transaction: true });
+}
+
+async function runSet(set) {
+  await withExclusiveDb(() => runSetLocked(set));
+}
+
+async function run(statement, values = []) {
+  await withExclusiveDb(() => runLocked(statement, values));
 }
 
 async function query(statement, values = []) {
@@ -925,6 +1019,27 @@ function escapeHtml(value) {
   })[char]);
 }
 
+// A saved money amount as a form field's starting value, padded to the
+// currency's decimals (0 for JPY, 3 for KWD, else 2): 510.10 is stored as
+// 510.1 and would otherwise show without its trailing zero. Only pads, never
+// rounds: the padded text must read back as exactly the stored number
+// (mirrors moneyInputValue in src/lib/utils.ts).
+function moneyInputValue(value, currency) {
+  if (value == null || value === "") return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  let digits = 2;
+  if (currency) {
+    try {
+      digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+    } catch {
+      digits = 2;
+    }
+  }
+  const padded = amount.toFixed(digits);
+  return Number(padded) === amount ? padded : String(amount);
+}
+
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#096;");
 }
@@ -981,7 +1096,7 @@ function typeLabel(type) {
     home_item: "Maintenance record",
     rental_agreement: "Tenancy",
     rental_statement: "Rental statement",
-    inventory_item: "Inventory item",
+    inventory_item: "Item",
     trip: "Trip",
     trip_segment: "Trip segment",
     portfolio: "Portfolio",
@@ -1522,21 +1637,25 @@ async function storeFile(ownerType, ownerId, file) {
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `${ownerType}/${ownerId}/${crypto.randomUUID()}${extension}`;
   const data = bytesToBase64(bytes);
-  await Filesystem.writeFile({
-    directory: FILE_DIRECTORY,
-    path: `${FILE_ROOT}/${storageKey}`,
-    data,
-    recursive: true,
+  // The file and its row are written as one step at the gate, like every
+  // document change, so a restore never runs in between (#226 review).
+  await withExclusiveDb(async () => {
+    await Filesystem.writeFile({
+      directory: FILE_DIRECTORY,
+      path: `${FILE_ROOT}/${storageKey}`,
+      data,
+      recursive: true,
+    });
+    try {
+      await runLocked(
+        "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
+        [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, nowIso()],
+      );
+    } catch (error) {
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
+      throw error;
+    }
   });
-  try {
-    await run(
-      "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
-      [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, nowIso()],
-    );
-  } catch (error) {
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
-    throw error;
-  }
   return storageKey;
 }
 
@@ -1547,21 +1666,23 @@ async function storeInboxFile(file) {
   const sha256 = await sha256Hex(bytes);
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `inbox/${crypto.randomUUID()}${extension}`;
-  await Filesystem.writeFile({
-    directory: FILE_DIRECTORY,
-    path: `${FILE_ROOT}/${storageKey}`,
-    data: bytesToBase64(bytes),
-    recursive: true,
+  await withExclusiveDb(async () => {
+    await Filesystem.writeFile({
+      directory: FILE_DIRECTORY,
+      path: `${FILE_ROOT}/${storageKey}`,
+      data: bytesToBase64(bytes),
+      recursive: true,
+    });
+    try {
+      await runLocked(
+        "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+        [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, nowIso()],
+      );
+    } catch (error) {
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
+      throw error;
+    }
   });
-  try {
-    await run(
-      "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, nowIso()],
-    );
-  } catch (error) {
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
-    throw error;
-  }
   return storageKey;
 }
 
@@ -1693,10 +1814,12 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  await recoverInterruptedRestore().catch(() => undefined);
   // A failure leaves the Trash as it was; the next launch tries again.
   await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();
+  await loadBackupState().catch(() => undefined);
   await render();
 }
 
@@ -1776,6 +1899,8 @@ Intents?.addListener?.("pendingRoute", onIntentWake);
 AppLifecycle?.addListener?.("resume", onIntentWake);
 
 async function render() {
+  // The backup password is only ever on the Settings screen.
+  if (state.route !== "settings" && !state.backupExportRunning) clearPendingBackupPassword();
   await loadData();
   if (!recordTypeEnabled(state.recordType)) {
     state.recordType = "contracts";
@@ -1806,14 +1931,9 @@ async function render() {
   backButton.toggleAttribute("aria-hidden", !canGoBack);
   backButton.disabled = !canGoBack;
   document.querySelectorAll(".nav-item").forEach((button) => {
-    const nav = button.dataset.nav;
-    const navRecordType = button.dataset.recordType;
-    const activeRecordType = navRecordType ? state.recordType === navRecordType : true;
-    const active =
-      (route === nav && activeRecordType) ||
-      (["detail", "form"].includes(route) && nav === "records" && activeRecordType) ||
-      (isSecondaryRoute(route) && nav === "more");
-    button.classList.toggle("active", active);
+    const current = navCurrentFor(button, route);
+    if (current) button.setAttribute("aria-current", current);
+    else button.removeAttribute("aria-current");
   });
 
   if (route === "dashboard") mobileView.innerHTML = renderDashboard();
@@ -1859,6 +1979,8 @@ function renderDashboard() {
       <h2>What needs attention</h2>
       <p>${attention.length > 0 ? `${attention.length} item${attention.length === 1 ? "" : "s"} need a look.` : "Everything tracked locally looks calm."}</p>
     </section>
+    ${renderLegacyBackupNotice({ dashboard: true })}
+    ${renderBackupNudge()}
 
     <section class="grid-2">
       ${statCard("Active contracts", activeContracts.length, "records", "contracts")}
@@ -1898,16 +2020,16 @@ function renderDashboard() {
         <h2>Quick add</h2>
       </div>
       <div class="grid-3">
-        <button data-form-type="contracts">Contract</button>
-        <button data-form-type="products">Warranty</button>
-        ${moduleEnabled("vehicles") ? '<button data-form-type="vehicles">Vehicle</button>' : ""}
-        ${moduleEnabled("properties") ? '<button data-form-type="properties">Property</button>' : ""}
-        ${moduleEnabled("inventoryItems") ? '<button data-form-type="inventoryItems">Inventory</button>' : ""}
-        ${moduleEnabled("trips") ? '<button data-form-type="trips">Trip</button>' : ""}
-        ${moduleEnabled("portfolios") ? '<button data-form-type="portfolios">Portfolio</button>' : ""}
-        <button data-nav="import">Import</button>
-        <button data-nav="reminders">Reminders</button>
-        <button data-nav="more">More</button>
+        <button class="secondary" data-form-type="contracts">Contract</button>
+        <button class="secondary" data-form-type="products">Warranty</button>
+        ${moduleEnabled("vehicles") ? '<button class="secondary" data-form-type="vehicles">Vehicle</button>' : ""}
+        ${moduleEnabled("properties") ? '<button class="secondary" data-form-type="properties">Property</button>' : ""}
+        ${moduleEnabled("inventoryItems") ? '<button class="secondary" data-form-type="inventoryItems">Inventory</button>' : ""}
+        ${moduleEnabled("trips") ? '<button class="secondary" data-form-type="trips">Trip</button>' : ""}
+        ${moduleEnabled("portfolios") ? '<button class="secondary" data-form-type="portfolios">Portfolio</button>' : ""}
+        <button class="secondary" data-nav="import">Import</button>
+        <button class="secondary" data-nav="reminders">Reminders</button>
+        <button class="secondary" data-nav="more">More</button>
       </div>
     </section>
   `;
@@ -2147,7 +2269,7 @@ function renderReminders() {
       <p class="muted">Used by records with no thresholds of their own, for Due soon and device reminders. Leave blank for 30,14,7,1.</p>
       <form data-save-default-reminder-days class="field-grid">
         <label>Days before due date<input name="defaultReminderDays" inputmode="numeric" value="${escapeAttr(householdDefaultReminderDays())}" placeholder="${escapeAttr(DEFAULT_REMINDER_DAYS)}" /></label>
-        <div class="actions"><button type="submit">Save default</button></div>
+        <div class="actions"><button type="submit" class="secondary">Save default</button></div>
       </form>
     </section>
     <section class="list">
@@ -2609,7 +2731,7 @@ function renderAssistant() {
     </section>
     <section class="search-row">
       <input id="assistant-query" value="${escapeAttr(state.assistantQuery)}" placeholder="Try “warranty”, “rego”, “portfolio”, or a provider…" />
-      <button data-clear-assistant>Clear</button>
+      <button class="secondary" data-clear-assistant>Clear</button>
     </section>
     <section id="assistant-results" class="list">
       ${state.assistantQuery.trim() === "" ? renderAssistantHints() : results.length === 0 ? empty("No local answer", "Try searching a title, provider, serial number, plate, ticker, booking code, or filename.") : results.map(renderSearchResult).join("")}
@@ -2632,7 +2754,8 @@ function renderHelp() {
     ["Adding records", "Use Dashboard quick add for common entries, Records for module lists, or Documents to import a file first and file it later."],
     ["Documents", "Standalone stores PDF, Word and image files in app-protected storage and keeps document metadata in encrypted SQLite."],
     ["Reminders", "Standalone can schedule local device reminders for contracts, warranties, vehicles and leases. Server email/ntfy reminders stay connected-only."],
-    ["Backups", "Use Settings to export a Hearth standalone JSON backup. Backups are manual and are not uploaded by Hearth."],
+    ["Backups", "Settings exports an encrypted backup, protected by a password you choose, that you can save to Files, iCloud Drive or Google Drive. Hearth never sees your backups, and a lost password cannot be reset."],
+    ["Old unencrypted backups", "Versions before encrypted backups saved unencrypted files named hearth-standalone-….json. Settings offers to delete the ones Hearth can still see. On Android, a copy made before Hearth was reinstalled, or one you moved, can't be seen: delete it from the Documents folder in the Files app."],
     ["Privacy", "No standalone record is shared with a server or another person unless you switch modes or manually export/share a backup or file."],
   ];
   return `
@@ -2648,7 +2771,7 @@ function renderHelp() {
       <h2>Need the full web app?</h2>
       <p class="muted">Connected mode opens your self-hosted Hearth server with users, passkeys, household settings, integrations and AI-backed extraction.</p>
       <div class="actions">
-        <button data-switch-runtime-mode>Switch mode</button>
+        <button class="secondary" data-switch-runtime-mode>Switch mode</button>
       </div>
     </section>
   `;
@@ -2684,8 +2807,8 @@ function renderSettings() {
         ${detailLine("Device reminders", LocalNotifications ? `${state.localRemindersEnabled ? "On" : "Off"}${state.pendingNotificationCount == null ? "" : ` · ${state.pendingNotificationCount} pending`}` : "Unavailable in this build")}
       </div>
       <div class="actions">
-        <button data-switch-runtime-mode>Switch mode</button>
-        <button data-enable-local-reminders ${LocalNotifications ? "" : "disabled"}>${state.localRemindersEnabled ? "Resync reminders" : "Enable reminders"}</button>
+        <button class="secondary" data-switch-runtime-mode>Switch mode</button>
+        <button class="secondary" data-enable-local-reminders ${LocalNotifications ? "" : "disabled"}>${state.localRemindersEnabled ? "Resync reminders" : "Enable reminders"}</button>
       </div>
     </section>
     <section class="card form-card">
@@ -2711,25 +2834,10 @@ function renderSettings() {
       <h2>Recently deleted documents</h2>
       <p class="muted">Deleted Documents stay on this phone for ${TRASH_RETENTION_DAYS} days, and can be restored until then.</p>
       <div class="actions">
-        <button data-nav="trash">Open recently deleted documents</button>
+        <button class="secondary" data-nav="trash">Open recently deleted documents</button>
       </div>
     </section>
-    <section class="card form-card">
-      <h2>Standalone backup</h2>
-      <p class="muted">Export a standalone JSON snapshot for safekeeping, or merge a previous standalone backup into this phone. The backup includes local records, document metadata and document file contents.</p>
-      <div class="detail-grid">
-        ${detailLine("Backup format", "Hearth standalone JSON")}
-        ${detailLine("Import mode", "Merge by record id — existing records are updated, not wiped")}
-        ${detailLine("Sharing", "Manual only; no cloud sync is started by Hearth")}
-      </div>
-      <div class="actions">
-        <button data-export-standalone-backup>Export backup</button>
-      </div>
-      <form data-import-standalone-backup-form class="field-grid">
-        <input name="file" type="file" accept=".json,application/json" required />
-        <button type="submit">Import backup</button>
-      </form>
-    </section>
+    ${renderBackupSettings()}
     <section class="card form-card">
       <h2>Connected-only baseline features</h2>
       <div class="detail-grid">
@@ -2738,7 +2846,7 @@ function renderSettings() {
         ${detailLine("Backups and integrations", "S3, SFTP, IMAP, AI providers and live prices require connected mode.")}
       </div>
       <div class="actions">
-        <button data-nav="help">Open help</button>
+        <button class="secondary" data-nav="help">Open help</button>
       </div>
     </section>
   `;
@@ -2756,7 +2864,7 @@ function renderModuleSetting(module) {
       <h3>${escapeHtml(module.title)}</h3>
       <p class="card-meta">${escapeHtml(module.copy)}</p>
       <div class="actions">
-        <button data-toggle-standalone-module="${escapeAttr(module.key)}">${enabled ? "Hide module" : "Show module"}</button>
+        <button class="secondary" data-toggle-standalone-module="${escapeAttr(module.key)}">${enabled ? "Hide module" : "Show module"}</button>
       </div>
     </article>
   `;
@@ -2766,79 +2874,943 @@ function detailLine(label, value) {
   return `<div class="detail-row"><span class="detail-label">${escapeHtml(label)}</span><span class="detail-value">${escapeHtml(value)}</span></div>`;
 }
 
-async function exportStandaloneBackup() {
-  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
-  const backup = await buildStandaloneBackup();
-  const date = nowIso().slice(0, 10);
-  const filename = `hearth-standalone-${date}.json`;
-  const path = `${BACKUP_ROOT}/${filename}`;
-  await Filesystem.writeFile({
-    directory: BACKUP_DIRECTORY,
-    path,
-    data: JSON.stringify(backup, null, 2),
-    recursive: true,
-  });
-  showStandaloneStatus(`Backup exported to ${filename}.`, true);
+// ---- Standalone backup and restore (#226) --------------------------------
+//
+// Backups use the encrypted, line-per-record format in backup-format.js. A
+// backup is written to the app cache, handed to the OS share sheet, and the
+// cache copy is deleted: no readable copy is left in a shared folder. Restore decrypts and
+// checks every record and stages document files before it touches the
+// database, then applies all rows in one transaction.
+
+// The random suffix keeps two backups made in the same second (on this phone
+// or another one saving to the same folder) from having the same name.
+function backupFilename(iso = nowIso()) {
+  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(3)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `hearth-standalone-${iso.slice(0, 10)}-${iso.slice(11, 19).replace(/:/g, "")}-${suffix}${BackupFormat.FILE_EXTENSION}`;
 }
 
-async function buildStandaloneBackup() {
-  const tables = {};
-  for (const table of BACKUP_TABLES) {
-    const rows = await query(`SELECT * FROM ${table.table}`);
-    tables[table.key] = await Promise.all(rows.map((row) => enrichBackupRow(table, row)));
+function documentStorageKeys(tables) {
+  const keys = new Set();
+  for (const rows of [tables.documents, tables.inboxDocuments]) {
+    for (const row of Array.isArray(rows) ? rows : []) if (row?.storage_key) keys.add(row.storage_key);
   }
-  return {
-    kind: "hearth-standalone-backup",
-    version: 1,
-    schemaVersion: STANDALONE_SCHEMA_VERSION,
-    exportedAt: nowIso(),
-    tables,
-  };
+  return keys;
 }
 
-async function enrichBackupRow(table, row) {
-  if (!["documents", "inboxDocuments"].includes(table.key)) return row;
-  const fileData = await readStoredFileBase64(row.storage_key).catch(() => null);
-  return fileData ? { ...row, file_data: fileData } : row;
+async function collectBackupPreferences() {
+  const entries = [];
+  for (const key of BACKUP_PREFERENCE_KEYS) {
+    const value = await prefGet(key);
+    if (value != null) entries.push([key, value]);
+  }
+  return Object.fromEntries(entries);
+}
+
+// Writes an encrypted backup of everything on this phone to `path`, one
+// record at a time, so no more than one document is in memory at once.
+async function writeEncryptedBackup(password, directory, path) {
+  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
+  if (!BackupFormat) throw new Error("Backup support is missing from this build.");
+  const writer = await BackupFormat.createWriter({ password, schemaVersion: STANDALONE_SCHEMA_VERSION, exportedAt: nowIso() });
+  const { tables, restoreMarker } = await readBackupTables();
+  await Filesystem.writeFile({ directory, path, data: `${writer.headerLine}\n`, encoding: "utf8", recursive: true });
+  const append = async (record) => {
+    const line = await writer.encrypt(record);
+    await Filesystem.appendFile({ directory, path, data: `${line}\n`, encoding: "utf8" });
+  };
+  await append({ type: "manifest", tables, preferences: await collectBackupPreferences() });
+  let missingFiles = 0;
+  for (const key of documentStorageKeys(tables)) {
+    const data = await readStoredFileBase64(key).catch(() => null);
+    if (data == null) {
+      missingFiles += 1;
+      continue;
+    }
+    for (const record of BackupFormat.fileRecords(key, data)) await append(record);
+  }
+  // Files are read after the gate is released, so a long backup doesn't hold
+  // up edits. A restore that committed meanwhile may have swapped files under
+  // these rows: such a backup is thrown away rather than saved mixed.
+  if ((await currentRestoreMarker()) !== restoreMarker) {
+    throw new Error("A restore finished while this backup was being made, so it was not saved. Make the backup again.");
+  }
+  const endLine = await writer.end();
+  await Filesystem.appendFile({ directory, path, data: `${endLine}\n`, encoding: "utf8" });
+  return { missingFiles };
+}
+
+function sameText(left, right) {
+  return left === right;
+}
+
+// Every table is read inside one SQLite read transaction while other writes
+// wait (withExclusiveDb), so the backup is a single point-in-time snapshot.
+async function readBackupTables() {
+  return withExclusiveDb(async () => {
+    const began = await SQLite.beginTransaction?.({ database: DB }).then(() => true, () => false);
+    try {
+      const tables = {};
+      for (const table of BACKUP_TABLES) tables[table.key] = await query(`SELECT * FROM ${table.table}`);
+      return { tables, restoreMarker: await currentRestoreMarker() };
+    } finally {
+      if (began) await SQLite.commitTransaction({ database: DB }).catch(() => undefined);
+    }
+  });
+}
+
+async function currentRestoreMarker() {
+  const rows = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'");
+  return rows[0]?.value ?? null;
+}
+
+function checkNewBackupPassword(password, confirm) {
+  BackupFormat.checkPassword(password);
+  // Both values are what the user just typed: no stored secret is compared.
+  if (!sameText(password, confirm)) throw new Error("The two passwords do not match.");
+}
+
+async function markBackedUp() {
+  const at = nowIso();
+  await prefSet(LAST_BACKUP_KEY, at);
+  state.lastBackupAt = at;
+}
+
+// A backup missing document files is still saved (the records in it are
+// worth keeping) but is never counted as this phone's last complete backup.
+function missingFilesNote(missingFiles) {
+  if (missingFiles === 0) return "";
+  return ` ${missingFiles} document file${missingFiles === 1 ? "" : "s"} could not be read on this phone and ${missingFiles === 1 ? "is" : "are"} not in it, so it is not counted as a complete backup.`;
+}
+
+async function markCompleteBackup(missingFiles) {
+  if (missingFiles === 0) await markBackedUp();
+}
+
+function checkSharingAvailable() {
+  if (!Share || !Filesystem) throw new Error("Sharing is unavailable in this build, so a backup can't be saved anywhere. Nothing was made.");
+}
+
+// Makes the backup in the app cache and hands it to the share sheet.
+// Returns true once it is shared, false if sharing was cancelled; throws on
+// any other failure. Only a shared backup counts as the last backup.
+//
+// The cache copy is deleted as soon as it is no longer needed: at once on
+// iOS, which has copied the file by the time share() resolves, and after a
+// failure or a cancel. On Android share() resolves when the chosen app is
+// started, and that app (Drive, Gmail) may read the file after that, so
+// there the copy is left for sweepBackupCache (#226 review).
+async function exportAndShareBackup(password, confirm, name = backupFilename()) {
+  checkNewBackupPassword(password, confirm);
+  checkSharingAvailable();
+  const path = `${BACKUP_ROOT}/${name}`;
+  await sweepBackupCache();
+  showStandaloneStatus("Encrypting backup…", true);
+  let keepCopy = false;
+  try {
+    const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
+    const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
+    try {
+      await Share.share({ title: "Hearth backup", dialogTitle: "Save your Hearth backup", files: [uri] });
+    } catch (error) {
+      if (/cancel/i.test(String(error?.message ?? ""))) {
+        showStandaloneStatus("Backup not saved: sharing was cancelled. Try again to share it with the same password.");
+        return false;
+      }
+      throw error;
+    }
+    keepCopy = Capacitor.getPlatform() === "android";
+    await markCompleteBackup(missingFiles);
+    showStandaloneStatus(`Backup ${name} shared. Keep the password safe.${missingFilesNote(missingFiles)}`, true);
+    return true;
+  } finally {
+    if (!keepCopy) await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
+  }
+}
+
+// Deletes backups in the app cache older than BACKUP_CACHE_MAX_AGE_MS: a
+// copy Android shared an hour or more ago, or the part-written file of an
+// export the app was killed in. Never fails the caller.
+async function sweepBackupCache(now = Date.now()) {
+  if (!Filesystem?.readdir) return;
+  let entries;
+  try {
+    ({ files: entries = [] } = await Filesystem.readdir({ directory: BACKUP_EXPORT_DIRECTORY, path: BACKUP_ROOT }));
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const name = typeof entry === "string" ? entry : entry?.name;
+    const modified = Number(entry?.mtime ?? entry?.ctime);
+    if (!name || !/^hearth-standalone-[\w.-]*$/.test(name)) continue;
+    if (Number.isFinite(modified) && now - modified < BACKUP_CACHE_MAX_AGE_MS) continue;
+    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path: `${BACKUP_ROOT}/${name}` }).catch(() => undefined);
+  }
+}
+
+function clearPendingBackupPassword() {
+  state.pendingBackupPassword = null;
+  state.pendingBackupName = null;
+  state.backupExportFailed = false;
+}
+
+async function loadBackupState() {
+  await sweepBackupCache();
+  state.unreadableRestoreJournal = await unreadableRestoreJournalPending().catch(() => false);
+  state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
+  state.legacyBackupNoticeDismissed = (await prefGet(LEGACY_BACKUP_NOTICE_KEY)) === "true";
+  state.legacyPlaintextBackups = await listLegacyPlaintextBackups();
+}
+
+// Unencrypted backups an older version left in DOCUMENTS/hearth-backups.
+async function listLegacyPlaintextBackups() {
+  if (!Filesystem?.readdir) return [];
+  try {
+    const { files = [] } = await Filesystem.readdir({ directory: LEGACY_BACKUP_DIRECTORY, path: BACKUP_ROOT });
+    return files
+      .map((file) => (typeof file === "string" ? file : file?.name))
+      .filter((name) => typeof name === "string" && /^hearth-standalone-[\w.-]*\.json$/.test(name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+// Only ever on the user's say-so: Hearth never deletes these by itself.
+async function deleteLegacyPlaintextBackups() {
+  const names = await listLegacyPlaintextBackups();
+  if (names.length === 0) return;
+  const label = `${names.length} unencrypted backup${names.length === 1 ? "" : "s"}`;
+  if (!window.confirm(`Delete ${label} from an older version of Hearth? Make sure you have exported an encrypted backup first.`)) return;
+  let failed = 0;
+  for (const name of names) {
+    await Filesystem.deleteFile({ directory: LEGACY_BACKUP_DIRECTORY, path: `${BACKUP_ROOT}/${name}` }).catch(() => {
+      failed += 1;
+    });
+  }
+  state.legacyPlaintextBackups = await listLegacyPlaintextBackups();
+  showStandaloneStatus(failed === 0 ? `Deleted ${label}.` : `${failed} of ${names.length} could not be deleted. Try again.`, failed === 0);
+}
+
+async function dismissLegacyBackupNotice() {
+  await prefSet(LEGACY_BACKUP_NOTICE_KEY, "true");
+  state.legacyBackupNoticeDismissed = true;
+}
+
+// ---- Restore ----
+
+function fileBackupSource(file) {
+  return { ...BackupFormat.blobSource(file), text: () => file.text() };
+}
+
+async function restoreFromFile(form) {
+  const file = formFile(form);
+  if (!file) throw new Error("Choose a backup file first.");
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+}
+
+function restoreOptions(form) {
+  const data = new FormData(form);
+  const mode = data.get("mode") === "merge" ? "merge" : "replace";
+  if (mode === "replace" && data.get("confirmReplace") !== "on") {
+    throw new Error("Tick the box to confirm that restoring replaces everything on this phone.");
+  }
+  return { mode, password: String(data.get("password") ?? "") };
+}
+
+// One restore at a time: two would share the staging folder, which each
+// clears before and after, and so delete each other's staged files. The
+// write gate can't cover this, since staging happens before the gate is
+// taken (#226 review).
+let restoreRunning = false;
+
+// `source` is { size, readSlice(start, end), text?() }. A v1 (plain JSON)
+// backup is still accepted from a file, for backups made before #226.
+async function restoreStandaloneBackup(source, options) {
+  if (restoreRunning) throw new Error("A restore is already running. Wait for it to finish.");
+  restoreRunning = true;
+  try {
+    return await readAndApplyBackup(source, options);
+  } finally {
+    restoreRunning = false;
+  }
+}
+
+async function readAndApplyBackup(source, { mode, password }) {
+  if (!BackupFormat) throw new Error("Backup support is missing from this build.");
+  const lines = BackupFormat.readLines(source);
+  const first = await lines.next();
+  if (first.done) throw new Error("That backup file is empty.");
+  const header = BackupFormat.parseHeader(first.value);
+  if (!header) {
+    if (!source.text) throw new Error("That is not a Hearth backup.");
+    return restoreLegacyBackup(await source.text(), mode);
+  }
+  if (header.schemaVersion > STANDALONE_SCHEMA_VERSION) {
+    throw new Error("This backup was made by a newer version of Hearth. Update the app to restore it.");
+  }
+  showStandaloneStatus("Checking backup…", true);
+  const reader = await BackupFormat.createReader(first.value, password);
+  await clearRestoreStaging();
+  try {
+    // readRecords checks the record order (manifest first, nothing after
+    // the end record, nothing missing); the file parts are checked here.
+    let manifest = null;
+    const nextSeq = new Map();
+    for await (const record of BackupFormat.readRecords(lines, reader)) {
+      if (!manifest) {
+        manifest = record;
+        continue;
+      }
+      const expected = nextSeq.get(record.key) ?? 0;
+      if (!BackupFormat.isSafeStorageKey(record.key) || record.seq !== expected || typeof record.data !== "string") {
+        throw new Error("The backup file is damaged.");
+      }
+      await stageRestoreFile(record.key, record.data, expected > 0);
+      nextSeq.set(record.key, expected + 1);
+    }
+    return await applyRestore({ tables: manifest.tables, preferences: manifest.preferences ?? {}, stagedKeys: [...nextSeq.keys()], mode });
+  } finally {
+    await clearRestoreStaging();
+  }
+}
+
+async function restoreLegacyBackup(text, mode) {
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch {
+    throw new Error("That is not a Hearth backup.");
+  }
+  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object" || backup.tables == null || Array.isArray(backup.tables)) {
+    throw new Error("That is not a Hearth standalone backup.");
+  }
+  if (Number(backup.schemaVersion) > STANDALONE_SCHEMA_VERSION) {
+    throw new Error("This backup was made by a newer version of Hearth. Update the app to restore it.");
+  }
+  await clearRestoreStaging();
+  try {
+    const stagedKeys = [];
+    for (const rows of [backup.tables.documents, backup.tables.inboxDocuments]) {
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (!row?.file_data || !BackupFormat.isSafeStorageKey(row.storage_key) || stagedKeys.includes(row.storage_key)) continue;
+        await stageRestoreFile(row.storage_key, String(row.file_data), false);
+        stagedKeys.push(row.storage_key);
+      }
+    }
+    return await applyRestore({ tables: backup.tables, preferences: {}, stagedKeys, mode, legacy: true });
+  } finally {
+    await clearRestoreStaging();
+  }
+}
+
+async function stageRestoreFile(key, base64, append) {
+  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
+  const path = `${RESTORE_STAGING_ROOT}/${key}`;
+  if (append) await Filesystem.appendFile({ directory: FILE_DIRECTORY, path, data: base64 });
+  else await Filesystem.writeFile({ directory: FILE_DIRECTORY, path, data: base64, recursive: true });
+}
+
+async function clearRestoreStaging() {
+  await Filesystem?.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_STAGING_ROOT, recursive: true }).catch(() => undefined);
+}
+
+function restoreValue(value) {
+  if (value == null) return null;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) return value;
+  throw new Error("The backup contains a value Hearth cannot read.");
+}
+
+// Validates every row and returns the statements that restore them. Merge
+// keeps a row already on this phone when its version is newer.
+async function buildRestoreStatements(tables, mode) {
+  const set = [];
+  let restored = 0;
+  let kept = 0;
+  // The storage keys of the document rows this restore writes: only their
+  // files are moved in. A row Merge keeps keeps its file too (#226 review).
+  const acceptedKeys = new Set();
+  // Merge: the local rows ("table:id") that use each storage key, so a
+  // backup row can never take over another local document's file. A key can
+  // have several: filing an Inbox document adds a documents row with the
+  // same key and keeps the Inbox row, soft-deleted (#226 review).
+  const localKeyOwners = new Map();
+  // Merge: the storage key each backup document row has, by "table:id".
+  const backupKeys = new Map();
+  if (mode === "merge") {
+    for (const table of ["documents", "inbox_documents"]) {
+      for (const row of await query(`SELECT id, storage_key FROM ${table}`)) {
+        if (!row.storage_key) continue;
+        if (!localKeyOwners.has(row.storage_key)) localKeyOwners.set(row.storage_key, new Set());
+        localKeyOwners.get(row.storage_key).add(`${table}:${row.id}`);
+      }
+    }
+    for (const table of BACKUP_TABLES.filter((candidate) => candidate.columns.includes("storage_key"))) {
+      for (const row of Array.isArray(tables[table.key]) ? tables[table.key] : []) {
+        if (row && typeof row.id === "string" && row.storage_key != null) backupKeys.set(`${table.table}:${row.id}`, row.storage_key);
+      }
+    }
+  }
+  // A backup row may use a key this phone already uses when it is one of
+  // that key's local owners, or when every local owner of the key is in the
+  // backup with that same key (the same filed document on both sides).
+  const mayUseKey = (table, row) => {
+    const owners = localKeyOwners.get(row.storage_key);
+    if (!owners || owners.has(`${table.table}:${row.id}`)) return true;
+    return [...owners].every((owner) => backupKeys.get(owner) === row.storage_key);
+  };
+  for (const table of BACKUP_TABLES) {
+    // A table the backup leaves out has no rows; one it has must be a list.
+    if (tables[table.key] != null && !Array.isArray(tables[table.key])) throw new Error("The backup contains a record Hearth cannot read.");
+    const rows = tables[table.key] ?? [];
+    if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
+    // Merge: a row with a version is replaced only by a backup row that is
+    // newer: a higher version, or the same version with a later updated_at.
+    // On a full tie, or a tie in a table without updated_at, the phone's row
+    // is kept, as the restore screen promises. A row without a version (Term
+    // history, the reminder log) is never replaced, only added when this
+    // phone doesn't have it.
+    const versioned = table.columns.includes("version");
+    const stamped = table.columns.includes("updated_at");
+    const localRows = new Map();
+    if (mode === "merge" && rows.length > 0) {
+      const sql = versioned ? `SELECT id, version${stamped ? ", updated_at" : ""} FROM ${table.table}` : `SELECT id FROM ${table.table}`;
+      for (const row of await query(sql)) localRows.set(row.id, row);
+    }
+    const keepLocal = (row) => {
+      if (!localRows.has(row.id)) return false;
+      if (!versioned) return true;
+      const local = localRows.get(row.id);
+      const localVersion = Number(local.version) || 0;
+      const backupVersion = Number(row.version) || 0;
+      if (localVersion !== backupVersion) return localVersion > backupVersion;
+      if (!stamped) return true;
+      return String(local.updated_at ?? "") >= String(row.updated_at ?? "");
+    };
+    for (const row of rows) {
+      if (!row || typeof row !== "object" || typeof row.id !== "string" || row.id.length === 0) {
+        throw new Error("The backup contains a record Hearth cannot read.");
+      }
+      if (row.storage_key != null && !BackupFormat.isSafeStorageKey(row.storage_key)) {
+        throw new Error("The backup contains a document Hearth cannot read.");
+      }
+      if (keepLocal(row)) {
+        kept += 1;
+        continue;
+      }
+      if (row.storage_key != null && !mayUseKey(table, row)) {
+        kept += 1;
+        continue;
+      }
+      // Only the columns the row has: a backup from an older schema has
+      // none of the columns added since, and those take their defaults
+      // instead of a NULL that a NOT NULL column would refuse (#226 review).
+      const fields = new Map(Object.entries(row));
+      const columns = table.columns.filter((column) => fields.has(column));
+      set.push({
+        statement: `INSERT OR REPLACE INTO ${table.table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+        values: columns.map((column) => restoreValue(fields.get(column))),
+      });
+      if (row.storage_key != null) acceptedKeys.add(row.storage_key);
+      restored += 1;
+    }
+  }
+  // A backup without a profile row still leaves the phone with one.
+  const now = nowIso();
+  set.push({
+    statement: "INSERT OR IGNORE INTO local_profile (id, display_name, default_currency, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, 1)",
+    values: ["local", "Hearth standalone", "AUD", now, now],
+  });
+  return { set, restored, kept, acceptedKeys };
+}
+
+async function fileExists(path) {
+  return Filesystem.stat({ directory: FILE_DIRECTORY, path }).then(() => true, () => false);
+}
+
+async function ensureParentDir(path) {
+  const parent = path.slice(0, path.lastIndexOf("/"));
+  await Filesystem.mkdir({ directory: FILE_DIRECTORY, path: parent, recursive: true }).catch(() => undefined);
+}
+
+async function referencedStorageKeys() {
+  const rows = [
+    ...(await query("SELECT storage_key FROM documents")),
+    ...(await query("SELECT storage_key FROM inbox_documents")),
+  ];
+  return new Set(rows.map((row) => row.storage_key).filter(Boolean));
+}
+
+// The restore journal is written once, before the first file moves, and
+// lists every key the restore will touch and whether this phone already had
+// a file there. Recovery then works from what is on disk, so it is right
+// whichever move a crash interrupted:
+//   aside copy present        the original was moved aside: it goes back
+//                             (rollback) or is deleted (finish)
+//   no aside, had an original the original never moved: left alone
+//   no aside, had none        anything at the key is the backup's: removed
+//                             on rollback, kept on finish
+// The aside folder is only removed once every key is accounted for; until
+// then the journal stays and the next launch tries again.
+const asidePath = (key) => `${RESTORE_ASIDE_ROOT}/${key}`;
+const documentPath = (key) => `${FILE_ROOT}/${key}`;
+
+async function rollbackRestoreFiles(journal) {
+  let unresolved = 0;
+  for (const { key, hadOriginal } of journal.files) {
+    try {
+      if (await fileExists(asidePath(key))) {
+        if (await fileExists(documentPath(key))) await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) });
+        await ensureParentDir(documentPath(key));
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: asidePath(key), to: documentPath(key) });
+      } else if (!hadOriginal && (await fileExists(documentPath(key)))) {
+        await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) });
+      }
+    } catch {
+      unresolved += 1;
+    }
+  }
+  return unresolved;
+}
+
+async function finishAsideFiles(journal) {
+  let unresolved = 0;
+  for (const { key } of journal.files) {
+    if (!(await fileExists(asidePath(key)))) continue;
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: asidePath(key) }).catch(() => {
+      unresolved += 1;
+    });
+  }
+  return unresolved;
+}
+
+// Removes the aside folder and the journal, but only when nothing in the
+// folder is still needed.
+async function closeRestoreJournal(unresolved) {
+  if (unresolved > 0) return false;
+  await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+  await prefRemove(RESTORE_JOURNAL_KEY);
+  return true;
+}
+
+// After the database commit: drop the displaced originals and the files of
+// documents no row refers to any more (Replace's dropped documents, or a
+// Merge row that moved to a new file). Returns the files that could not be
+// deleted.
+async function finishRestoreFiles(journal) {
+  let undeleted = 0;
+  const referenced = await referencedStorageKeys();
+  for (const key of journal.priorKeys) {
+    if (referenced.has(key) || !(await fileExists(documentPath(key)))) continue;
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) }).catch(() => {
+      undeleted += 1;
+    });
+  }
+  // An orphan that could not be deleted keeps the journal, so the next
+  // launch tries again: stale document bytes are not left behind for good.
+  const unresolved = await finishAsideFiles(journal);
+  await closeRestoreJournal(unresolved + undeleted);
+  return undeleted + unresolved;
+}
+
+// Runs at launch. A restore that stopped part-way (the app was killed, the
+// phone died) is finished if its database write committed, or rolled back
+// if it did not, so files and records always agree. Only one recovery runs
+// per launch, however often standalone mode is entered: two running at once
+// could each move the same file.
+let restoreRecovery = null;
+function recoverInterruptedRestore() {
+  // A recovery that fails (a passing bridge error) is not kept: the next
+  // call tries again instead of reusing the rejection all session.
+  restoreRecovery ??= withExclusiveDb(runRestoreRecovery).catch((error) => {
+    restoreRecovery = null;
+    throw error;
+  });
+  return restoreRecovery;
+}
+
+function parseRestoreJournal(raw) {
+  let journal;
+  try {
+    journal = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!journal || typeof journal.id !== "string" || !Array.isArray(journal.files) || !Array.isArray(journal.priorKeys)) return null;
+  return journal;
+}
+
+// Counts the files under a folder of FILE_DIRECTORY; a folder that isn't
+// there holds none. Throws when the folder can't be read.
+async function countFilesUnder(path) {
+  let entries;
+  try {
+    ({ files: entries = [] } = await Filesystem.readdir({ directory: FILE_DIRECTORY, path }));
+  } catch (error) {
+    if (!(await Filesystem.stat({ directory: FILE_DIRECTORY, path }).then(() => true, () => false))) return 0;
+    throw error;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    const name = typeof entry === "string" ? entry : entry?.name;
+    if (!name) continue;
+    count += entry?.type === "directory" ? await countFilesUnder(`${path}/${name}`) : 1;
+  }
+  return count;
+}
+
+// `clearStaging` is false when a restore runs this before applying itself:
+// its own files are already staged.
+async function runRestoreRecovery({ clearStaging = true } = {}) {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  if (!raw || !Filesystem) return;
+  const journal = parseRestoreJournal(raw);
+  if (!journal) {
+    // A journal this build can't read can't be finished or rolled back. If
+    // no file is set aside there is nothing it could still protect, so it is
+    // cleared; otherwise it stays, with the aside folder, until the user
+    // chooses in Settings (clearUnreadableRestoreJournal), rather than
+    // blocking every restore for good (#226 review).
+    if ((await countFilesUnder(RESTORE_ASIDE_ROOT).catch(() => 1)) === 0) await closeRestoreJournal(0);
+    return;
+  }
+  const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'");
+  if (marker.some((row) => row.value === journal.id)) {
+    await finishRestoreFiles(journal);
+  } else {
+    await closeRestoreJournal(await rollbackRestoreFiles(journal));
+  }
+  if (clearStaging) await clearRestoreStaging();
+}
+
+async function unreadableRestoreJournalPending() {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  return Boolean(raw) && !parseRestoreJournal(raw);
+}
+
+// The way out of an unreadable journal with files still set aside: the
+// files are kept, moved to a folder of their own, and the journal cleared,
+// so restoring works again. Nothing is deleted.
+async function clearUnreadableRestoreJournal() {
+  await withExclusiveDb(async () => {
+    if (!(await unreadableRestoreJournalPending())) return;
+    if (!window.confirm("Clear the unfinished restore? The document files it set aside are kept in Hearth's storage, and restoring works again.")) return;
+    const keptPath = `${RESTORE_ASIDE_ROOT}-kept-${Date.now()}`;
+    if ((await countFilesUnder(RESTORE_ASIDE_ROOT)) > 0) {
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: RESTORE_ASIDE_ROOT, to: keptPath });
+    }
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    showStandaloneStatus("Unfinished restore cleared. You can restore a backup again.", true);
+  });
+  state.unreadableRestoreJournal = await unreadableRestoreJournalPending();
+}
+
+// Files first, database second: every staged file is checked, the journal
+// is written, then each original the backup replaces is moved aside (never
+// deleted) and the backup's file moved in; only then does one transaction
+// write the rows plus a restore marker. Any failure before the commit puts
+// every file back. After the commit the originals, and the files of
+// documents no row refers to any more, are deleted.
+//
+// The whole critical section, from reading local versions and key owners to
+// the commit or rollback and the cleanup, holds the write gate, so an edit
+// made meanwhile waits and lands after the restore instead of being
+// overwritten by it (#226 review). Nothing inside may call run()/runSet()
+// (they wait on the same gate): the commit is a direct executeSet.
+async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
+  const { restored, kept, missingFiles, undeletedFiles } = await withExclusiveDb(() => applyRestoreLocked({ tables, stagedKeys, mode }));
+  // From here on the records and files are already restored and committed.
+  // Nothing below may throw as if the restore had failed, or the user would
+  // be told the phone was left as it was and might restore again.
+  const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
+  const failedSettings = [];
+  for (const key of BACKUP_PREFERENCE_KEYS) {
+    const value = restoredPreferences.get(key);
+    if (typeof value !== "string") continue;
+    try {
+      await prefSet(key, value);
+    } catch {
+      failedSettings.push(BACKUP_PREFERENCE_LABELS[key] ?? key);
+    }
+  }
+  let reloaded = true;
+  try {
+    await loadStandaloneModuleSettings();
+    await loadReminderDeliveryState();
+    await loadData();
+  } catch {
+    reloaded = false;
+  }
+  let remindersMessage = "";
+  if (reloaded && state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => { remindersMessage = error?.message || "reminders could not be rescheduled"; });
+  }
+  const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
+  if (kept > 0) parts.push(`kept ${kept} already on this phone`);
+  if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
+  if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed yet; Hearth will try again when it next starts`);
+  const problems = [];
+  if (failedSettings.length > 0) problems.push(`These settings from the backup could not be saved: ${failedSettings.length > 1 ? `${failedSettings.slice(0, -1).join(", ")} and ${failedSettings.at(-1)}` : failedSettings[0]}. Check them in Settings; there's no need to restore again.`);
+  if (!reloaded) problems.push("Restart Hearth to see the restored records.");
+  if (remindersMessage) problems.push(`Device reminders were not rescheduled (${remindersMessage}).`);
+  const legacyNote = legacy ? " This was an unencrypted older backup: export a new encrypted one." : "";
+  showStandaloneStatus(`${parts.join(", ")}.${legacyNote}${problems.length ? ` ${problems.join(" ")}` : ""}`, problems.length === 0);
+  return { restored, kept, missingFiles, failedSettings };
+}
+
+async function applyRestoreLocked({ tables, stagedKeys, mode }) {
+  const { set, restored, kept, acceptedKeys } = await buildRestoreStatements(tables, mode);
+  const keys = stagedKeys.filter((key) => acceptedKeys.has(key));
+  for (const key of keys) {
+    if (!(await fileExists(`${RESTORE_STAGING_ROOT}/${key}`))) throw new Error("Could not prepare the backup's documents on this phone. Nothing was changed.");
+  }
+  // An earlier restore's journal: finish or roll it back now rather than
+  // asking for a restart (#226 review).
+  if (await prefGet(RESTORE_JOURNAL_KEY)) {
+    await runRestoreRecovery({ clearStaging: false });
+    if (await unreadableRestoreJournalPending()) {
+      state.unreadableRestoreJournal = true;
+      throw new Error("An earlier restore left a record Hearth can't read, with document files set aside. Nothing was changed. Clear it under Unfinished restore in Settings, then restore again.");
+    }
+    if (await prefGet(RESTORE_JOURNAL_KEY)) {
+      throw new Error("An earlier restore still has document files Hearth could not tidy up. Nothing was changed. Hearth tries again each time it starts: restart it, then restore again.");
+    }
+  }
+  const files = [];
+  for (const key of keys) files.push({ key, hadOriginal: await fileExists(documentPath(key)) });
+  const journal = { id: crypto.randomUUID(), mode, priorKeys: [...(await referencedStorageKeys())], files };
+  await prefSet(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
+  try {
+    for (const { key, hadOriginal } of files) {
+      await ensureParentDir(documentPath(key));
+      if (hadOriginal) {
+        await ensureParentDir(asidePath(key));
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: documentPath(key), to: asidePath(key) });
+      }
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to: documentPath(key) });
+    }
+    set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
+    await SQLite.executeSet({ database: DB, set, transaction: true });
+  } catch (error) {
+    // The bridge can reject after the transaction committed. The marker
+    // says which: committed means finish, as recovery would; not committed
+    // means roll back. If it can't be read, nothing is touched and the
+    // journal stays for the next launch to decide (#226 review).
+    let committed;
+    try {
+      committed = (await currentRestoreMarker()) === journal.id;
+    } catch {
+      committed = null;
+    }
+    if (committed === null) {
+      throw new Error(`Restore stopped part-way (${error?.message || "unknown error"}). Restart Hearth: it will finish the restore or put this phone back as it was.`);
+    }
+    if (committed) return finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept });
+    const closed = await closeRestoreJournal(await rollbackRestoreFiles(journal));
+    const tail = closed ? "" : " Some files could not be put back yet; Hearth will try again when it next starts.";
+    throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).${tail}`);
+  }
+  return finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept });
+}
+
+async function finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept }) {
+  const undeletedFiles = await finishRestoreFiles(journal);
+  const missingFiles = [...acceptedKeys].filter((key) => !keys.includes(key)).length;
+  return { restored, kept, missingFiles, undeletedFiles };
+}
+
+function backupAge(iso) {
+  const at = Date.parse(iso ?? "");
+  return Number.isFinite(at) ? Math.floor((Date.now() - at) / 86400000) : null;
+}
+
+function hasStandaloneData() {
+  return BACKUP_TABLES.some((table) => table.key !== "profile" && table.key !== "reminderLogs" && (cache[table.key]?.length ?? 0) > 0);
+}
+
+function legacyBackupSummary() {
+  const count = state.legacyPlaintextBackups.length;
+  return `${count} unencrypted backup${count === 1 ? "" : "s"} from an older version ${count === 1 ? "is" : "are"} on this phone. Export an encrypted backup, then delete ${count === 1 ? "it" : "these"}.`;
+}
+
+// Shown on the dashboard until the files are deleted or the card is
+// dismissed; Settings keeps offering the Delete button while they exist.
+function renderLegacyBackupNotice({ dashboard = false } = {}) {
+  if (state.legacyPlaintextBackups.length === 0) return "";
+  if (dashboard && state.legacyBackupNoticeDismissed) return "";
+  return `
+    <section class="card form-card warning-card" data-legacy-backup-notice>
+      <h2>Old unencrypted backups</h2>
+      <p class="card-meta">${escapeHtml(legacyBackupSummary())}</p>
+      <div class="actions">
+        <button class="secondary danger" data-delete-legacy-backups>Delete</button>
+        ${dashboard ? '<button class="secondary" data-dismiss-legacy-backups>Not now</button>' : ""}
+      </div>
+    </section>
+  `;
+}
+
+// Dashboard nudge: shown once there is something to lose and the last
+// backup is missing or older than BACKUP_NUDGE_DAYS.
+function renderBackupNudge() {
+  if (!hasStandaloneData()) return "";
+  const age = backupAge(state.lastBackupAt);
+  if (age != null && age < BACKUP_NUDGE_DAYS) return "";
+  return `
+    <section class="card form-card warning-card" data-backup-nudge>
+      <h2>Back up this phone</h2>
+      <p class="card-meta">${age == null ? "Nothing on this phone has been backed up yet." : `Your last backup was ${age} days ago.`} If this phone is lost or reset, records and documents that are not backed up are gone.</p>
+      <div class="actions"><button data-nav="settings">Back up now</button></div>
+    </section>
+  `;
+}
+
+function lastBackupLabel() {
+  if (!state.lastBackupAt) return "Never";
+  return `${readableDate(state.lastBackupAt)}${backupAge(state.lastBackupAt) >= BACKUP_NUDGE_DAYS ? " (overdue)" : ""}`;
+}
+
+function renderBackupSettings() {
+  return `
+    <section class="card form-card">
+      <h2>Back up this phone</h2>
+      <p class="muted">Backups are encrypted with a password you choose and include every record, document and module setting. Keep the password safe: without it a backup cannot be opened, and Hearth cannot reset it.</p>
+      <div class="detail-grid">
+        ${detailLine("Last backup", lastBackupLabel())}
+        ${detailLine("Format", "Encrypted Hearth backup (.hearthbackup)")}
+      </div>
+      ${state.pendingBackupPassword ? renderSaveBackupPasswordStep() : renderExportBackupForm()}
+    </section>
+    ${renderLegacyBackupNotice()}
+    ${renderUnreadableRestoreJournal()}
+    <section class="card form-card">
+      <h2>Restore from a file</h2>
+      <p class="muted">Choose a .hearthbackup file (or an older Hearth JSON backup) from Files, iCloud Drive or Google Drive.</p>
+      <form data-import-standalone-backup-form class="field-grid">
+        <input name="file" type="file" required />
+        <label>Backup password<input name="password" type="password" autocomplete="current-password" /></label>
+        ${renderRestoreModeFields()}
+        <button type="submit" class="secondary">Restore backup</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderExportBackupForm() {
+  const minLength = BackupFormat?.MIN_PASSWORD_LENGTH ?? 12;
+  return `
+    <form data-export-standalone-backup-form class="field-grid">
+      <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${minLength}" required aria-describedby="backup-password-hint" /></label>
+      <p class="muted" id="backup-password-hint">At least ${minLength} characters. A passphrase of four or more random words is easy to type and hard to guess.</p>
+      <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
+      <div class="actions">
+        <button type="submit" class="secondary">Export and share</button>
+      </div>
+    </form>
+  `;
+}
+
+// Shown once, after the password is chosen and before the backup is made;
+// kept after a failed or cancelled share so "Try again" uses the same
+// password. The field is masked whenever it loses focus, after Copy, and
+// when the app goes to the background, so the app-switcher snapshot doesn't
+// show it; tapping it shows it again.
+function renderSaveBackupPasswordStep() {
+  const disabled = state.backupExportRunning ? " disabled" : "";
+  const name = state.pendingBackupName ?? "";
+  return `
+    <div class="field-grid" data-save-backup-password>
+      <h3>Save this password in your password manager</h3>
+      <p class="muted">This is the only time Hearth shows it. If you lose it, this backup can't be opened, and Hearth can't reset it.</p>
+      <p class="muted" data-backup-planned-name>Save it with the backup's name: <strong>${escapeHtml(name)}</strong></p>
+      <label>Backup password<input type="text" readonly value="${escapeAttr(state.pendingBackupPassword)}" data-backup-password-value autocomplete="off" spellcheck="false" /></label>
+      <div class="actions">
+        <button class="secondary" data-copy-backup-password${disabled}>Copy</button>
+        <button class="secondary" data-continue-backup-export${disabled}>${state.backupExportFailed ? "Try again" : "I've saved it, export now"}</button>
+        <button class="secondary" data-cancel-backup-export${disabled}>Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+function maskBackupPasswordFields() {
+  for (const input of document.querySelectorAll("[data-backup-password-value]")) input.type = "password";
+}
+
+// The copied password is wiped from the clipboard after
+// BACKUP_PASSWORD_CLIPBOARD_MS, unless Hearth has copied something else
+// since. On a phone the native SecureClipboard plugin does the copy: it
+// clears the password only while the clipboard still holds it, so a value
+// copied in another app since is never wiped, and it tells without reading
+// the clipboard, which would show the system paste prompt. On iOS the item
+// also expires by itself and never syncs to other devices. Without the
+// plugin (a plain browser) the clipboard is overwritten without that check.
+// The check may be refused while Hearth isn't focused, so the first tap in
+// Hearth after the deadline tries again.
+let backupPasswordClipboardDeadline = null;
+async function copyBackupPassword(value) {
+  if (SecureClipboard) await SecureClipboard.write({ value, expiresInMs: BACKUP_PASSWORD_CLIPBOARD_MS });
+  else await navigator.clipboard.writeText(value);
+}
+
+function scheduleBackupPasswordClipboardClear() {
+  backupPasswordClipboardDeadline = Date.now() + BACKUP_PASSWORD_CLIPBOARD_MS;
+  setTimeout(() => clearBackupPasswordClipboard().catch(() => undefined), BACKUP_PASSWORD_CLIPBOARD_MS);
+}
+
+async function clearBackupPasswordClipboard() {
+  if (backupPasswordClipboardDeadline == null || Date.now() < backupPasswordClipboardDeadline) return;
+  if (SecureClipboard) {
+    const { cleared, changed } = await SecureClipboard.clearIfUnchanged();
+    // Neither: the plugin couldn't check yet, so the next tap tries again.
+    if (!cleared && !changed) return;
+  } else {
+    await navigator.clipboard.writeText("");
+  }
+  backupPasswordClipboardDeadline = null;
+}
+
+function forgetBackupPasswordClipboard() {
+  backupPasswordClipboardDeadline = null;
+}
+
+async function handleUnreadableRestoreJournal() {
+  await clearUnreadableRestoreJournal().catch((error) => showStandaloneStatus(error.message || "Could not clear the unfinished restore."));
+}
+
+function renderUnreadableRestoreJournal() {
+  if (!state.unreadableRestoreJournal) return "";
+  return `
+    <section class="card form-card warning-card" data-unreadable-restore-journal>
+      <h2>Unfinished restore</h2>
+      <p class="card-meta">An earlier restore stopped and left a record this version of Hearth can't read, with document files it had set aside. Restoring a backup is blocked until it is cleared. Clearing keeps those files in Hearth's storage; nothing is deleted.</p>
+      <div class="actions"><button class="secondary" data-clear-unreadable-restore>Clear unfinished restore</button></div>
+    </section>
+  `;
+}
+
+function renderRestoreModeFields() {
+  return `
+    <label>Restore mode
+      <select name="mode">
+        <option value="replace">Replace everything on this phone</option>
+        <option value="merge">Merge into this phone (keep newer local edits)</option>
+      </select>
+    </label>
+    <label class="checkbox-row"><input name="confirmReplace" type="checkbox" /> I understand Replace deletes records on this phone that are not in the backup</label>
+  `;
 }
 
 async function readStoredFileBase64(storageKey) {
   if (!Filesystem || !storageKey) return null;
   const result = await Filesystem.readFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
   return String(result.data ?? "");
-}
-
-async function importStandaloneBackup(file) {
-  if (!file) throw new Error("Choose a backup file first.");
-  const backup = JSON.parse(await file.text());
-  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object") {
-    throw new Error("That is not a Hearth standalone backup.");
-  }
-  let imported = 0;
-  for (const table of BACKUP_TABLES) {
-    const rows = Array.isArray(backup.tables[table.key]) ? backup.tables[table.key] : [];
-    for (const row of rows) {
-      await upsertBackupRow(table, row);
-      imported += 1;
-    }
-  }
-  await loadData();
-  showStandaloneStatus(`Imported ${imported} backup row${imported === 1 ? "" : "s"}.`, true);
-}
-
-async function upsertBackupRow(table, row) {
-  if (!row || typeof row !== "object") return;
-  const values = table.columns.map((column) => row[column] ?? null);
-  const placeholders = table.columns.map(() => "?").join(", ");
-  await run(`INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`, values);
-  if (["documents", "inboxDocuments"].includes(table.key) && row.storage_key && row.file_data && Filesystem) {
-    await Filesystem.writeFile({
-      directory: FILE_DIRECTORY,
-      path: `${FILE_ROOT}/${row.storage_key}`,
-      data: String(row.file_data),
-      recursive: true,
-    }).catch(() => undefined);
-  }
 }
 
 function monthlyEquivalent(cost, frequency) {
@@ -2911,11 +3883,17 @@ function renderRecords() {
 }
 
 function recordTab(type, label) {
-  return `<button class="tab ${state.recordType === type ? "active" : ""}" data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
+  return `<button class="tab"${state.recordType === type ? ' aria-current="true"' : ""} data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
 }
 
+// #616: a pressed chip leads with a check mark so it doesn't rely on the
+// accent colour alone. It's a real element, hidden from screen readers
+// (aria-pressed already says it), and every chip reserves its space so a
+// chip doesn't grow when it's pressed.
+const chipCheck = '<span class="chip-check" aria-hidden="true">✓</span>';
+
 function filterChip(filter, label) {
-  return `<button class="chip ${state.recordFilter === filter ? "active" : ""}" data-record-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.recordFilter === filter}" data-record-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredRecords() {
@@ -3060,10 +4038,10 @@ function renderDetail() {
     ${renderNeedsReviewBanner(type, row)}
     <section class="card form-card">
       <div class="actions">
-        <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
-        ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
+        <button class="secondary" data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
+        ${type === "contracts" && canRenewContract(row) ? `<button class="secondary" data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
         ${canArchive(type) ? `<button class="secondary" data-archive-record="${escapeAttr(type)}" data-archived="${isArchived(row) ? "0" : "1"}" data-id="${escapeAttr(id)}">${isArchived(row) ? "Restore" : "Archive"}</button>` : ""}
-        <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
+        <button class="secondary danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
       ${isArchived(row) ? `<p class="card-meta">Archived on ${escapeHtml(readableDate(row.archived_at))}. It no longer reminds you or shows in Needs attention.</p>` : ""}
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
@@ -3089,7 +4067,7 @@ function renderDetail() {
       </div>
       <form data-attach-owner-type="${escapeAttr(ownerType)}" data-owner-id="${escapeAttr(id)}" class="field-grid">
         <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" required />
-        <button type="submit">Attach document</button>
+        <button type="submit" class="secondary">Attach document</button>
       </form>
       <div class="list">
         ${docs.length === 0 ? empty("No documents attached", "Attach invoices, policies, photos or certificates.") : docs.map(renderDocumentCard).join("")}
@@ -3134,7 +4112,6 @@ function renderNeedsReviewBanner(type, row) {
       <p class="card-meta">This mirrors the connected app's extraction confirmation gate. Review the critical fields, then confirm them here.</p>
       <div class="actions">
         <button data-confirm-details="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Confirm details</button>
-        <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Edit</button>
       </div>
     </section>
   `;
@@ -3149,7 +4126,7 @@ function renderTradeCsvImportSection(portfolioId) {
       <p class="muted">Import CommSec, SelfWealth, Stake or generic CSV files with Date, Ticker, Type, Units, Price, Fees and Currency columns.</p>
       <form data-import-trades-portfolio-id="${escapeAttr(portfolioId)}" class="field-grid">
         <input name="file" type="file" accept=".csv,text/csv" required />
-        <button type="submit">Import CSV trades</button>
+        <button type="submit" class="secondary">Import CSV trades</button>
       </form>
     </section>
   `;
@@ -3361,7 +4338,7 @@ function renderLinkedInventoryItems(productId) {
         <h2>Linked inventory</h2>
       </div>
       <div class="list">
-        ${items.length === 0 ? empty("No inventory items linked", "Pick this warranty from an inventory item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
+        ${items.length === 0 ? empty("No items linked", "Pick this warranty from an item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
       </div>
     </section>
   `;
@@ -3373,7 +4350,7 @@ function renderVehicleContracts(vehicle) {
   const covered = vehicleCovers(vehicle.id);
   const linked = cache.contracts.filter((contract) => contract.vehicle_id === vehicle.id);
   const shortcut = (label, category) =>
-    `<button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
+    `<button class="secondary" data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
   return `
     <section class="card form-card">
       <div class="section-title">
@@ -3382,7 +4359,7 @@ function renderVehicleContracts(vehicle) {
       <div class="actions">
         ${covered.has("insurance_expiry") ? "" : shortcut("Add insurance", "CAR_INSURANCE")}
         ${covered.has("rego_expiry") ? "" : shortcut("Add registration", "REGISTRATION")}
-        <button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
+        <button class="secondary" data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
       </div>
       <div class="list">
         ${linked.length === 0 ? empty("No contracts linked", "Add the insurance or registration as a contract to track its cost and documents.") : linked.map((row) => renderRecordCard("contracts", row)).join("")}
@@ -3396,7 +4373,7 @@ function renderChildRecords(title, type, rows, parentId, emptyTitle, emptyCopy) 
     <section class="card form-card">
       <div class="section-title">
         <h2>${escapeHtml(title)}</h2>
-        <button data-form-type="${escapeAttr(type)}" data-parent-id="${escapeAttr(parentId)}">Add</button>
+        <button class="secondary" data-form-type="${escapeAttr(type)}" data-parent-id="${escapeAttr(parentId)}">Add</button>
       </div>
       <div class="list">
         ${rows.length === 0 ? empty(emptyTitle, emptyCopy) : rows.map((row) => renderRecordCard(type, row)).join("")}
@@ -3410,7 +4387,7 @@ function renderDocuments() {
   const inboxDocs = filteredInboxDocuments();
   return `
     <section class="actions actions-wrap">
-      <button data-nav="trash">Recently deleted documents</button>
+      <button class="secondary" data-nav="trash">Recently deleted documents</button>
     </section>
     ${renderInboxImportSection()}
     <section class="chips" aria-label="Document filters">
@@ -3439,7 +4416,7 @@ function renderDocuments() {
 }
 
 function documentChip(filter, label) {
-  return `<button class="chip ${state.documentFilter === filter ? "active" : ""}" data-document-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.documentFilter === filter}" data-document-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredDocuments() {
@@ -3494,9 +4471,9 @@ function renderDocumentCard(doc) {
       <h3>${escapeHtml(doc.filename)}</h3>
       <p class="card-meta">${escapeHtml(ownerLabel(doc))} · ${escapeHtml(readableDate(doc.uploaded_at))}</p>
       <div class="actions">
-        <button data-open-document="${escapeAttr(doc.id)}">Open</button>
-        <button data-toggle-important-document="${escapeAttr(doc.id)}">${important ? "Unstar" : "Mark important"}</button>
-        <button class="danger" data-delete-document="${escapeAttr(doc.id)}">Delete</button>
+        <button class="secondary" data-open-document="${escapeAttr(doc.id)}">Open</button>
+        <button class="secondary" data-toggle-important-document="${escapeAttr(doc.id)}">${important ? "Unstar" : "Mark important"}</button>
+        <button class="secondary danger" data-delete-document="${escapeAttr(doc.id)}">Delete</button>
       </div>
       ${versionCount > 1 ? renderDocumentVersionHistory(doc) : ""}
     </article>
@@ -3517,9 +4494,9 @@ function renderInboxCard(doc) {
       <p class="card-meta">Inbox · ${escapeHtml(readableDate(doc.uploaded_at))}</p>
       ${duplicateMatches.length > 0 ? `<p class="card-meta">Likely duplicate of ${escapeHtml(duplicateMatches.map(ownerLabel).join(", "))}. File it to the same record to attach as a new version.</p>` : ""}
       <div class="actions">
-        <button data-open-inbox-document="${escapeAttr(doc.id)}">Open</button>
-        ${duplicateMatches.length > 0 ? `<button data-keep-inbox-separate="${escapeAttr(doc.id)}">Keep separate</button>` : ""}
-        <button class="danger" data-delete-inbox-document="${escapeAttr(doc.id)}">Delete</button>
+        <button class="secondary" data-open-inbox-document="${escapeAttr(doc.id)}">Open</button>
+        ${duplicateMatches.length > 0 ? `<button class="secondary" data-keep-inbox-separate="${escapeAttr(doc.id)}">Keep separate</button>` : ""}
+        <button class="secondary danger" data-delete-inbox-document="${escapeAttr(doc.id)}">Delete</button>
       </div>
       <form data-file-inbox-id="${escapeAttr(doc.id)}" class="field-grid">
         <label>File to existing record
@@ -3527,7 +4504,7 @@ function renderInboxCard(doc) {
             ${targets.length === 0 ? '<option value="">Add a record first</option>' : targets.map((target) => `<option value="${escapeAttr(target.value)}">${escapeHtml(target.label)}</option>`).join("")}
           </select>
         </label>
-        <button type="submit" ${targets.length === 0 ? "disabled" : ""}>File document</button>
+        <button type="submit" class="secondary" ${targets.length === 0 ? "disabled" : ""}>File document</button>
       </form>
     </article>
   `;
@@ -3676,7 +4653,7 @@ function renderSearch() {
   return `
     <section class="search-row">
       <input id="global-search" value="${escapeAttr(state.searchQuery)}" placeholder="Search records and documents…" />
-      <button data-clear-search>Clear</button>
+      <button class="secondary" data-clear-search>Clear</button>
     </section>
     <section id="search-results" class="list">
       ${state.searchQuery.trim() === "" ? empty("Search Hearth", "Find contracts, products, vehicles, vehicle records and documents stored on this phone.") : results.length === 0 ? empty("Nothing found", "Try another title, provider, serial, plate, filename or note.") : results.map(renderSearchResult).join("")}
@@ -3767,7 +4744,7 @@ function formFields(type, row) {
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
@@ -3789,7 +4766,7 @@ function formFields(type, row) {
         <label>Barcode<input name="barcode" value="${escapeAttr(row?.barcode)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Warranty end<input name="warrantyEndDate" type="date" value="${escapeAttr(dateInputValue(row?.warranty_end_date))}" /></label>
-        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(row?.price ?? "")}" /></label>
+        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.price, row?.currency))}" /></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${propertyPickerOrHint(propertyId)}
@@ -3822,7 +4799,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3837,7 +4814,7 @@ function formFields(type, row) {
         <label>Postcode<input name="postcode" value="${escapeAttr(row?.postcode)}" /></label>
         <label>Country<input name="country" value="${escapeAttr(row?.country ?? "Australia")}" /></label>
         <label>Occupancy<select name="occupancyStatus">${options(["OWNER_OCCUPIED", "RENTED", "VACANT"], row?.occupancy_status ?? "OWNER_OCCUPIED")}</select></label>
-        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(row?.estimated_value ?? "")}" /></label>
+        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.estimated_value, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3849,7 +4826,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Tax deductible<select name="isTaxDeductible">${options(["NO", "YES"], row?.is_tax_deductible ? "YES" : "NO")}</select></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3861,11 +4838,11 @@ function formFields(type, row) {
       <div class="field-grid">
         <input name="propertyId" type="hidden" value="${escapeAttr(propertyId)}" />
         <label>Tenant name<input name="tenantName" value="${escapeAttr(row?.tenant_name)}" /></label>
-        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(row?.weekly_rent ?? "")}" required /></label>
+        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.weekly_rent, row?.currency))}" required /></label>
         <label>Management fee %<input name="managementFeePercent" type="number" min="0" step="0.01" value="${escapeAttr(row?.management_fee_percent ?? "")}" /></label>
         <label>Lease start<input name="leaseStart" type="date" value="${escapeAttr(dateInputValue(row?.lease_start))}" /></label>
         <label>Lease end<input name="leaseEnd" type="date" value="${escapeAttr(dateInputValue(row?.lease_end))}" /></label>
-        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(row?.bond_amount ?? "")}" /></label>
+        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.bond_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
         <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
@@ -3881,10 +4858,10 @@ function formFields(type, row) {
         <label>Period start<input name="periodStart" type="date" value="${escapeAttr(dateInputValue(row?.period_start))}" /></label>
         <label>Period end<input name="periodEnd" type="date" value="${escapeAttr(dateInputValue(row?.period_end))}" /></label>
         <label>Statement date<input name="statementDate" type="date" value="${escapeAttr(dateInputValue(row?.statement_date))}" /></label>
-        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(row?.gross_rent ?? "")}" /></label>
-        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(row?.management_fee ?? "")}" /></label>
-        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(row?.other_deductions ?? "")}" /></label>
-        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(row?.net_amount ?? "")}" /></label>
+        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.gross_rent, row?.currency))}" /></label>
+        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.management_fee, row?.currency))}" /></label>
+        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.other_deductions, row?.currency))}" /></label>
+        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(moneyInputValue(row?.net_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3899,7 +4876,7 @@ function formFields(type, row) {
         <label>Model<input name="model" value="${escapeAttr(row?.model)}" /></label>
         <label>Serial number<input name="serialNumber" value="${escapeAttr(row?.serial_number)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
-        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(row?.purchase_price ?? "")}" /></label>
+        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.purchase_price, row?.currency))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
         <label>Warranty<select name="warrantyProductId">${productOptions(row?.warranty_product_id)}</select></label>
         <label class="checkbox-row"><input name="warrantyRegistered" type="checkbox" ${row?.warranty_registered ? "checked" : ""} /> Warranty registered with manufacturer</label>
@@ -3929,7 +4906,7 @@ function formFields(type, row) {
         <label>Start<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3967,7 +4944,7 @@ function formFields(type, row) {
         <label>Date<input name="tradeDate" type="date" value="${escapeAttr(dateInputValue(row?.trade_date) || dateInputValue(nowIso()))}" required /></label>
         <label>Units<input name="units" type="number" min="0" step="0.000001" value="${escapeAttr(row?.units ?? "")}" required /></label>
         <label>Price per unit<input name="pricePerUnit" type="number" min="0" step="0.000001" value="${escapeAttr(row?.price_per_unit ?? "")}" required /></label>
-        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(row?.fees ?? "")}" /></label>
+        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.fees, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? portfolio?.currency ?? defaultCurrency())}" /></label>
         <label>Holding name<input name="name" value="${escapeAttr(getRecord("holdings", row?.holding_id)?.name)}" /></label>
         <label>Asset class<select name="assetClass">${options(["SHARE", "ETF", "FUND", "CRYPTO", "CASH", "OTHER"], getRecord("holdings", row?.holding_id)?.asset_class ?? "SHARE")}</select></label>
@@ -4910,8 +5887,8 @@ function renderTrashedDocument(doc) {
       <p class="card-meta">${owner ? escapeHtml(ownerLabel(doc)) : `${escapeHtml(typeLabel(doc.owner_type))} · Its record was deleted`}</p>
       <p class="card-meta">Deleted ${escapeHtml(readableDate(doc.deleted_at) ?? "")} · ${days === 0 ? "Will be deleted soon" : `${days} day${days === 1 ? "" : "s"} left`}</p>
       <div class="actions actions-wrap">
-        ${owner ? `<button data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
-        <button class="danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
+        ${owner ? `<button class="secondary" data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
+        <button class="secondary danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
       </div>
     </article>
   `;
@@ -5039,29 +6016,30 @@ async function storedFileExists(storageKey) {
 
 // Deletes a Trash entry's file and row together. It re-reads the row, so the
 // chain is relinked from what is saved now, not from a list read earlier.
-// Order: file first, then the row in one transaction. If the app dies in
-// between, the row is still in Trash with no file: Restore refuses it
+// The check, the file delete and the row delete are one step at the gate: a
+// restore can't run in between and bring the entry back (or put a live
+// document's file at its key) only for this to delete it (#226 review).
+// Order inside it: file first, then the row in one transaction. If the app
+// dies in between, the row is still in Trash with no file: Restore refuses it
 // (storedFileExists) and the next purge removes it (a missing file is fine).
 async function purgeDocument(id) {
-  const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
-  if (!doc) return null;
-  // A file an Inbox entry or any other Document row (another version, a
-  // duplicate import) still points at stays: only this row goes.
-  const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
-  const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
-  if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
-  // The next version now follows this one's older version, so the chain stays whole.
-  await SQLite.executeSet({
-    database: DB,
-    transaction: true,
-    set: [
+  return withExclusiveDb(async () => {
+    const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) return null;
+    // A file an Inbox entry or any other Document row (another version, a
+    // duplicate import) still points at stays: only this row goes.
+    const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
+    const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+    if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
+    // The next version now follows this one's older version, so the chain stays whole.
+    await runSetLocked([
       // Both only act while the row is still in Trash, so a Restore that got
       // in first leaves the live row and its chain alone.
       { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND deleted_at IS NOT NULL)", values: [doc.supersedes_id ?? null, doc.id, doc.id] },
       { statement: "DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL", values: [doc.id] },
-    ],
+    ]);
+    return doc;
   });
-  return doc;
 }
 
 // Purges Trash entries past TRASH_RETENTION_DAYS, at most
@@ -5101,8 +6079,16 @@ async function deleteInboxDocument(id, rerender = true) {
   if (!doc) return;
   const confirmed = !rerender || window.confirm(`Delete "${doc.filename}" from inbox?`);
   if (!confirmed) return;
-  await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
-  await run("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+  // Re-checked at the gate, with the file delete and the row update as one
+  // step: the entry must still be live, and a file a document now points at
+  // (after a restore, say) stays.
+  await withExclusiveDb(async () => {
+    const [live] = await query("SELECT storage_key FROM inbox_documents WHERE id = ? AND deleted_at IS NULL", [id]);
+    if (!live) return;
+    const filed = await query("SELECT id FROM documents WHERE storage_key = ? LIMIT 1", [live.storage_key]);
+    if (filed.length === 0) await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${live.storage_key}` }).catch(() => undefined);
+    await runLocked("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+  });
   if (rerender) {
     showStandaloneStatus("Inbox document deleted.", true);
     await render();
@@ -5347,7 +6333,7 @@ function renderPreviousTerms(contractId) {
             <article class="record-card">
               <h3>${escapeHtml(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`)}</h3>
               <p class="card-meta">${escapeHtml(meta)}</p>
-              ${doc ? `<div class="actions"><button data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
+              ${doc ? `<div class="actions"><button class="secondary" data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
             </article>
           `;
         }).join("")}
@@ -5370,7 +6356,7 @@ function renderContractRenewalForm(row) {
         <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
         <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
         <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
-        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row.cost, row.currency))}" /></label>
         ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
           ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
           <option value="">None</option>
@@ -5409,20 +6395,16 @@ async function renewContract(form) {
       if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
     }
     const now = nowIso();
-    await SQLite.executeSet({
-      database: DB,
-      transaction: true,
-      set: [
-        {
-          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
-        },
-        {
-          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
-          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
-        },
-      ],
-    });
+    await runSet([
+      {
+        statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+      },
+      {
+        statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+        values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+      },
+    ]);
     await maybeStoreFormFile(form, "contract", id);
   } catch (error) {
     if (submit) submit.disabled = false;
@@ -5443,6 +6425,7 @@ async function confirmDetails(type, id) {
 }
 
 async function copyValue(value) {
+  forgetBackupPasswordClipboard();
   if (!value) return;
   try {
     if (navigator.clipboard?.writeText) {
@@ -5484,6 +6467,7 @@ function base64ToBlob(base64, mimeType) {
 }
 
 function goBack() {
+  clearPendingBackupPassword();
   if (state.route === "form") {
     state.route = state.backTo ?? "records";
     state.form = null;
@@ -5510,6 +6494,8 @@ function routeTo(route) {
   state.detail = null;
   state.detailBack = null;
   state.form = null;
+  // Leaving Settings ends the save-your-password step: it is shown only once.
+  clearPendingBackupPassword();
   if (route === "trash") hideStandaloneStatus();
   state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" || (route === "trash" && ["documents", "settings"].includes(previousRoute)) ? previousRoute : "dashboard") : null;
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
@@ -5624,7 +6610,26 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   });
 });
 
+// The backup password field: shown while focused, masked otherwise and
+// whenever Hearth goes to the background (before the app-switcher snapshot).
+mobileView.addEventListener("focusin", (event) => {
+  if (event.target.matches?.("[data-backup-password-value]")) event.target.type = "text";
+});
+mobileView.addEventListener("focusout", (event) => {
+  if (event.target.matches?.("[data-backup-password-value]")) event.target.type = "password";
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") maskBackupPasswordFields();
+});
+window.addEventListener("blur", maskBackupPasswordFields);
+Plugins.App?.addListener?.("appStateChange", ({ isActive }) => {
+  if (!isActive) maskBackupPasswordFields();
+});
+
 mobileView.addEventListener("click", async (event) => {
+  // A tap is when a WebView allows a clipboard write: finish clearing a
+  // copied backup password whose minute is up.
+  clearBackupPasswordClipboard().catch(() => undefined);
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.nav) {
@@ -5729,12 +6734,63 @@ mobileView.addEventListener("click", async (event) => {
     await copyValue(button.dataset.copyValue);
     return;
   }
-  if (button.dataset.confirmDetails) {
-    await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
+  if (button.dataset.copyBackupPassword !== undefined) {
+    try {
+      await copyBackupPassword(state.pendingBackupPassword ?? "");
+      scheduleBackupPasswordClipboardClear();
+      maskBackupPasswordFields();
+      showStandaloneStatus("Password copied. Paste it into your password manager; Hearth clears the clipboard after a minute.", true);
+    } catch {
+      const field = document.querySelector("[data-backup-password-value]");
+      if (field) {
+        field.type = "text";
+        field.select();
+      }
+      showStandaloneStatus("Couldn't copy automatically: the password is selected, copy it from there.");
+    }
     return;
   }
-  if (button.dataset.exportStandaloneBackup !== undefined) {
-    await exportStandaloneBackup().catch((error) => showStandaloneStatus(error.message || "Could not export backup."));
+  if (button.dataset.continueBackupExport !== undefined) {
+    const password = state.pendingBackupPassword;
+    if (!password || state.backupExportRunning) return;
+    state.backupExportRunning = true;
+    await render();
+    let shared = false;
+    try {
+      shared = await exportAndShareBackup(password, password, state.pendingBackupName ?? undefined);
+    } catch (error) {
+      showStandaloneStatus(`${error.message || "Could not export the backup."} Try again to make it with the same password.`);
+    } finally {
+      state.backupExportRunning = false;
+    }
+    if (shared) clearPendingBackupPassword();
+    else if (state.pendingBackupPassword) state.backupExportFailed = true;
+    await render();
+    return;
+  }
+  if (button.dataset.cancelBackupExport !== undefined) {
+    clearPendingBackupPassword();
+    showStandaloneStatus("Backup not made.");
+    await render();
+    return;
+  }
+  if (button.dataset.clearUnreadableRestore !== undefined) {
+    await handleUnreadableRestoreJournal();
+    await render();
+    return;
+  }
+  if (button.dataset.deleteLegacyBackups !== undefined) {
+    await deleteLegacyPlaintextBackups().catch((error) => showStandaloneStatus(error.message || "Could not delete the old backups."));
+    await render();
+    return;
+  }
+  if (button.dataset.dismissLegacyBackups !== undefined) {
+    await dismissLegacyBackupNotice();
+    await render();
+    return;
+  }
+  if (button.dataset.confirmDetails) {
+    await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
     return;
   }
   if (button.dataset.cancelForm !== undefined) {
@@ -5845,8 +6901,19 @@ mobileView.addEventListener("submit", async (event) => {
       await render();
       return;
     }
+    if (form.dataset.exportStandaloneBackupForm !== undefined) {
+      const data = new FormData(form);
+      const password = String(data.get("password") ?? "");
+      checkNewBackupPassword(password, String(data.get("confirm") ?? ""));
+      checkSharingAvailable();
+      state.pendingBackupPassword = password;
+      state.pendingBackupName = backupFilename();
+      state.backupExportFailed = false;
+      await render();
+      return;
+    }
     if (form.dataset.importStandaloneBackupForm !== undefined) {
-      await importStandaloneBackup(formFile(form));
+      await restoreFromFile(form);
       await render();
       return;
     }

@@ -17,33 +17,48 @@ export interface ListPageAction {
 // `md` the heading keeps its own line with Export tucked into the ⋮ menu
 // beside it, and the button drops underneath at full width, so nothing
 // wraps on a 360px phone. Callers leave `action` out for read-only members.
+// `description` is an optional one-line note under the heading, for a name
+// broader than it looks (Contracts also holds insurance policies).
 export function ListPageHeader({
   title,
+  description,
   exportPath,
   action,
 }: {
   title: string;
+  /** One line under the heading saying what kinds of record the page holds. */
+  description?: string;
   /** e.g. "/api/export/contracts"; the CSV and PDF links add ?format=. */
   exportPath?: string;
   action?: ListPageAction;
 }) {
   const online = action?.online ?? true;
   return (
-    <div className="space-y-3 md:flex md:items-center md:justify-between md:gap-4 md:space-y-0">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-medium">{title}</h1>
-        {exportPath && (
-          <div className="md:hidden">
-            <DetailOverflowMenu label="More list actions">
-              <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>
-                Export CSV
-              </a>
-              <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>
-                Export PDF
-              </a>
-            </DetailOverflowMenu>
-          </div>
-        )}
+    <div
+      className={cn(
+        "space-y-3 md:flex md:justify-between md:gap-4 md:space-y-0",
+        // With a description under it, the buttons line up with the heading
+        // itself rather than the centre of the heading and description.
+        description ? "md:items-start" : "md:items-center",
+      )}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-medium">{title}</h1>
+          {exportPath && (
+            <div className="md:hidden">
+              <DetailOverflowMenu label="More list actions">
+                <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>
+                  Export CSV
+                </a>
+                <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>
+                  Export PDF
+                </a>
+              </DetailOverflowMenu>
+            </div>
+          )}
+        </div>
+        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
       {(exportPath || action) && (
         <div className={cn("items-center gap-2", action ? "flex" : "hidden md:flex")}>
@@ -64,9 +79,7 @@ export function ListPageHeader({
               aria-disabled={!online}
               tabIndex={!online ? -1 : undefined}
               className={cn(
-                action.variant === "secondary"
-                  ? cn(buttonClass("secondary"), !online && "pointer-events-none opacity-40")
-                  : buttonClass("primary", { online }),
+                buttonClass(action.variant === "secondary" ? "secondary" : "primary", { online }),
                 "w-full justify-center whitespace-nowrap md:w-auto",
               )}
             >

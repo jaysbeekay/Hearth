@@ -36,6 +36,8 @@ export interface ChatProviderCallParams {
   system: string;
   messages: ChatTurn[];
   tools: ToolDefinition[];
+  /** Aborts the provider request when the user stops the reply. */
+  signal?: AbortSignal;
 }
 
 // Unlike extraction's ProviderCall (Promise<string | null>, collapsing every

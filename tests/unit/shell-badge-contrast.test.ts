@@ -12,27 +12,49 @@ type Rgba = [number, number, number, number];
 
 const css = readFileSync(path.join(__dirname, "..", "..", "ios-shell", "www", "style.css"), "utf8");
 
-function parseBlock(block: string): Map<string, Rgba> {
-  const tokens = new Map<string, Rgba>();
+// A token is a hex colour, or (#616) a translucent tint of another token:
+// color-mix(in srgb, var(--x) N%, transparent), resolved once the theme's
+// tokens are merged so a dark tint uses the dark colour.
+type Raw = { hex: number[] } | { of: string; alpha: number };
+
+function parseBlock(block: string): Map<string, Raw> {
+  const tokens = new Map<string, Raw>();
   for (const m of block.matchAll(/--([a-z-]+):\s*([^;]+);/g)) {
     const [, name, value] = m;
     const hex = value.match(/^#([0-9a-f]{6})$/i);
     if (hex) {
       const n = parseInt(hex[1], 16);
-      tokens.set(name, [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]);
+      tokens.set(name, { hex: [(n >> 16) & 255, (n >> 8) & 255, n & 255] });
       continue;
     }
-    const rgba = value.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/);
-    if (rgba) tokens.set(name, [Number(rgba[1]), Number(rgba[2]), Number(rgba[3]), Number(rgba[4])]);
+    const tint = value.match(/^color-mix\(in srgb,\s*var\(--([a-z-]+)\)\s+([\d.]+)%,\s*transparent\)$/);
+    if (tint) tokens.set(name, { of: tint[1], alpha: Number(tint[2]) / 100 });
   }
   return tokens;
 }
 
-const light = parseBlock(css.match(/^:root\s*\{([\s\S]*?)\n\}/m)![1]);
-const dark = new Map([
-  ...light,
-  ...parseBlock(css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([\s\S]*?)\}/)![1]),
-]);
+function resolve(raw: Map<string, Raw>): Map<string, Rgba> {
+  const out = new Map<string, Rgba>();
+  for (const [name, t] of raw) {
+    if ("hex" in t) {
+      out.set(name, [t.hex[0], t.hex[1], t.hex[2], 1]);
+      continue;
+    }
+    const base = raw.get(t.of);
+    if (!base || !("hex" in base)) throw new Error(`--${name} tints --${t.of}, which isn't a hex colour`);
+    out.set(name, [base.hex[0], base.hex[1], base.hex[2], t.alpha]);
+  }
+  return out;
+}
+
+const lightRaw = parseBlock(css.match(/^:root\s*\{([\s\S]*?)\n\}/m)![1]);
+const light = resolve(lightRaw);
+const dark = resolve(
+  new Map([
+    ...lightRaw,
+    ...parseBlock(css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([\s\S]*?)\}/)![1]),
+  ]),
+);
 
 function over([r, g, b, a]: Rgba, under: number[]): number[] {
   return [r, g, b].map((c, i) => Math.round(c * a + under[i] * (1 - a)));
@@ -52,13 +74,13 @@ for (const [theme, tokens] of [
   for (const tone of ["muted", "warning", "danger"]) {
     const text = rgb(tokens, tone);
     const tint = tokens.get(`${tone}-soft`)!;
-    for (const ground of ["background", "surface", "surface-raised"]) {
+    for (const ground of ["background", "surface"]) {
       const base = rgb(tokens, ground);
       rows.push({ name: `${theme}: ${tone} badge over ${ground}`, ratio: contrast(text, over(tint, base)) });
     }
   }
   // A .warning-card / .danger-card's tint replaces the card's own background,
-  // so it sits over whatever is behind the card: the page, or a raised section.
+  // so it sits over whatever is behind the card: the page, or a section card.
   // Its badges (its own tone, or a neutral one beside it) and its muted
   // .card-meta text sit on that tint.
   const muted = rgb(tokens, "muted");
@@ -66,7 +88,7 @@ for (const [theme, tokens] of [
   for (const cardTone of ["warning", "danger"]) {
     const cardText = rgb(tokens, cardTone);
     const cardTint = tokens.get(`${cardTone}-soft`)!;
-    for (const ground of ["background", "surface-raised"]) {
+    for (const ground of ["background", "surface"]) {
       const card = over(cardTint, rgb(tokens, ground));
       const where = `in a ${cardTone} card over ${ground}`;
       rows.push({ name: `${theme}: ${cardTone} badge ${where}`, ratio: contrast(cardText, over(cardTint, card)) });

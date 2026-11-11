@@ -8,6 +8,7 @@ import UIKit
 // before the webview loads its first URL.
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(SecureClipboardPlugin())
         bridge?.registerPluginInstance(ServerConfigPlugin())
         bridge?.registerPluginInstance(IntentsPlugin())
     }

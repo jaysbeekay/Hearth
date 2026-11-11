@@ -137,6 +137,34 @@ export interface CurrencyFormatOptions {
   showCode?: boolean;
 }
 
+// How many decimals a currency's amounts have: 2 for AUD, 0 for JPY, 3 for
+// KWD. 2 when there's no currency or it isn't a valid code.
+function currencyMinorUnits(currency: string | null | undefined): number {
+  if (!currency) return 2;
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+
+/**
+ * A saved money amount as a form field's starting value, padded to the
+ * currency's decimals (two when no currency is given): amounts are stored as
+ * floats, so 510.10 comes back as 510.1 and would otherwise show in the field
+ * without its trailing zero.
+ *
+ * Display only, and it never rounds: the padded text is used only when it
+ * reads back as exactly the stored number, so saving the form untouched
+ * writes the same value. Anything else (12.345 in AUD, float noise such as
+ * 0.1 + 0.2) is shown as stored.
+ */
+export function moneyInputValue(amount: number | null | undefined, currency?: string | null): string {
+  if (amount == null) return "";
+  const padded = amount.toFixed(currencyMinorUnits(currency));
+  return Number(padded) === amount ? padded : String(amount);
+}
+
 export function formatCurrency(
   amount: number | null | undefined,
   currency: string,

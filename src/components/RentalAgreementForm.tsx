@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyInputValue } from "@/lib/utils";
 import { useActionState, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import type { RentalAgreementModel } from "@/generated/prisma/models";
@@ -132,7 +133,7 @@ export function RentalAgreementForm({
             min={0}
             step="0.01"
             required
-            defaultValue={state?.values?.weeklyRent ?? agreement?.weeklyRent ?? ""}
+            defaultValue={state?.values?.weeklyRent ?? moneyInputValue(agreement?.weeklyRent, agreement?.currency)}
             placeholder="e.g. 650"
             className={inputClass}
           />
@@ -173,7 +174,7 @@ export function RentalAgreementForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.bondAmount ?? agreement?.bondAmount ?? ""}
+            defaultValue={state?.values?.bondAmount ?? moneyInputValue(agreement?.bondAmount, agreement?.currency)}
             placeholder="e.g. 2600"
             className={inputClass}
           />

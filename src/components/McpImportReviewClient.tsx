@@ -29,7 +29,7 @@ export interface ImportProposalView {
 const KIND_LABELS: Record<ImportProposalView["kind"], string> = {
   CONTRACT: "Contract",
   PRODUCT: "Product",
-  INVENTORY_ITEM: "Inventory item",
+  INVENTORY_ITEM: "Item",
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;

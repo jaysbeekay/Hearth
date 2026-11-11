@@ -13,7 +13,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Card } from "@/components/ui/Card";
-import { emptyStateClass } from "@/lib/ui";
+import { emptyStateClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
@@ -62,7 +62,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
 
       {taxDeductibleSummary.length > 0 && (
         <Card>
-          <h2 className="mb-3 font-medium">Tax-deductible spending by financial year</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Tax-deductible spending by financial year</h2>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
               <div key={`${label}|${currency}`}>
