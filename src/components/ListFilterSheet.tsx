@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
-import { buttonClass, sheetClass } from "@/lib/ui";
+import { buttonClass, sheetClass, sectionHeadingClass } from "@/lib/ui";
 
 /**
  * #365 — below `md`, a list's selects and filter chips move behind one
@@ -57,7 +57,7 @@ export function ListFilterSheet({
           "max-h-[90dvh] space-y-4 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]",
         )}
       >
-        <h2 id={titleId} className="font-medium">
+        <h2 id={titleId} className={sectionHeadingClass()}>
           Filters
         </h2>
         {children}

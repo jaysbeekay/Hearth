@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { createClient, type Client } from "@libsql/client";
 import { ADMIN_AUTH_FILE, DATABASE_URL } from "../env";
+import { stubPushManager } from "../pushStub";
 
 // #400 — role gates actions, not visibility. A READONLY member sees every
 // household record, but none of the controls that write one: no Add, Edit,
@@ -66,7 +67,7 @@ const WRITE_BUTTON =
 // Links that lead to a write: by name for the actions whose target is the
 // record itself, and by href for every create, edit and import page.
 const WRITE_LINK =
-  /^(Edit|Renew|Renew or cancel|Set the new end date|Set the new lease end|Update tenancy|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Configure reminders|Add.*|New .*|Import CSV)$/;
+  /^(Edit|Renew|Renew or cancel|Set the new end date|Set the new lease end|Update tenancy|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Turn on reminders|Add.*|New .*|Import CSV)$/;
 const WRITE_HREF = 'a[href$="/new"], a[href*="/new?"], a[href$="/edit"], a[href$="/import"], a[href="/import"]';
 // A form bound to a server action carries Next's $ACTION_ hidden inputs.
 // Plain GET forms (search, export, list filters) are the only forms a
@@ -383,16 +384,55 @@ test.describe("read-only member (#400)", () => {
     const main = page.locator("main");
 
     await page.goto("/settings");
-    await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
+    await expect(main.getByText("Profile", { exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Save changes" })).toBeVisible();
+    await expect(main.getByRole("link", { name: /^Passkeys/ })).toBeVisible();
+    // Each row drops down in place to edit.
+    await main.getByText("Password", { exact: true }).click();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
-    await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
+    await main.getByText("Two-factor authentication", { exact: true }).click();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();
 
     await page.goto("/calendar");
     await expect(main.getByRole("button", { name: "Subscribe in your calendar" })).toBeVisible();
 
     await page.context().close();
+  });
+
+  // #375 — push on a member's own device is theirs to turn on, read-only or
+  // not; sending a test email or ntfy notification is a write, so those
+  // buttons don't show. ntfy is set up for the household here (the e2e
+  // environment has none) so the hidden button is a real check.
+  test("Turn on reminders lets a read-only member turn push on and off, with no test sends", async ({ browser }) => {
+    const topic = `e2e-readonly-${stamp}`;
+    const existing = await db.execute({ sql: "SELECT value FROM app_settings WHERE key = 'ntfy.topic'", args: [] });
+    const seeded = existing.rows.length === 0 || !existing.rows[0].value;
+    if (seeded) {
+      await db.execute({
+        sql: "INSERT INTO app_settings (key, value, encrypted, updatedAt) VALUES ('ntfy.topic', ?, 0, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        args: [topic, new Date().toISOString()],
+      });
+    }
+    const page = await signIn(browser, RO_EMAIL, RO_PASSWORD);
+    try {
+      await stubPushManager(page);
+      await page.goto("/reminders");
+      await expect(page).toHaveURL(/\/reminders$/);
+      const main = page.locator("main");
+      await expect(main.getByRole("heading", { name: "Turn on reminders", level: 1 })).toBeVisible();
+      if (seeded) await expect(main).toContainText(topic);
+      await expect(main.getByRole("button", { name: /^Send test/ })).toHaveCount(0);
+
+      const device = page.getByTestId("push-device");
+      await device.getByRole("button", { name: "Notify this device" }).click();
+      await expect(device).toContainText("Push reminders are on for this device.");
+      await expect(main).not.toContainText(READ_ONLY_ERROR);
+      await device.getByRole("button", { name: "Turn off" }).click();
+      await expect(device).toContainText("Get reminders as notifications on this device.");
+    } finally {
+      await page.context().close();
+      if (seeded) await db.execute({ sql: "DELETE FROM app_settings WHERE key = 'ntfy.topic'", args: [] });
+    }
   });
 
   test("an Archived Vehicle and Property show a read-only member the notice but no Archive or Restore (#355)", async ({ browser }) => {

@@ -13,6 +13,7 @@ import {
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { SubmitButton } from "@/components/SubmitButton";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailField as Detail } from "@/components/DetailField";
 import { AddDocumentButton } from "@/components/AddDocumentButton";
@@ -26,8 +27,9 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, menuItemClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
 
 function reconcile(
   periodStart: Date | null,
@@ -74,6 +76,12 @@ function findActiveAgreement(
   );
 }
 
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("property", id, (name) => `Tenancy · ${name}`, "Tenancy");
+}
+
 export default async function RentalOverviewPage({
   params,
 }: {
@@ -90,7 +98,7 @@ export default async function RentalOverviewPage({
         rentalAgreements: { where: { deletedAt: null }, include: { contract: true }, orderBy: { createdAt: "desc" } },
         rentalStatements: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           orderBy: { periodStart: "desc" },
         },
       },
@@ -165,7 +173,7 @@ export default async function RentalOverviewPage({
       {(property.isRented || agreements.length > 0) && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">Tenancies</h2>
+            <h2 className={sectionHeadingClass()}>Tenancies</h2>
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
@@ -224,7 +232,7 @@ export default async function RentalOverviewPage({
                                 parentId: property.id,
                                 label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
                               }}
-                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Household settings → Recently deleted."
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -248,7 +256,7 @@ export default async function RentalOverviewPage({
                     <Detail label="Added" value={formatTimestamp(ag.createdAt, dateFormat, displayTimeZone)} />
                   </dl>
                   {ag.notes && (
-                    <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{ag.notes}</p>
+                    <p className={proseClass("mt-3 whitespace-pre-wrap")}>{ag.notes}</p>
                   )}
 
                   <div className="mt-4 border-t border-border pt-4">
@@ -274,12 +282,9 @@ export default async function RentalOverviewPage({
                         {canWrite && (
                           <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
                             <input type="hidden" name="contractId" value="" />
-                            <button
-                              type="submit"
-                              className={buttonClass("secondary")}
-                            >
+                            <SubmitButton variant="secondary" pendingText="Unlinking…">
                               Unlink
-                            </button>
+                            </SubmitButton>
                           </form>
                         )}
                       </div>
@@ -304,12 +309,9 @@ export default async function RentalOverviewPage({
                             ))}
                           </select>
                         </SelectWrapper>
-                        <button
-                          type="submit"
-                          className={buttonClass("secondary")}
-                        >
+                        <SubmitButton variant="secondary" pendingText="Linking…">
                           Link
-                        </button>
+                        </SubmitButton>
                       </form>
                     )}
                   </div>
@@ -324,7 +326,7 @@ export default async function RentalOverviewPage({
       {(property.isRented || agreements.length > 0) && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">Rental statements</h2>
+            <h2 className={sectionHeadingClass()}>Rental statements</h2>
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/statements/new`}
@@ -395,7 +397,7 @@ export default async function RentalOverviewPage({
                                   parentId: property.id,
                                   label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
                                 }}
-                                confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                                confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                                 className={menuItemClass({ destructive: true })}
                               >
                                 <Trash2 size={16} />
@@ -441,7 +443,7 @@ export default async function RentalOverviewPage({
                     </div>
 
                     {stmt.notes && (
-                      <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{stmt.notes}</p>
+                      <p className={proseClass("mt-3 whitespace-pre-wrap")}>{stmt.notes}</p>
                     )}
 
                     {(canWrite || stmt.documents.length > 0) && (
@@ -459,6 +461,7 @@ export default async function RentalOverviewPage({
                           <DocumentList
                             kind="RENTAL_STATEMENT"
                             ownerId={stmt.id}
+                            ownerName={`statement ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`}
                             trashedLinks={trashedLinks.get(stmt.id)}
                             documents={stmt.documents}
                           />

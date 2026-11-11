@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contentDisposition } from "@/lib/documents/inlineView";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readItemDocument } from "@/lib/storage";
@@ -21,11 +22,10 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const buffer = await readItemDocument(doc.itemId, doc.storedName);
-  const safeFilename = doc.filename.replace(/[\r\n"]/g, "_");
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": doc.mimeType,
-      "Content-Disposition": `attachment; filename="${safeFilename}"`,
+      "Content-Disposition": contentDisposition(doc.mimeType, doc.filename, false),
       "Content-Length": String(doc.size),
     },
   });

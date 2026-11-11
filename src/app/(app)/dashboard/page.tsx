@@ -33,20 +33,23 @@ import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const [enabledModules, { preferredCurrency, region }, session, smtpConfigured, ntfyConfigured] =
+  const [enabledModules, { preferredCurrency, region }, session, smtpConfigured, ntfyConfigured, pushDevices] =
     await Promise.all([
       getEnabledModuleKeys(),
       getUserPreferences(),
       auth(),
       isSmtpConfigured(),
       isNtfyConfigured(),
+      // #375 — a device with Web Push on is a delivery channel too.
+      prisma.pushSubscription.count(),
     ]);
+  const remindersConfigured = smtpConfigured || ntfyConfigured || pushDevices > 0;
 
   const [contracts, products, vehicles, trips, properties, memberCount, documentStats, due] =
     await Promise.all([
@@ -164,7 +167,7 @@ export default async function DashboardPage() {
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
     ...buildMissingDetailsItems(missingDetails),
-    ...(session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured
+    ...(session?.user.role === "ADMIN" && !remindersConfigured
       ? [buildReminderNudgeItem()]
       : []),
   ]);
@@ -212,7 +215,7 @@ export default async function DashboardPage() {
         <OnboardingChecklist
           enabledModules={[...enabledModules]}
           memberCount={memberCount}
-          remindersConfigured={smtpConfigured || ntfyConfigured}
+          remindersConfigured={remindersConfigured}
         />
       ) : (
         <p className="text-sm text-muted">
@@ -234,13 +237,13 @@ export default async function DashboardPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-base font-medium">Needs attention</h2>
+        <h2 className={sectionHeadingClass()}>Needs attention</h2>
         <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} canWrite={canWrite} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-medium">Upcoming trips</h2>
+          <h2 className={sectionHeadingClass()}>Upcoming trips</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {upcomingTrips.map((trip) => (
               <TripCard key={trip.id} trip={trip} />

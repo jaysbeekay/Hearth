@@ -1,7 +1,23 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buttonClass, cardClass, pillClass, bannerClass, pageShellClass, mergeClasses } from "@/lib/ui";
+import {
+  buttonClass,
+  cardClass,
+  pillClass,
+  bannerClass,
+  pageShellClass,
+  mergeClasses,
+  inputClass,
+  selectClass,
+  textareaClass,
+  reviewFieldClass,
+  disabledClass,
+  dimmedClass,
+  offlineClass,
+  chipClass,
+  toneButtonClass,
+} from "@/lib/ui";
 
 // #411 — the shared UI rules, checked against the source so a new page
 // can't quietly bring back a second radius, a bold weight or a hand-rolled
@@ -31,9 +47,23 @@ function offenders(test: (s: string) => boolean, { skip = [UI_FILE] }: { skip?: 
 }
 
 describe("type, shape and motion", () => {
-  it("uses one radius, two weights, five sizes and sentence case", () => {
-    const banned = /\b(rounded-xl|rounded-md|shadow-(md|lg|xl|stripe)|font-(semibold|bold)|text-(lg|3xl)|text-\[\d+px\]|uppercase)\b/;
+  it("uses one radius, five sizes and sentence case", () => {
+    const banned = /\b(rounded-xl|rounded-md|shadow-(md|lg|xl|stripe)|font-bold|text-(lg|3xl)|text-\[\d+px\]|uppercase)\b/;
     expect(offenders((s) => banned.test(s), { skip: [] })).toEqual([]);
+  });
+
+  it("keeps weight 600 for section headings, set only in lib/ui (#558)", () => {
+    expect(offenders((s) => /\bfont-semibold\b/.test(s))).toEqual([]);
+  });
+
+  it("styles section <h2>s through sectionHeadingClass (#558)", () => {
+    // Small muted group labels (text-sm text-muted) may stay at 500.
+    const handRolled = files.flatMap((f) =>
+      [...f.text.matchAll(/<h2\b[^>]*className="([^"]*)"/g)]
+        .filter((m) => /\bfont-medium\b/.test(m[1]) && !(/\btext-sm\b/.test(m[1]) && /\btext-muted\b/.test(m[1])))
+        .map((m) => `${f.file}: ${m[1]}`),
+    );
+    expect(handRolled).toEqual([]);
   });
 
   it("sets no letter-spacing", () => {
@@ -51,6 +81,26 @@ describe("icons", () => {
       [...f.text.matchAll(/size=\{(\d+)\}/g)].map((m) => ({ file: f.file, size: Number(m[1]) })),
     );
     expect(sizes.filter((s) => s.size !== 16 && s.size !== 20)).toEqual([]);
+  });
+});
+
+describe("submit buttons wait for hydration (#609)", () => {
+  // A click before hydration submits a server-action form natively, which
+  // the server refuses (Origin: null), so the click is lost. SubmitButton is
+  // disabled until hydrated; a hand-rolled submit button must be too, or
+  // unreachable before hydration. Each allowed file says why.
+  const ALLOWED: Record<string, string> = {
+    "components/SubmitButton.tsx": "the guard itself",
+    "components/SaveChangesGroup.tsx": "GroupedSubmit's hidden button checks useHasMounted",
+    "components/ChatComposer.tsx": "disabled while the box is empty, as it is when served",
+    "components/SnoozeButton.tsx": "inside a Dialog, which only opens after hydration",
+    "components/ExtractionReviewNote.tsx": "only renders after a client-side extraction",
+  };
+
+  it("has no other type=\"submit\" buttons", () => {
+    const allowed = Object.keys(ALLOWED).map((f) => f.split("/").join(path.sep));
+    const raw = files.filter((f) => /type="submit"/.test(f.text) && !allowed.includes(f.file)).map((f) => f.file);
+    expect(raw).toEqual([]);
   });
 });
 
@@ -98,6 +148,8 @@ describe("lib/ui", () => {
       expect(cls).toContain("rounded-lg");
     }
     expect(buttonClass("secondary", { icon: true })).toContain("w-9");
+    // The icon button's px-0 replaces the base px-3, or the icon is squeezed.
+    expect(buttonClass("quiet", { icon: true }).split(" ")).not.toContain("px-3");
   });
 
   it("gives cards p-4 and no shadow", () => {
@@ -116,6 +168,61 @@ describe("lib/ui", () => {
     expect(pageShellClass("detail")).toContain("max-w-3xl");
     expect(pageShellClass("form")).toContain("max-w-2xl");
     expect(pageShellClass("auth")).toContain("max-w-sm");
+  });
+});
+
+describe("disabled controls (#620)", () => {
+  it("dim to 50% from the shared classes", () => {
+    const buttons = [
+      ...(["primary", "secondary", "quiet", "danger"] as const).map((v) => buttonClass(v)),
+      chipClass(false),
+      chipClass(true),
+      toneButtonClass("neutral"),
+    ];
+    for (const cls of buttons) {
+      expect(cls.split(" ")).toContain("disabled:opacity-50");
+      expect(cls.split(" ")).toContain("aria-disabled:opacity-50");
+    }
+    for (const cls of [inputClass, selectClass, textareaClass, reviewFieldClass("extracted"), reviewFieldClass("ai")]) {
+      expect(cls.split(" ")).toContain("disabled:opacity-50");
+    }
+    expect(disabledClass).toBe("disabled:opacity-50");
+    expect(dimmedClass).toBe("opacity-50");
+  });
+
+  it("keeps offline-unavailable actions fainter, at 40%, even when aria-disabled", () => {
+    expect(offlineClass).toBe("opacity-40");
+    for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
+      const cls = buttonClass(variant, { online: false }).split(" ");
+      // An offline link is aria-disabled too, and [aria-disabled="true"]
+      // outranks a bare opacity-40, so the 50% variants must be gone.
+      expect(cls).toEqual(expect.arrayContaining(["opacity-40", "aria-disabled:opacity-40", "disabled:opacity-40"]));
+      expect(cls).not.toContain("aria-disabled:opacity-50");
+      expect(cls).not.toContain("disabled:opacity-50");
+    }
+  });
+
+  // Every opacity utility outside lib/ui, bare, with a variant, or with an
+  // arbitrary value. The ones here aren't an unavailable control.
+  const OPACITY_ALLOWED: { file: string; cls: string; why: string }[] = [
+    { file: "components/ChatThreadList.tsx", cls: "opacity-0", why: "delete button hidden until the row is hovered" },
+    { file: "components/ChatThreadList.tsx", cls: "group-hover:opacity-100", why: "delete button shown on row hover" },
+    { file: path.join("app", "(app)", "calendar", "page.tsx"), cls: "opacity-70", why: "a snoozed calendar event, still usable" },
+  ];
+
+  it("sets no disabled, dimmed or offline opacity outside lib/ui", () => {
+    const found = files
+      .filter((f) => f.file !== UI_FILE)
+      .flatMap((f) =>
+        strings(f.text).flatMap((s) =>
+          s
+            .split(/\s+/)
+            .filter((cls) => /(^|:)opacity-(\d+|\[)/.test(cls))
+            .filter((cls) => !OPACITY_ALLOWED.some((a) => a.file === f.file && a.cls === cls))
+            .map((cls) => `${f.file}: ${cls}`),
+        ),
+      );
+    expect(found).toEqual([]);
   });
 });
 

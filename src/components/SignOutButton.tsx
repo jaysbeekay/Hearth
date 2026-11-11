@@ -14,7 +14,15 @@ import {
   whenOfflineDataClaimed,
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, sectionHeadingClass } from "@/lib/ui";
+import {
+  currentPushSubscription,
+  deviceLabel,
+  pushOwnership,
+  restorePushAfterFailedSignOut,
+  unsubscribeIfStill,
+} from "@/lib/pushClient";
+import { refreshPushSubscription, savePushSubscription } from "@/lib/actions/push";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -63,19 +71,44 @@ export function SignOutButton({
     // Other tabs are told from the sign-in page once the session is really
     // gone (SignedOutCacheCleanup), not here, where they'd reload too early.
     await clearOfflineData();
+    // #375 — this device stops getting the signed-out member's Reminders.
+    // The server row goes with the session and the browser unsubscribes
+    // after; if the row survives (a failed delete, a session that had
+    // already expired), the push service's 410 on the next send removes it.
+    // A push already handed to the push service can still arrive; the
+    // service worker shows only a generic notice for it (pushGate.ts).
+    const push = await currentPushSubscription();
+    // Whether this device's push is this member's, so a failed sign-out
+    // below puts back only a row they had, never one they didn't turn on.
+    const ownership = push
+      ? await pushOwnership(() => refreshPushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() }))
+      : "not-own";
     try {
-      await logout();
+      await logout(push?.endpoint);
     } catch (err) {
       if (!isRedirect(err)) {
         // Still signed in after all: put back this tab's owner and the
         // service worker's session marker so offline use keeps working.
         await restoreOfflineSession();
+        // #375 — and this device's push row, in case the server deleted it
+        // before the answer was lost.
+        const pushKept =
+          !push ||
+          (await restorePushAfterFailedSignOut(ownership, () =>
+            savePushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() }),
+          ));
         setBusy(null);
         setPrompt(null);
-        showToast("Couldn't reach the server to sign out. Try again when you're back online.", "error");
+        showToast(
+          pushKept
+            ? "Couldn't reach the server to sign out. Try again when you're back online."
+            : "Couldn't reach the server to sign out. Try again when you're back online. If Reminders stop arriving here, turn them on again in Settings.",
+          "error",
+        );
         return;
       }
     }
+    if (push) await unsubscribeIfStill(push.endpoint);
     // A full page load, not a client-side navigation, so the router cache
     // and Back can't show the signed-out user's pages (#424 review).
     window.location.replace("/login");
@@ -173,7 +206,7 @@ export function SignOutButton({
         labelledBy="signout-unsynced-title"
         describedBy="signout-unsynced-text"
       >
-        <h2 id="signout-unsynced-title" className="text-base font-medium">
+        <h2 id="signout-unsynced-title" className={sectionHeadingClass()}>
           {unknown ? "Couldn't check for unsynced changes" : "Unsynced changes"}
         </h2>
         <p id="signout-unsynced-text" className="mt-2 text-sm text-foreground">
@@ -189,7 +222,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={close}
-            className={`${buttonClass("secondary")} disabled:opacity-50`}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>
@@ -197,7 +230,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={() => { void onDiscard(); }}
-            className={`${buttonClass("secondary", { destructive: true })} disabled:opacity-50`}
+            className={buttonClass("secondary", { destructive: true })}
           >
             {discardLabel}
           </button>

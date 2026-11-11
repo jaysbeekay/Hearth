@@ -6,9 +6,11 @@ import {
   broadcastSession,
   claimOfflineData,
   isSigningOut,
+  clearSignedOutMarker,
   markOfflineSession,
   onSessionBroadcast,
 } from "@/lib/offlineSession";
+import { readSession, refreshSessionMarker } from "@/lib/pushClient";
 
 // #424 — rendered at the top of the signed-in layout. Setting the owner
 // while rendering (not in an effect) means it's in place before any page's
@@ -45,6 +47,22 @@ export function OfflineSessionGuard({
     const expiresAt = Date.parse(expires);
     markOfflineSession(userId, Number.isNaN(expiresAt) ? Date.now() : expiresAt).catch(() => {});
   }, [userId, expires]);
+
+  // #375 — soft navigations keep this layout, and with it `expires`, while
+  // the session cookie rolls on with every request. A tab kept open for
+  // weeks would let the marker run out under a live session, and the
+  // service worker would then hold back this member's Reminders. So the
+  // marker is brought up to date whenever the tab comes back into view. A
+  // signed-out marker from the sign-in page goes as soon as this mounts.
+  useEffect(() => {
+    clearSignedOutMarker().catch(() => {});
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      refreshSessionMarker(userId, { readSession, mark: markOfflineSession }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [userId]);
 
   useEffect(() => {
     broadcastSession({ type: "signed-in", userId });

@@ -240,6 +240,23 @@ export function buildNtfyReminder(fullInput: ReminderInput): { headers: Record<s
   return { headers, body };
 }
 
+/**
+ * #375 — a Web Push notification. It reuses ntfy's wording (same
+ * no-tenant-name rule). The link is a path, not APP_URL: the service worker
+ * opens it on its own origin, so it works with APP_URL unset.
+ */
+export function buildPushReminder(input: ReminderInput): { title: string; body: string; url: string; tag: string } {
+  const { headers, body } = buildNtfyReminder({ ...input, appUrl: null });
+  const id = input.kind === "tenancy" ? (input.propertyId ?? input.id) : input.id;
+  return {
+    title: headers.Title,
+    body,
+    url: `/${recordPath(input.kind)}/${encodeURIComponent(id)}`,
+    // One notification per record and date: a newer Reminder replaces an older one.
+    tag: `hearth-${input.kind}-${input.id}-${input.vehicleField ?? (input.notice ? "notice" : "end")}`,
+  };
+}
+
 export function buildReminderWebhookBody(input: ReminderInput): Record<string, unknown> {
   return {
     event: `${input.kind}.expiring`,

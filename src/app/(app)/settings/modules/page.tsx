@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { compareLabels } from "@/components/nav-items";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { ModuleToggle } from "@/components/ModuleToggle";
 import { BackLink } from "@/components/BackLink";
@@ -31,7 +32,9 @@ export default async function ModulesPage() {
 
       <Card as="section">
         <ul className="divide-y divide-border">
-          {Object.values(MODULE_REGISTRY).map(({ key, label, description, icon: Icon }) => {
+          {Object.values(MODULE_REGISTRY)
+            .sort((a, b) => compareLabels(a.label, b.label))
+            .map(({ key, label, description, icon: Icon }) => {
             const enabled = enabledModules.has(key);
             return (
               <li key={key} className="flex items-start justify-between gap-3 py-3">

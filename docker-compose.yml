@@ -16,7 +16,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Push notifications via ntfy.sh (or a self-hosted instance — see the
       # commented-out "ntfy" service below). Topics on the public ntfy.sh
       # instance are unauthenticated by default and guessable by anyone who
@@ -29,6 +29,9 @@ services:
       # household's reminders. Push stays off until you set one.
       NTFY_TOPIC: ${NTFY_TOPIC:-}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}

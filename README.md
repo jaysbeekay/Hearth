@@ -19,7 +19,7 @@ Open `http://localhost:3000` — you'll be sent to `/setup` to create the first 
 | `DATABASE_URL` | SQLite path — defaults to `file:./data/app.db`, i.e. `/app/data/app.db` inside the container |
 | `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
 
-Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications via ntfy (Web Push to members' own browsers needs no setup), `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
 
 ## Deploy
 
@@ -81,7 +81,7 @@ security notes.
 - Attach documents (PDF/images/Word) to contracts or products — uploading a document
   auto-fills fields like provider, dates, and cost via AI/heuristic extraction
 - Configurable reminder thresholds per contract/product (e.g. 30/14/7/1 days before expiry)
-- Reminders via email (SMTP) and/or push notifications ([ntfy](https://ntfy.sh))
+- Reminders via email (SMTP), push notifications ([ntfy](https://ntfy.sh)), and/or Web Push to each member's own browsers and phones
 - Reminder health status per record — enabled, next reminder date, thresholds, delivery
   channel/status, last sent, last failure — plus a one-off "Send test reminder" action
 - Auto-filled fields from a scanned document require an explicit confirmation before
@@ -123,7 +123,7 @@ security notes.
 - AI extraction pre-fills service record details when you upload a receipt or invoice
 
 **Passkeys**
-- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → My account → Sign-in and security**
+- Register Face ID, Touch ID, or a security key as an alternative to your password from **My account → Passkeys**
 - Passkeys are per-user and opt-in — passwords continue to work normally
 - Signing in with a passkey appears as a second button on the login page
 - Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
@@ -174,13 +174,17 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
-| Settings — My account | Settings — Household |
+| My account | Household settings |
 | --- | --- |
-| ![Settings — My account](docs/screenshots/settings-personal.png) | ![Settings — Household](docs/screenshots/settings-household-tab.png) |
+| ![My account](docs/screenshots/settings-personal.png) | ![Household settings](docs/screenshots/settings-household-tab.png) |
 
 | Settings — Reminders & channels | Settings — reminder schedule |
 | --- | --- |
 | ![Settings — Reminders & channels](docs/screenshots/settings-reminders.png) | ![Settings — reminder schedule](docs/screenshots/settings-reminders-schedule.png) |
+
+| Turn on reminders | |
+| --- | --- |
+| ![Turn on reminders](docs/screenshots/turn-on-reminders.png) | |
 
 | Settings — Members | Settings — AI & privacy |
 | --- | --- |
@@ -197,6 +201,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | Documents | AI Assistant |
 | --- | --- |
 | ![Documents](docs/screenshots/documents.png) | ![Assistant](docs/screenshots/assistant.png) |
+
+| AI Assistant — side panel | |
+| --- | --- |
+| ![The Assistant docked beside the Contracts page](docs/screenshots/assistant-panel.png) | |
 
 | Mobile — dashboard | Form validation error |
 | --- | --- |
@@ -220,7 +228,7 @@ _The property detail screenshot was captured without network access, so it doesn
 
 | Contracts — dark | Settings — dark |
 | --- | --- |
-| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
+| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![My account in dark mode](docs/screenshots/settings-personal-dark.png) |
 
 | Mobile — contracts | Mobile — contract filters |
 | --- | --- |
@@ -319,7 +327,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Push notifications via ntfy.sh (or a self-hosted instance — see the
       # commented-out "ntfy" service below). Topics on the public ntfy.sh
       # instance are unauthenticated by default and guessable by anyone who
@@ -329,6 +337,9 @@ services:
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
@@ -510,7 +521,7 @@ its tool disappears on the next connection.
 | `get_contract` | Full details for one contract by id, including document metadata. |
 | `search_contracts` | Case-insensitive search across title, provider, contract number, and notes. |
 | `upcoming_renewals` | Contracts with a Due entry (notice deadline, then end date) within N days (default 30), soonest first. |
-| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the household currency (Settings → Household), or the first admin's preferred currency until one is set. May fetch current exchange rates (Yahoo Finance) to convert. |
+| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the household currency (Household settings), or the first admin's preferred currency until one is set. May fetch current exchange rates (Yahoo Finance) to convert. |
 | `whats_due` | Everything Due within N days (default 30): contracts, warranties and, when enabled, vehicle dates and tenancy lease ends. |
 | `list_products` | List tracked products/purchases and warranty status, optionally filtered by search text. |
 | `list_trips` *(Travel)* | List trips with segment count, optionally only ones that haven't ended yet. |
@@ -528,7 +539,7 @@ its tool disappears on the next connection.
   travel in cleartext. Reach the endpoint through the HTTPS compose file or
   your reverse proxy, or keep it on the LAN/VPN (e.g. Tailscale).
 - **Wrong tokens are throttled** per client address (10 per 15 minutes), and
-  each one is recorded in Settings → Security as "MCP request with a wrong
+  each one is recorded in Household settings → Security log as "MCP request with a wrong
   token", plus one "MCP requests throttled" when an address is locked out.
   Those log rows are capped at 30 per 15 minutes across all addresses, so a
   flood can't bury the rest of the log; the last row says logging paused.
@@ -657,7 +668,7 @@ bearer_token_env_var = "HEARTH_MCP_TOKEN"
 ```
 
 **Open WebUI** (v0.6.31 or later) supports MCP over streamable HTTP natively.
-As an admin, open Settings → Admin → Integrations, and under External Tool
+As an admin, open Household settings → Integrations, and under External Tool
 Servers add a connection with Type **MCP (Streamable HTTP)**, the Hearth URL,
 and Auth **Bearer** with your token in the Key field (leaving Key empty sends
 an empty header and Hearth answers 401). If Open WebUI runs in Docker on the
@@ -729,10 +740,40 @@ instance, point `OLLAMA_BASE_URL` at the host's LAN IP or
 fields are ever sent anywhere else — only to the Ollama server you configure,
 or to a cloud AI provider you've explicitly opted into below.
 
+### Searching inside documents
+
+Search also finds a document by a word inside it: Contract documents,
+Warranty invoices, the Inbox, and the documents on Service records,
+Maintenance records, Trip segments, Rental statements and Trades. Inventory
+item documents are found by filename. A Document with several versions
+shows once, as its latest version, or as an older version (saying so) when
+only that one matches. The same local text extraction
+(stage 1 above) runs in the background on each PDF or image when it's
+uploaded; nothing is sent anywhere. Documents filed before this existed are
+worked through by a background catch-up, 25 at a time, when the server
+starts and then every hour until none are left. It runs at a lower priority
+than every other background job, so a Reminder check or backup is at most
+queued behind the one extraction already running, and `POST /api/cron`
+leaves it to the server's own job runner.
+
+Without `pdftotext`, `pdftoppm` and `tesseract` (the Docker image has them)
+documents are still found by filename. One that needed a missing tool is
+picked up again once that tool is installed (for a PDF, once `pdftoppm` and
+`tesseract` are). A document that ran fine but had no text, or kept failing,
+isn't retried.
+
+Rolling back to a release from before this: older builds ignore the new
+columns, and any text-extraction jobs still queued for these record types
+end as failed jobs, which is harmless; upgrading again picks those documents
+up. To remove the columns as well, first drop the five `fts_*_documents_au`
+triggers that mention `extractedText` (or re-create them from
+`20260828000000_add_document_search_fts`), since SQLite won't drop a column
+a trigger uses.
+
 ## Bring your own AI key
 
 An admin can optionally connect the household's own API key for a cloud AI provider —
-Anthropic Claude, Google Gemini, or OpenAI — from **Settings → Household → AI &
+Anthropic Claude, Google Gemini, or OpenAI — from **Household settings → AI &
 privacy** (admin only). When configured, it's used as a third extraction stage: if the
 local heuristics can't confidently parse an uploaded document, the document's
 raw bytes (PDF or photo, not the OCR'd text) are sent directly to your chosen
@@ -881,7 +922,7 @@ on a schedule. Each backup:
 3. Uploads the encrypted file to a single active destination — **S3-
    compatible object storage** (AWS S3, Backblaze B2, Cloudflare R2, MinIO,
    etc.), **SFTP**, or a **local filesystem path** — chosen from a
-   "Backup destination" dropdown in Settings → Household → Backups. Only one
+   "Backup destination" dropdown in Household settings → Backups. Only one
    destination runs at a time; switching the dropdown doesn't discard the
    other destinations' previously-saved credentials, it just makes them
    inactive.
@@ -890,7 +931,7 @@ on a schedule. Each backup:
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
 to write an unencrypted backup, even locally. With encryption configured,
-pick a destination and fill in its fields in Settings → Household → Backups
+pick a destination and fill in its fields in Household settings → Backups
 (`BACKUP_S3_*`, `BACKUP_SFTP_*`, `BACKUP_LOCAL_PATH` env vars just
 pre-populate those fields, they don't select the destination). See
 [`.env.example`](.env.example) for the full list of backup-related
@@ -898,7 +939,7 @@ variables and their defaults.
 
 Backups run on `BACKUP_CRON_SCHEDULE` (default daily at 03:00) via the
 same built-in scheduler used for reminders, can be triggered manually from
-**Settings → Household → Backups** (admin only), or triggered externally via
+**Household settings → Backups** (admin only), or triggered externally via
 `POST /api/backup` with header `x-cron-secret: <CRON_SECRET>` (same secret
 as `/api/cron`; leaving `CRON_SECRET` unset disables both endpoints).
 Recent backup runs (destination, status, size, any error) are shown on
@@ -920,7 +961,7 @@ The app can notify other platforms — e.g. [Home Assistant](https://www.home-as
 or an MCP agent — when a contract, product warranty, vehicle date or
 tenancy's lease end is approaching,
 on the same schedule and thresholds as email/push reminders. Manage
-endpoints from **Settings → Household → Integrations** (admin only): add a URL, optionally
+endpoints from **Household settings → Integrations** (admin only): add a URL, optionally
 set a signing secret, enable/disable, send a test delivery, and review the
 last 10 deliveries (success/failure, HTTP status, timestamp).
 
@@ -1013,6 +1054,7 @@ for the full list with defaults. Notable ones:
 | `SQLITE_JOURNAL_MODE` | Optional. `DELETE` (default) or `WAL`. WAL lets pages keep loading while a large write commits. Only turn it on when `./data` is on a local disk: on a NAS share (NFS/SMB) or a Windows folder under WSL2 (`/mnt/c`) it can corrupt the database or stop the app starting. Under WAL the database also keeps `app.db-wal` and `app.db-shm` files; see the backup notes above. Setting `DELETE` again switches an existing database back on the next start. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
+| `VAPID_SUBJECT` | Optional. The contact (`mailto:…` or `https://…`) Web Push services see on every push. Defaults to `APP_URL` when that's https, otherwise the first admin's email address. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
@@ -1030,7 +1072,7 @@ for the full list with defaults. Notable ones:
 | `BLOCK_PRIVATE_NETWORK_TARGETS` | Optional. Set to `true` to refuse outbound requests (webhooks, ntfy, Ollama) to addresses on your own network. Off by default — LAN IPs and local hostnames are supported destinations. Cloud instance-metadata addresses are always refused either way. |
 | `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
-| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in the backup destination dropdown under Settings → Household → Backups to activate it. See "Database backups" above. |
+| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in the backup destination dropdown under Household settings → Backups to activate it. See "Database backups" above. |
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
@@ -1050,9 +1092,39 @@ already notified — so adding a contract or product that's already past
 several thresholds only sends one catch-up reminder per channel, not one per
 threshold.
 
+Web Push goes to every device any member has turned it on for, read-only
+members included. That's the same household-wide model as ntfy, and the same
+records every member can already open in the app; the sent log is per record
+and channel, not per device. Removing a device, or a member signing out on
+it, stops the sends after that one, not a send already running: a device can
+still get the notification that was being sent when it was removed.
+Signing out drops the device's row on the server and then unsubscribes the
+browser; if the server delete fails, the unsubscribe still happens and the
+row goes on the next send, when the push service reports the device gone.
+A browser shows a Reminder's content only while it last saw the member it's
+for signed in there, as of their last page load or return to the tab, and
+that session hasn't run out. Otherwise it shows an "Open Hearth to see it"
+notice with none of the Reminder's content. It drops its subscription once
+it's clear the session is over: the sign-in page confirmed nobody is signed
+in, someone else signed in, or the session ran out more than a week ago.
+Opening Hearth after a session ends lands on the sign-in page, which drops
+the subscription as soon as it can reach the server (unless someone has
+signed in again in another tab meanwhile), so push has to be turned on again
+after signing back in. Changing or resetting a password turns push off on
+all of that member's devices, though a push the push service had already queued
+(Hearth asks them to keep one for up to a day) can still arrive and show on
+a browser that hasn't loaded Hearth since. A session ended on the server by
+a role change isn't seen until that browser next loads Hearth either.
+
+Rolling back to a release from before Web Push: delete the push rows from the
+sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
+since older builds don't know that channel and fail reading those rows.
+Leave the `push_subscriptions` table and its `_prisma_migrations` row in
+place: older builds ignore both, and dropping either breaks upgrading again.
+
 ## Security notes
 
-- New users can only be created by an existing admin (Settings → Household → Members) —
+- New users can only be created by an existing admin (Household settings → Members) —
   there's no public registration, since this app stores sensitive personal
   and financial data.
 - **First-run setup is a race you can lose.** Until the first account exists,
@@ -1185,12 +1257,26 @@ Docker Hub jobs run in a GitHub environment named `release` on tag runs:
    rule `v*`, so only release tags can read its secrets.
 3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
    `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
-   `DOCKERHUB_TOKEN` into the environment's secrets.
+   `DOCKERHUB_TOKEN` into the environment's secrets, along with the iOS
+   signing and App Store Connect secrets once the first iOS proof run (from
+   `main`) has passed — see the iOS doc below.
 4. Delete the repository-level copies of those secrets.
 
 Until step 4 the jobs keep working from repo-level secrets. Once done, a
 manual `docker-publish.yml` dispatch from `main` can no longer log in to
 Docker Hub; run it against a tag.
+
+`ios-testflight.yml` signs the Capacitor shell and uploads it to TestFlight
+on every pushed `v*` tag, pre-releases included, with the version taken from
+the tag (an `-rc.N` suffix is dropped); a green run
+means App Store Connect accepted the upload (processing then takes a few
+minutes). It is **not yet** part of `release.yml`'s `artifacts` job, so a
+failed or unconfigured iOS build doesn't fail the release, and a tag created by
+`release.yml`'s dispatch needs the iOS workflow run manually against it. It
+joins the `artifacts` job only after a signed proof run has reached
+TestFlight.
+See [`docs/deployment/ios-testflight.md`](./docs/deployment/ios-testflight.md)
+for the signing and App Store Connect secrets it needs.
 
 ## License
 

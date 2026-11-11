@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { scrollBehavior } from "@/lib/reducedMotion";
 import { ProposedActionCard, type ProposedAction } from "@/components/ProposedActionCard";
 
 export interface DisplayMessage {
@@ -26,10 +27,13 @@ export function ChatMessageList({
   toolStatus: string | null;
   onActionResolved: (messageId: string, actionId: string, result: { success: boolean; message: string }) => void;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
+  // Scrolls this list only: scrollIntoView would also scroll the page behind
+  // the side panel. Instant under reduced motion (#617).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = listRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: scrollBehavior() });
   }, [messages, toolStatus]);
 
   if (messages.length === 0) {
@@ -41,7 +45,7 @@ export function ChatMessageList({
   }
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-4">
+    <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto p-4">
       {messages.map((message) => (
         <div
           key={message.id}
@@ -61,7 +65,7 @@ export function ChatMessageList({
                 ? (toolStatus ?? "Thinking…")
                 : message.content}
               {message.streaming && message.content && (
-                <span className="ml-0.5 inline-block w-1.5 animate-pulse">▍</span>
+                <span className="ml-0.5 inline-block w-1.5 animate-pulse motion-reduce:animate-none">▍</span>
               )}
             </div>
             {message.proposedActions?.map((action) => (
@@ -74,7 +78,6 @@ export function ChatMessageList({
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 }

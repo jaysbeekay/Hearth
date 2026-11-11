@@ -139,3 +139,23 @@ export function showsThumbnail(doc: { category: string | null; mimeType: string 
 export function olderVersionShowsStar(doc: { isImportant: boolean }): boolean {
   return doc.isImportant;
 }
+
+/**
+ * Alt text for a previewed image (#617): what the Document is and the record
+ * it belongs to — never the raw filename, which reads as noise ("IMG_4021.jpg")
+ * to a screen reader. `typeLabel` is the Document type's label (Invoice, Photo…).
+ */
+export function documentPreviewAlt({
+  typeLabel,
+  ownerName,
+}: {
+  typeLabel?: string | null;
+  ownerName?: string | null;
+}): string {
+  // Mid-sentence, so lower case ("Preview of invoice for …"); the "Other"
+  // type says nothing, so it reads as plain "document".
+  const type = typeLabel?.trim().toLowerCase();
+  const what = type && type !== "other" ? type : "document";
+  const owner = ownerName?.trim();
+  return owner ? `Preview of ${what} for ${owner}` : `Preview of ${what}`;
+}

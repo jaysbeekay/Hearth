@@ -14,6 +14,7 @@ import {
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ContractInput } from "@/lib/validation/contract";
+import { logExtractionConfirmed } from "@/lib/documents/extractionAudit";
 import type { Contract, Prisma } from "@/generated/prisma/client";
 import { pickTermDocument } from "@/lib/contractTerms";
 
@@ -174,18 +175,25 @@ export async function confirmContractExtractionCommand(
 ) {
   const reviewedAt = new Date();
   const pendingWhere = { ownerType: "CONTRACT" as const, ownerId: id, reviewedAt: null };
+  let reviewedFieldNames: string[] = [];
+  let wasAwaitingReview = false;
   await writeContract(id, actorId, options, {
-    patch: async (tx) => {
-      let reviewed = corrections;
-      if (typeof reviewed === "function") {
-        const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
-        reviewed = reviewed(new Set(pending.map((f) => f.fieldName)));
-      }
+    patch: async (tx, existing) => {
+      const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
+      reviewedFieldNames = pending.map((f) => f.fieldName);
+      wasAwaitingReview = pending.length > 0;
+      const reviewed = typeof corrections === "function" ? corrections(new Set(reviewedFieldNames)) : corrections;
       return { ...reviewed, extractionPending: false, extractionConfirmedAt: reviewedAt };
     },
     alsoInTransaction: (tx) =>
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
+  // Who confirmed it is audit detail for admins (Settings > Security log),
+  // not something the record page shows. Only a confirmation that reviewed
+  // pending fields is logged, so re-confirming can't flood the log and no
+  // entry has an empty field list. Logging is best-effort: it runs after the
+  // confirmation has committed and never throws (see logExtractionConfirmed).
+  if (wasAwaitingReview) await logExtractionConfirmed({ ownerType: "CONTRACT", ownerId: id, actorId, fieldNames: reviewedFieldNames });
   return { id };
 }
 

@@ -7,6 +7,7 @@ import {
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
 import { readNdjsonStream } from "@/lib/ai/chat/streamParsing";
+import { forwardAbort } from "@/lib/ai/chat/abort";
 import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 // Ollama's /api/chat mirrors OpenAI's chat shape closely, with two
@@ -38,7 +39,7 @@ function toOllamaMessages(system: string, messages: ChatTurn[]) {
 // the caller's chat-settings model over Settings > System's Ollama model,
 // since that system default is tuned for extraction's vision use case, not
 // chat's tool-calling/text use case.
-export const callOllamaChat: ChatProviderCall = async ({ model, system, messages, tools }, onDelta) => {
+export const callOllamaChat: ChatProviderCall = async ({ model, system, messages, tools, signal }, onDelta) => {
   const ollama = await getOllamaConfig();
   if (!ollama.baseUrl) {
     return {
@@ -50,6 +51,7 @@ export const callOllamaChat: ChatProviderCall = async ({ model, system, messages
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
+  const stopForwardingAbort = forwardAbort(signal, controller);
   try {
     const ollamaUrl = `${ollama.baseUrl.replace(/\/$/, "")}/api/chat`;
     const res = await aiProviderFetch(ollamaUrl, {
@@ -114,5 +116,6 @@ export const callOllamaChat: ChatProviderCall = async ({ model, system, messages
     };
   } finally {
     clearTimeout(timeout);
+    stopForwardingAbort();
   }
 };

@@ -19,6 +19,16 @@ const MAX_CONCURRENT_EXTRACTIONS = 2;
 let activeExtractions = 0;
 const extractionWaiters: (() => void)[] = [];
 
+/** Runs `work` in one of the bounded extraction slots. */
+export async function withExtractionSlot<T>(work: () => Promise<T>): Promise<T> {
+  const release = await acquireExtractionSlot();
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+
 async function acquireExtractionSlot(): Promise<() => void> {
   if (activeExtractions >= MAX_CONCURRENT_EXTRACTIONS) {
     await new Promise<void>((resolve) => extractionWaiters.push(resolve));
@@ -288,7 +298,7 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
   return (await extractTextDetailed(buffer, mimeType)).text;
 }
 
-const MAX_SEARCHABLE_TEXT_LENGTH = 20_000;
+export const MAX_SEARCHABLE_TEXT_LENGTH = 20_000;
 
 // Best-effort: called at save time so a document's full text is searchable
 // later, not just its filename. A failed/slow extraction (missing OCR

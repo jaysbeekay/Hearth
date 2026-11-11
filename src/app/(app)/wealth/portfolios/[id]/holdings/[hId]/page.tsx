@@ -24,7 +24,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass, buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
+import { cardClass, buttonClass, emptyStateClass, menuItemClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Holding" };
@@ -200,7 +200,7 @@ export default async function HoldingPage({
         portfolio: true,
         trades: {
           where: { deletedAt: null },
-          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" }, omit: { extractedText: true } } },
           orderBy: { date: "asc" },
         },
       },
@@ -381,7 +381,7 @@ export default async function HoldingPage({
       {/* Performance chart */}
       {chartPoints.length >= 2 && (
         <Card as="section">
-          <h2 className="mb-4 font-medium">Performance since first purchase</h2>
+          <h2 className={sectionHeadingClass("mb-4")}>Performance since first purchase</h2>
           <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
           {chartStartsLate && (
             <p className="mt-2 text-xs text-muted">Chart shows prices from {formatDate(chartPoints[0].date, dateFormat)}.</p>
@@ -395,7 +395,7 @@ export default async function HoldingPage({
       {/* Trade history */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Trade history</h2>
+          <h2 className={sectionHeadingClass()}>Trade history</h2>
           {canWrite && (
             <Link
               href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
@@ -470,7 +470,7 @@ export default async function HoldingPage({
                                 parentId: holdingId,
                                 label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
                               }}
-                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -497,6 +497,7 @@ export default async function HoldingPage({
                         <DocumentList
                           kind="TRADE"
                           ownerId={trade.id}
+                          ownerName={`trade ${formatDate(trade.date, dateFormat)}`}
                           documents={trade.documents}
                           trashedLinks={trashedLinks.get(trade.id)}
                         />

@@ -4,6 +4,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
 import { isCurrencyCode } from "@/lib/currencyCodes";
 import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay, type DueContext } from "@/lib/duePolicy";
+import { envSmtpFromFallback, resolveSmtpFrom } from "@/lib/smtpFrom";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -17,6 +18,7 @@ const ENCRYPTED_KEYS = new Set([
   "ai.apiKey",
   "chat.apiKey",
   "emailIngest.password",
+  "push.vapidPrivateKey",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {
@@ -81,19 +83,42 @@ export async function getAppSettings(
   return Object.fromEntries(keys.map((k) => [k, map[k] ?? fallbacks[k] ?? ""]));
 }
 
+// When any setting whose key starts with `prefix` was last saved; null if
+// none is stored. The scheduled-job ticker starts a job's schedule from here,
+// so an edited schedule or a job switched back on doesn't run at once.
+export async function settingsSavedAt(prefix: string): Promise<Date | null> {
+  try {
+    const row = await prisma.appSetting.findFirst({
+      where: { key: { startsWith: prefix } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    });
+    return row?.updatedAt ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Writes one setting. Empty string deletes the row (reverts to env-var fallback).
 export async function setAppSetting(key: string, value: string): Promise<void> {
   if (!value) {
     await prisma.appSetting.deleteMany({ where: { key } });
     return;
   }
-  const shouldEncrypt = ENCRYPTED_KEYS.has(key) && isEncryptionConfigured();
-  const storedValue = shouldEncrypt ? encryptSecret(value) : value;
+  const stored = encodeAppSetting(key, value);
   await prisma.appSetting.upsert({
     where: { key },
-    create: { key, value: storedValue, encrypted: shouldEncrypt },
-    update: { value: storedValue, encrypted: shouldEncrypt },
+    create: { key, ...stored },
+    update: stored,
   });
+}
+
+// A setting's value as it's stored: encrypted with ENCRYPTION_KEY when the key
+// is a secret and encryption is configured. For callers that write the row
+// themselves, e.g. create-only.
+export function encodeAppSetting(key: string, value: string): { value: string; encrypted: boolean } {
+  const encrypted = ENCRYPTED_KEYS.has(key) && isEncryptionConfigured();
+  return { value: encrypted ? encryptSecret(value) : value, encrypted };
 }
 
 // Returns whether a key currently has a value stored in the DB.
@@ -113,7 +138,7 @@ export async function getSmtpConfig() {
       "smtp.secure": String(env.smtp.secure),
       "smtp.user": env.smtp.user,
       "smtp.password": env.smtp.pass,
-      "smtp.from": env.smtp.from,
+      "smtp.from": envSmtpFromFallback(env.smtp.from),
     },
   );
   return {
@@ -122,7 +147,12 @@ export async function getSmtpConfig() {
     secure: s["smtp.secure"] === "true",
     user: s["smtp.user"],
     pass: s["smtp.password"],
-    from: s["smtp.from"] || "Hearth <no-reply@localhost>",
+    // What an admin entered (shown in Settings) and what is actually sent.
+    configuredFrom: s["smtp.from"],
+    // Last resort: SMTP_FROM from .env even when unqualified (left out of the
+    // form above), which a lenient relay may still accept. Sending with no
+    // From at all never works.
+    from: resolveSmtpFrom(s["smtp.from"], s["smtp.user"]) || env.smtp.from.trim(),
   };
 }
 

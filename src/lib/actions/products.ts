@@ -11,6 +11,7 @@ import { formToProductInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { logExtractionConfirmedFromForm } from "@/lib/documents/extractionAudit";
 import {
   saveExtractionReviewFieldsFromForm,
   productReviewCorrectionsFromForm,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/commands/products";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { issueState } from "@/lib/validation/issues";
+import { ASSISTANT_OFF_MESSAGE, isAssistantEnabled } from "@/lib/assistant/enablement";
 
 export type ActionState = {
   error?: string;
@@ -115,6 +117,7 @@ export async function createProduct(
     return { ...commandError(error), values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS) };
   }
   await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
+  await logExtractionConfirmedFromForm("PRODUCT", product.id, user.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
@@ -169,6 +172,7 @@ export async function updateProduct(
       user.id,
     );
     await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);
+    await logExtractionConfirmedFromForm("PRODUCT", productId, user.id, formData);
   } catch (error) {
     // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
     return { ...commandError(error), values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS) };
@@ -224,6 +228,8 @@ export async function createProductFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
+  // A confirm card left open after an admin turned the assistant off.
+  if (!(await isAssistantEnabled())) return { success: false, error: ASSISTANT_OFF_MESSAGE };
 
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
@@ -241,6 +247,8 @@ export async function updateProductFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
+  // A confirm card left open after an admin turned the assistant off.
+  if (!(await isAssistantEnabled())) return { success: false, error: ASSISTANT_OFF_MESSAGE };
 
   // Only the fields the Assistant named are written (#420); the rest of the
   // record stays as it is. `data` comes back from the client, so it's

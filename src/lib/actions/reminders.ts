@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
+import { sendTestPush } from "@/lib/notifications/push";
 import { prisma } from "@/lib/prisma";
 import { COVERING_CONTRACTS } from "@/lib/covers";
 import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
@@ -136,9 +137,15 @@ export async function sendTestReminder(target?: TestReminderTarget): Promise<Act
   const user = await requireUser();
   if (!user.email) return { error: "Your account has no email address to send a test to." };
 
-  const [emailEnabled, ntfyEnabled] = await Promise.all([isSmtpConfigured(), isNtfyConfigured()]);
-  if (!emailEnabled && !ntfyEnabled) {
-    return { error: "No delivery channel is configured yet — set up email or ntfy in Settings." };
+  const [emailEnabled, ntfyEnabled, pushDevices] = await Promise.all([
+    isSmtpConfigured(),
+    isNtfyConfigured(),
+    // #375 — a test goes to the tester's own devices only.
+    prisma.pushSubscription.count({ where: { userId: user.id } }),
+  ]);
+  const pushEnabled = pushDevices > 0;
+  if (!emailEnabled && !ntfyEnabled && !pushEnabled) {
+    return { error: "No delivery channel is configured yet — turn on push on this device, or set up email or ntfy in Settings." };
   }
 
   const sent: string[] = [];
@@ -148,6 +155,7 @@ export async function sendTestReminder(target?: TestReminderTarget): Promise<Act
   const channels: ReminderChannel[] = [
     ...(emailEnabled ? (["EMAIL"] as const) : []),
     ...(ntfyEnabled ? (["NTFY"] as const) : []),
+    ...(pushEnabled ? (["PUSH"] as const) : []),
   ];
   const reminder = target ? await reminderForTarget(target, channels) : null;
   const dateFormat = reminder
@@ -172,8 +180,43 @@ export async function sendTestReminder(target?: TestReminderTarget): Promise<Act
       failed.push(error instanceof Error ? error.message : "ntfy failed");
     }
   }
+  if (pushEnabled) {
+    try {
+      const delivered = await sendTestPush(user.id, reminder ?? undefined);
+      sent.push(`push to ${delivered} ${delivered === 1 ? "device" : "devices"}`);
+    } catch (error) {
+      failed.push(error instanceof Error ? error.message : "push failed");
+    }
+  }
 
   if (sent.length > 0 && failed.length === 0) return { success: `Test reminder sent via ${sent.join(" and ")}.` };
   if (sent.length > 0) return { success: `Sent via ${sent.join(" and ")} — but failed: ${failed.join("; ")}` };
   return { error: failed.join("; ") || "Failed to send test reminder." };
+}
+
+/**
+ * #375 — the "Turn on reminders" screen's Test button for one channel, so a
+ * member checks each channel on its own: an email to their own address, or a
+ * message on the household's ntfy topic. Push has its own (sendPushTest).
+ */
+export async function sendChannelTest(channel: "EMAIL" | "NTFY"): Promise<ActionState> {
+  const user = await requireUser();
+  if (channel !== "EMAIL" && channel !== "NTFY") return { error: "Unknown reminder channel." };
+  if (channel === "EMAIL") {
+    if (!user.email) return { error: "Your account has no email address to send a test to." };
+    if (!(await isSmtpConfigured())) return { error: "Email isn't set up for the household." };
+    try {
+      await sendTestEmail(user.email);
+      return { success: `Test email sent to ${user.email}.` };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Couldn't send the test email." };
+    }
+  }
+  if (!(await isNtfyConfigured())) return { error: "ntfy isn't set up for the household." };
+  try {
+    await sendTestNtfy();
+    return { success: "Test notification sent to the household's ntfy topic." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't send the test notification." };
+  }
 }
