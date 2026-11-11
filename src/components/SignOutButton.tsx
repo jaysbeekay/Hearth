@@ -222,7 +222,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={close}
-            className={`${buttonClass("secondary")} disabled:opacity-50`}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>
@@ -230,7 +230,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={() => { void onDiscard(); }}
-            className={`${buttonClass("secondary", { destructive: true })} disabled:opacity-50`}
+            className={buttonClass("secondary", { destructive: true })}
           >
             {discardLabel}
           </button>

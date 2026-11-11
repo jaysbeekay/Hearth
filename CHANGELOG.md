@@ -17,6 +17,40 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (GLOSSARY.md). No-Document and Important rules come with it. The staged
   Item table gains the Archived column Property and Vehicle already have
   (#355); the archive flow itself arrives with the Items screens.
+
+- **Reach a notification's button from the keyboard (#631).** Alt+T
+  (Option+T on a Mac) moves focus to the newest notification's action, such
+  as Undo after a delete, or to its Dismiss button, so keyboard and switch
+  users can reach it before it times out without tabbing through the page.
+  The notification stays open while it has focus, Escape closes it, and focus
+  goes back to where it was. Notifications with an action tell screen-reader
+  users about the shortcut, and Help lists it under "Are there keyboard
+  shortcuts?". The phone app's own notifications don't have it yet.
+
+- **Onboarding has an ending (#617).** Once every getting-started step is
+  done, the dashboard's checklist shows a short "You're set up" note with a
+  Dismiss button instead of a list of struck-through steps.
+
+- **Stop an Assistant reply (#611).** While a reply is streaming, a Stop
+  button takes Send's place in the Assistant's composer. Stopping, closing
+  the side panel, starting a new chat or leaving the Assistant page ends the
+  reply with no error: the text already shown stays, marked "(stopped)", and
+  is saved that way so it shows when the conversation is reopened (a reply
+  stopped before any text arrived saves nothing). The server aborts the
+  provider request in flight and makes no further provider calls or tool
+  rounds for it, so a stopped reply stops using the household's provider key.
+  A message sent straight after Stop waits briefly for the stopped reply to
+  finish saving, and the conversation's history is replayed to the provider
+  with every tool call paired with its result. A reply that fails partway
+  now shows an error instead of ending as if it had finished.
+- **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
+  configured" item and the onboarding checklist now open one screen,
+  available to every member, that lists the ways to get Reminders in order
+  of effort: notify this device (one tap, no account), email, then ntfy.
+  Each has its own Test button, and the household's reminder delivery
+  health is at the bottom. Email and ntfy still need an admin's server
+  settings, which stay in Settings → Reminders & channels; the screen links
+  there for admins.
 - **The AI assistant is now opt-in, with its own on/off switch.** First-run
   setup has a new "AI assistant (optional)" box; ticking it turns the
   assistant on and finishes setup on Settings → AI & privacy to choose a
@@ -224,6 +258,70 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   to the real client address, as does the mTLS example config.
 
 ### Changed
+
+- **"Item", not "Inventory item", everywhere you read it (#637).** The
+  Upload page's "File as" options and its "Detected as an item" note, the
+  Inbox review type picker, MCP import review, Trash, the Warranty page's
+  linked-item line, the Warranties list's Items section, the Item page title,
+  Help, the MCP tool titles and "Item not found" errors now use the
+  glossary's word. The phone app's matching labels changed too. A unit test
+  now fails if "Inventory item" comes back in user-facing copy.
+
+- **Upload rows say whether their type was detected (#604).** Each queued
+  file on Upload documents now has a visible "File as" label beside its type
+  picker, and a note under the file name: "Detected as a contract" (or a
+  warranty, or an inventory item) when the scan guessed the type, or
+  "Couldn't tell what this is. Pick a type." when it fell back to Contract.
+  The note goes once you pick a type, on the row or through "Apply to
+  selected". Scanning, extraction and saving are unchanged.
+
+- **Screen readers read a field's hint with the field, and say "Error:"
+  before a form error message (#615).** A form field's hint (the small text
+  under it) is now linked to its control through `aria-describedby`, after
+  the field's error when there is one, so both are read when the field takes
+  focus. The hint, a #406 field error and the auto-fill note each add and
+  remove only their own id, rather than restoring an earlier copy of the
+  attribute. Form error messages start with a visually hidden "Error:".
+  Nothing changes on screen.
+
+- **Motion respects your settings, and previews are described (#617).**
+  With the system's reduce motion setting on, the Assistant chat jumps to the
+  newest message instead of scrolling smoothly, its typing caret stops
+  pulsing, and swipe-to-delete rows move without animating. A previewed
+  image's alt text now names the Document type and the record it belongs to
+  ("Preview of invoice for Home insurance") rather than its filename; an
+  Inbox file names no record.
+
+- **The phone app looks like the web app (#616).** The standalone/connected
+  shell drops its own violet, beige and navy palette for the web app's
+  colour tokens, value for value in light and dark, with its tints derived
+  from them; `scripts/check-contrast.mjs` now checks the shell's tokens too,
+  and a unit test keeps them equal to `globals.css` and the shell free of the
+  old palette. The in-app icon (`icon.svg`) and Android theme colours
+  (`colors.xml`) take the web accent; the launcher/store icon is still violet
+  pending a design decision (#629). Controls, cards and
+  badges take the web app's 8px corners, control edges use
+  `--border-control` (3:1), and cards lose their shadows. The current bottom
+  nav entry gets the web app's bar along its top edge and
+  `aria-current="page"` (`"true"` under a detail or form screen), the
+  current record-type tab a bar and `aria-current="true"`, and a pressed
+  filter chip a check mark and `aria-pressed`, so none rely on colour alone.
+  Tabs, chips, the dashboard's text buttons, checkbox rows and Version
+  history are now at least 44px tall, the Copy button and inline hint links
+  get a 44px hit area, and the Copy button's text is 12px. Keyboard focus
+  now shows the web app's 2px accent `:focus-visible` outline throughout
+  the shell.
+- **Disabled controls all dim to the same 50% (#620, #558).** Disabled
+  buttons and fields were 60% from the shared classes, but 13 buttons added
+  their own 50%, the locked admin-only settings rows and the sign-in email
+  field (while a two-factor code is asked for) used 60%, and the always-on
+  Documents box on first-run setup used 70%. All of them are now 50%, set
+  once in `src/lib/ui.ts`; components no longer set their own opacity, and
+  `tests/unit/ui-rules.test.ts` keeps it that way. Actions that need a
+  connection are 40% while offline. The "Add" buttons on list pages and the
+  Inventory "Add item" link had been showing at 50% offline, because their
+  disabled state outranked the 40%, and an offline Document link that isn't
+  saved on the device was 50%; all of them are now 40%.
 
 - **Section headings stand out from body text, and long text reads more
   easily (#558).** Section headings were 16px at weight 500 over 14px body
@@ -490,6 +588,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Control edges stay visible inside warning and danger banners (#640).**
+  Inputs, secondary buttons and chips sitting on a warning or danger tint had
+  a border of about 2.65–3.08:1 against it, below the 3:1 WCAG 1.4.11 minimum.
+  The control border colour is slightly darker in light mode and slightly
+  lighter in dark mode, in the web app and the phone app, and the contrast
+  check now covers controls on those tints.
+
+- **Going Back to the sign-in page no longer signs out your other tabs
+  (#576).** After a password sign-in the sign-in page stays in history, and
+  going Back to it while still signed in cleared this browser's offline
+  data and reloaded every other open tab as if you'd signed out. It now
+  asks the server first and leaves everything alone while you're signed in.
+  After Sign out, an expired session, or when the server can't be reached,
+  it clears as before.
+
+- **Scans read amounts in £, €, ¥ and R, and European-style numbers (#613).**
+  Document text extraction only picked up an amount after `$` or AUD/USD/NZD/
+  GBP/EUR, and read `$1.234,56` as 1.23. One shared amount reader now handles
+  `$`, `£`, `€`, `¥`, `R` and the codes AUD, USD, NZD, GBP, EUR, JPY and ZAR,
+  with comma, dot or space thousands separators and a dot or comma decimal
+  (`€1.234,56`, `R 1 234,56` → 1234.56); yen amounts have no decimals. Cost
+  and price fields, lease rent and bond, and rental statement amounts all use
+  it. An "R" amount is only used when there's no other amount on the line,
+  and never for a reference like "R2D2" / "R2 D2" or a number starting with
+  0, so "Unit R2 total $500" reads as 500. Plain-space grouping needs a
+  decimal part or the end of the line ("$50 100 items" reads as 50), and a
+  malformed grouping like "$1.234.56" is skipped rather than cut short.
+
+- **Toasts wait while you're using them (#618).** A toast, such as "Moved to
+  Recently deleted · Undo", no longer closes while the pointer is over it or
+  keyboard focus is inside it; once both leave it closes after the time it
+  had left. Escape now dismisses a focused toast without also closing an
+  open menu, search or dialog, and the close button still does too; either
+  way focus goes back to where it was instead of dropping to the page
+  (WCAG 2.2.1).
 - Icon-only buttons kept the text buttons' side padding, which squeezed
   their 20px icons to 12px wide.
 - Closing a dropdown (the account menu, a record's ⋮ menu) by clicking a

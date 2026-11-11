@@ -144,7 +144,7 @@ describe("Inventory item update command (#446)", () => {
       { id: "op-2", entity: "inventoryItem", operation: "update", entityId: live.id, formValues: { label: "Mitre saw" } },
     ]);
     expect(results).toEqual([
-      { id: "op-1", success: false, error: "Inventory item not found" },
+      { id: "op-1", success: false, error: "Item not found" },
       { id: "op-2", success: true },
     ]);
     expect((await db.prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } })).label).toBe("Drill");
@@ -407,7 +407,7 @@ describe("review fixes for #446 / #447", () => {
 
   it("a sync delete of a missing item reports the same message as an update", async () => {
     const { results } = await replay([{ id: "op-del", entity: "inventoryItem", operation: "delete", entityId: "missing" }]);
-    expect(results).toEqual([{ id: "op-del", success: false, error: "Inventory item not found" }]);
+    expect(results).toEqual([{ id: "op-del", success: false, error: "Item not found" }]);
   });
 
   it("an Assistant update proposal only checks the links it newly sets", async () => {

@@ -4,6 +4,11 @@ This repo has no root `AGENTS.md` — `CLAUDE.md` at the repo root is the
 authoritative instructions file. This document is a repo-local ECC baseline
 for the Codex CLI specifically.
 
+Before any change, read `CLAUDE.md`, in particular **Engineering rules and
+Definition of Done**. Those rules (draft PRs, about 500 lines per PR, test-first bug
+fixes, no bypassing quality gates, no AI attribution) apply to every agent, not only
+Claude Code.
+
 ## Repo Skill
 
 - Repo-generated Codex skill: `.agents/skills/Hearth/SKILL.md`
