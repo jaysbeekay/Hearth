@@ -335,6 +335,11 @@ test.beforeEach(async ({ page }) => {
     // "hearth-test-no-properties": the Home module is on but has no
     // Properties yet, so the warranty form shows its "add one" hint (#616).
     if (testFlag("hearth-test-no-properties")) rowsByTable.properties = [];
+    // "hearth-test-empty-db": a freshly unlocked phone with no records yet,
+    // only the profile row every install has (#491).
+    if (testFlag("hearth-test-empty-db")) {
+      for (const table of Object.keys(rowsByTable)) if (table !== "local_profile") rowsByTable[table] = [];
+    }
 
     // #455 — Broadband Plan's three-version Document (v1 <- v2 <- v3), and
     // variations on it. "1": all live. "middle": v2 in Trash. "expired":
@@ -1860,6 +1865,120 @@ test("standalone dashboard asks for a backup until one is made", async ({ page }
   await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();
   await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
   await expect(page.locator("[data-backup-nudge]")).toHaveCount(0);
+});
+
+// #491: a new phone restores through the first screen's offer, not Settings.
+const newPhoneOffer = (page: ShellPage) => page.locator("[data-new-phone-restore]");
+
+async function restoreThroughOffer(page: ShellPage, text: string, password: string) {
+  const form = page.locator("form[data-new-phone-restore-form]");
+  await form.getByLabel("Backup file").setInputFiles({ name: "backup.hearthbackup", mimeType: "application/octet-stream", buffer: Buffer.from(text) });
+  await form.getByLabel("Backup password").fill(password);
+  await form.getByRole("button", { name: "Restore backup" }).click();
+}
+
+// Exports this phone's fixture data with Wealth hidden, then "moves" to a new
+// phone: a reload with an empty database and no files or preferences.
+async function exportThenOpenNewPhone(page: ShellPage) {
+  await openBackupSettings(page);
+  await page.locator(".module-setting-card").filter({ has: page.getByRole("heading", { name: "Wealth" }) }).getByRole("button", { name: "Hide module" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Wealth hidden");
+  const { text } = await exportBackup(page);
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  return text;
+}
+
+test("standalone does not offer Restore from a backup when the phone has records (#491)", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone new phone restores records, Documents and settings from the first screen (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await expect(newPhoneOffer(page)).toBeVisible();
+  expect((await backupHarness(page)).rowsByTable.contracts).toEqual([]);
+
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+
+  const restored = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      contracts: harness.rowsByTable.contracts.map((row) => row.title),
+      documents: harness.rowsByTable.documents.map((row) => row.id),
+      documentFiles: [...harness.files.keys()].filter((key) => key.includes(":standalone-documents/")),
+      modules: harness.preferences.get("hearth.mobile.enabledStandaloneModules") ?? null,
+    };
+  });
+  expect(restored.contracts).toContain("Broadband Plan");
+  expect(restored.documents.length).toBeGreaterThan(0);
+  expect(restored.documentFiles.length).toBeGreaterThan(0);
+  expect(restored.modules).not.toBeNull();
+  expect(restored.modules).not.toContain("portfolios");
+  // Hidden on the old phone, so hidden here too.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await expect(page.getByRole("button", { name: /Wealth/ })).toHaveCount(0);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await expect(page.getByText("Broadband Plan").first()).toBeVisible();
+});
+
+test("standalone new-phone restore that is cancelled or fails leaves the phone empty and the offer shown (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  const form = page.locator("form[data-new-phone-restore-form]");
+  const emptyAndOffered = async () => {
+    await expect(newPhoneOffer(page)).toBeVisible();
+    const { sqliteRuns, rowsByTable } = await backupHarness(page);
+    expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+    expect(rowsByTable.contracts).toEqual([]);
+    expect(rowsByTable.documents).toEqual([]);
+  };
+
+  // The file picker is closed without choosing a file.
+  const chooser = page.waitForEvent("filechooser");
+  await form.getByLabel("Backup file").click();
+  await (await chooser).setFiles([]);
+  await form.getByRole("button", { name: "Restore backup" }).click();
+  await emptyAndOffered();
+
+  await restoreThroughOffer(page, text, "not the password");
+  await expect(page.locator("#standalone-status")).toContainText("Wrong backup password");
+  await emptyAndOffered();
+
+  const truncated = text.trim().split("\n").slice(0, -1).join("\n");
+  await restoreThroughOffer(page, truncated, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("incomplete");
+  await emptyAndOffered();
+
+  // And it still works after all that.
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone new-phone restore refuses to replace records added since the offer was shown (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await expect(newPhoneOffer(page)).toBeVisible();
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-new-phone", title: "Added on the new phone" });
+  });
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.contracts.map((row) => row.id)).toEqual(["contract-new-phone"]);
+});
+
+test("standalone Help says the data lives only on this phone and links to the backup steps (#492)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="help"]').click();
+  const notice = page.locator("#mobile-view [data-device-only-notice]");
+  await expect(notice).toContainText("Standalone mode keeps everything on this phone only. Nothing is sent to Hearth or any cloud.");
+  await expect(page.locator("[data-new-phone-steps]")).toContainText("Restore from a backup");
+  await notice.getByRole("button", { name: "Back up this phone" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Settings");
+  await expect(page.getByRole("heading", { name: "Back up this phone" })).toBeVisible();
 });
 
 test("standalone backup that can't read a document file is not counted as complete", async ({ page }) => {

@@ -69,6 +69,12 @@ const BACKUP_ROOT = "hearth-backups";
 // public Documents folder). Hearth only lists and offers to delete them.
 const LEGACY_BACKUP_DIRECTORY = "DOCUMENTS";
 const LEGACY_BACKUP_NOTICE_KEY = "hearth.mobile.legacyBackupNoticeDismissed";
+// Set by "Start fresh" on the new-phone restore offer (#491). Not part of a
+// backup: it describes this install, not the household's data.
+const NEW_PHONE_OFFER_KEY = "hearth.mobile.newPhoneOfferDismissed";
+// #492: the promise shown before purchase (index.html's paywall carries the
+// same sentence) and in Help. Keep the two in step.
+const DEVICE_ONLY_NOTICE = "Standalone mode keeps everything on this phone only. Nothing is sent to Hearth or any cloud. Back up regularly to a file protected by your own password, and keep it somewhere safe. If you lose your phone and have no backup, your data cannot be recovered.";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
@@ -472,6 +478,7 @@ const state = {
   lastBackupAt: null,
   legacyPlaintextBackups: [],
   legacyBackupNoticeDismissed: false,
+  newPhoneOfferDismissed: false,
   // The password just chosen for an export, shown once so it can be saved
   // in a password manager; cleared once the backup is shared, on Cancel, and
   // as soon as Settings is left. A failed or cancelled share keeps it, so
@@ -2235,6 +2242,7 @@ function renderDashboard() {
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
   const vehiclesMissingInfo = moduleEnabled("vehicles") ? activeRows(cache.vehicles).filter((row) => missingInfo("vehicles", row)).length : 0;
   return `
+    ${renderNewPhoneRestore()}
     <section class="hero-card">
       <p class="kicker">Today</p>
       <h2>What needs attention</h2>
@@ -3025,8 +3033,26 @@ function renderHelp() {
       <h2>Using Hearth on mobile</h2>
       <p>This phone-first shell mirrors the 0.16 household workflows where they make sense locally, and points you to connected mode for server-only features.</p>
     </section>
+    <section class="card form-card" data-device-only-notice>
+      <h2>Your data is only on this phone</h2>
+      <p class="card-meta">${escapeHtml(DEVICE_ONLY_NOTICE)}</p>
+      <div class="actions">
+        <button class="secondary" data-nav="settings">Back up this phone</button>
+      </div>
+    </section>
     <section class="list">
       ${helpItems.map(([title, copy]) => `<article class="record-card"><h3>${escapeHtml(title)}</h3><p class="card-meta">${escapeHtml(copy)}</p></article>`).join("")}
+    </section>
+    <section class="card form-card" data-new-phone-steps>
+      <h2>Moving to a new phone</h2>
+      <ol class="card-meta steps">
+        <li>On the old phone, open Settings, Back up this phone, and export a backup. Save its password in your password manager.</li>
+        <li>Save the backup file somewhere the new phone can reach: Files, iCloud Drive, Google Drive, or send it to yourself.</li>
+        <li>Install Hearth on the new phone and choose Use on this device.</li>
+        <li>Buy the standalone unlock, or tap Restore purchases if you bought it before with the same store account.</li>
+        <li>On the first screen, choose Restore from a backup, pick the file and enter its password.</li>
+      </ol>
+      <p class="card-meta">Backups move between iPhone and Android too. If you already started using the new phone, use Restore from a file in Settings instead.</p>
     </section>
     <section class="card form-card">
       <h2>Need the full web app?</h2>
@@ -3315,6 +3341,7 @@ function clearPendingBackupPassword() {
 }
 
 async function loadBackupState() {
+  state.newPhoneOfferDismissed = (await prefGet(NEW_PHONE_OFFER_KEY).catch(() => null)) === "true";
   await sweepBackupCache();
   state.unreadableRestoreJournal = await unreadableRestoreJournalPending().catch(() => false);
   state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
@@ -3363,16 +3390,26 @@ function fileBackupSource(file) {
   return { ...BackupFormat.blobSource(file), text: () => file.text() };
 }
 
-async function restoreFromFile(form) {
+async function restoreFromFile(form, options = restoreOptions) {
   const file = formFile(form);
   if (!file) throw new Error("Choose a backup file first.");
   const submit = form.querySelector('button[type="submit"]');
   if (submit) submit.disabled = true;
   try {
-    await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+    await restoreStandaloneBackup(fileBackupSource(file), await options(form));
   } finally {
     if (submit) submit.disabled = false;
   }
+}
+
+// #491: the first-screen offer always runs a Replace restore. It has no
+// confirm tick because there is nothing to replace; that is checked again
+// against the database here, so a record added since the offer was drawn is
+// never wiped without the Settings confirm.
+async function newPhoneRestoreOptions(form) {
+  await loadData();
+  if (!isNewPhone()) throw new Error("This phone already has records. To restore over them, use Restore from a file in Settings.");
+  return { mode: "replace", password: String(new FormData(form).get("password") ?? "") };
 }
 
 function restoreOptions(form) {
@@ -3893,6 +3930,37 @@ function backupAge(iso) {
 
 function hasStandaloneData() {
   return BACKUP_TABLES.some((table) => table.key !== "profile" && table.key !== "reminderLogs" && (cache[table.key]?.length ?? 0) > 0);
+}
+
+// Nothing a Replace restore could lose: no records, and nothing in Trash.
+function isNewPhone() {
+  return !hasStandaloneData() && (cache.trashedDocLinks?.length ?? 0) === 0;
+}
+
+// #491: a freshly unlocked phone with no records offers to restore a backup
+// made on another phone. Only the standalone app shows it, and that only
+// opens once the unlock is confirmed, so it is never offered before paying.
+function renderNewPhoneRestore() {
+  if (state.newPhoneOfferDismissed || !isNewPhone()) return "";
+  return `
+    <section class="card form-card" data-new-phone-restore>
+      <h2>Restore from a backup</h2>
+      <p class="card-meta">Moving from another phone? Choose the .hearthbackup file you exported there and enter its password. Or start fresh with an empty phone.</p>
+      <form data-new-phone-restore-form class="field-grid">
+        <label>Backup file<input name="file" type="file" required /></label>
+        <label>Backup password<input name="password" type="password" autocomplete="current-password" /></label>
+        <div class="actions">
+          <button type="submit">Restore backup</button>
+          <button type="button" class="secondary" data-start-fresh>Start fresh</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+async function dismissNewPhoneOffer() {
+  state.newPhoneOfferDismissed = true;
+  await prefSet(NEW_PHONE_OFFER_KEY, "true");
 }
 
 function legacyBackupSummary() {
@@ -7067,6 +7135,11 @@ mobileView.addEventListener("click", async (event) => {
     await render();
     return;
   }
+  if (button.dataset.startFresh !== undefined) {
+    await dismissNewPhoneOffer().catch(() => undefined);
+    await render();
+    return;
+  }
   if (button.dataset.confirmDetails) {
     await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
     return;
@@ -7205,6 +7278,11 @@ mobileView.addEventListener("submit", async (event) => {
     }
     if (form.dataset.importStandaloneBackupForm !== undefined) {
       await restoreFromFile(form);
+      await render();
+      return;
+    }
+    if (form.dataset.newPhoneRestoreForm !== undefined) {
+      await restoreFromFile(form, newPhoneRestoreOptions);
       await render();
       return;
     }
