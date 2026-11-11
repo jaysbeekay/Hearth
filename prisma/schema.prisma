@@ -613,6 +613,12 @@ model Item {
   notes           String?
   createdById     String
   deletedAt       DateTime?
+  // #355/#380 — Archived: the household no longer has it (sold, given away).
+  // Set deliberately, never by a date passing, as on Property and Vehicle.
+  // An archived Item is never missing anything and never Due. Legacy
+  // Products/InventoryItems had no archive column, so there is nothing to
+  // backfill; the archive flow itself lands with #355 on the Item surface.
+  archivedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   legacyProductId String?  @unique

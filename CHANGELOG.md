@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Item filter rules (#380).** The record-filters module learns the merged
+  Item record's rules ahead of the Items cutover: an Item is missing key
+  details when it has neither serial nor barcode, or has a Warranty with no
+  end date — an Item with no Warranty is not missing anything on that
+  account, and Archived or deleted Items are never missing anything
+  (GLOSSARY.md). No-Document and Important rules come with it. The staged
+  Item table gains the Archived column Property and Vehicle already have
+  (#355); the archive flow itself arrives with the Items screens.
+
 - **Reach a notification's button from the keyboard (#631).** Alt+T
   (Option+T on a Mac) moves focus to the newest notification's action, such
   as Undo after a delete, or to its Dismiss button, so keyboard and switch
