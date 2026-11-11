@@ -63,11 +63,12 @@ const CONTAINER_EQUIVALENTS = {
   ],
 };
 const GENERIC_MIME_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+// Listed A-Z by title, matching the web nav and Settings > Modules (#597).
 const OPTIONAL_MODULES = [
-  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
-  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "inventoryItems", title: "Inventory", copy: "Household items, serial numbers, locations and value.", recordType: "inventoryItems", countKey: "inventoryItems" },
+  { key: "properties", title: "Properties", copy: "Properties, rental records, household costs, repairs and improvements.", recordType: "properties", countKey: "properties" },
   { key: "trips", title: "Travel", copy: "Trips, bookings, confirmations and travel documents.", recordType: "trips", countKey: "trips" },
+  { key: "vehicles", title: "Vehicles", copy: "Cars, registration, insurance and service history.", recordType: "vehicles", countKey: "vehicles" },
   { key: "portfolios", title: "Wealth", copy: "Portfolios, holdings and local trade history.", recordType: "portfolios", countKey: "portfolios" },
 ];
 const DEFAULT_STANDALONE_MODULE_KEYS = OPTIONAL_MODULES.map((module) => module.key);
@@ -461,6 +462,20 @@ const BACKUP_TABLES = [
   { key: "inboxDocuments", table: "inbox_documents", columns: ["id", "filename", "storage_key", "mime_type", "size", "status", "target_type", "extracted_text", "sha256", "uploaded_at", "deleted_at", "version"] },
   { key: "reminderLogs", table: "reminder_delivery_logs", columns: ["id", "owner_type", "owner_id", "field", "channel", "threshold_days", "status", "sent_at", "error"] },
 ];
+
+// #616: mirrors src/lib/navCurrent.ts (#558). The bottom-nav entry for the
+// screen being shown is the current "page"; the section a detail, form or
+// More screen sits under is "true", so it isn't announced as a second current
+// page. style.css draws the entry's bar from this attribute.
+function navCurrentFor(button, route) {
+  const nav = button.dataset.nav;
+  const navRecordType = button.dataset.recordType;
+  const recordTypeMatches = navRecordType ? state.recordType === navRecordType : true;
+  if (route === nav && recordTypeMatches) return "page";
+  if (["detail", "form"].includes(route) && nav === "records" && recordTypeMatches) return "true";
+  if (isSecondaryRoute(route) && nav === "more") return "true";
+  return null;
+}
 
 function isSecondaryRoute(route) {
   return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
@@ -912,6 +927,27 @@ function escapeHtml(value) {
   })[char]);
 }
 
+// A saved money amount as a form field's starting value, padded to the
+// currency's decimals (0 for JPY, 3 for KWD, else 2): 510.10 is stored as
+// 510.1 and would otherwise show without its trailing zero. Only pads, never
+// rounds: the padded text must read back as exactly the stored number
+// (mirrors moneyInputValue in src/lib/utils.ts).
+function moneyInputValue(value, currency) {
+  if (value == null || value === "") return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  let digits = 2;
+  if (currency) {
+    try {
+      digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+    } catch {
+      digits = 2;
+    }
+  }
+  const padded = amount.toFixed(digits);
+  return Number(padded) === amount ? padded : String(amount);
+}
+
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#096;");
 }
@@ -968,7 +1004,7 @@ function typeLabel(type) {
     home_item: "Maintenance record",
     rental_agreement: "Tenancy",
     rental_statement: "Rental statement",
-    inventory_item: "Inventory item",
+    inventory_item: "Item",
     trip: "Trip",
     trip_segment: "Trip segment",
     portfolio: "Portfolio",
@@ -1746,14 +1782,9 @@ async function render() {
   backButton.toggleAttribute("aria-hidden", !canGoBack);
   backButton.disabled = !canGoBack;
   document.querySelectorAll(".nav-item").forEach((button) => {
-    const nav = button.dataset.nav;
-    const navRecordType = button.dataset.recordType;
-    const activeRecordType = navRecordType ? state.recordType === navRecordType : true;
-    const active =
-      (route === nav && activeRecordType) ||
-      (["detail", "form"].includes(route) && nav === "records" && activeRecordType) ||
-      (isSecondaryRoute(route) && nav === "more");
-    button.classList.toggle("active", active);
+    const current = navCurrentFor(button, route);
+    if (current) button.setAttribute("aria-current", current);
+    else button.removeAttribute("aria-current");
   });
 
   if (route === "dashboard") mobileView.innerHTML = renderDashboard();
@@ -2851,11 +2882,17 @@ function renderRecords() {
 }
 
 function recordTab(type, label) {
-  return `<button class="tab ${state.recordType === type ? "active" : ""}" data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
+  return `<button class="tab"${state.recordType === type ? ' aria-current="true"' : ""} data-record-type="${escapeAttr(type)}">${escapeHtml(label)}</button>`;
 }
 
+// #616: a pressed chip leads with a check mark so it doesn't rely on the
+// accent colour alone. It's a real element, hidden from screen readers
+// (aria-pressed already says it), and every chip reserves its space so a
+// chip doesn't grow when it's pressed.
+const chipCheck = '<span class="chip-check" aria-hidden="true">✓</span>';
+
 function filterChip(filter, label) {
-  return `<button class="chip ${state.recordFilter === filter ? "active" : ""}" data-record-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.recordFilter === filter}" data-record-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredRecords() {
@@ -3301,7 +3338,7 @@ function renderLinkedInventoryItems(productId) {
         <h2>Linked inventory</h2>
       </div>
       <div class="list">
-        ${items.length === 0 ? empty("No inventory items linked", "Pick this warranty from an inventory item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
+        ${items.length === 0 ? empty("No items linked", "Pick this warranty from an item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
       </div>
     </section>
   `;
@@ -3379,7 +3416,7 @@ function renderDocuments() {
 }
 
 function documentChip(filter, label) {
-  return `<button class="chip ${state.documentFilter === filter ? "active" : ""}" data-document-filter="${escapeAttr(filter)}">${escapeHtml(label)}</button>`;
+  return `<button class="chip" aria-pressed="${state.documentFilter === filter}" data-document-filter="${escapeAttr(filter)}">${chipCheck}${escapeHtml(label)}</button>`;
 }
 
 function filteredDocuments() {
@@ -3707,7 +3744,7 @@ function formFields(type, row) {
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
@@ -3729,7 +3766,7 @@ function formFields(type, row) {
         <label>Barcode<input name="barcode" value="${escapeAttr(row?.barcode)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Warranty end<input name="warrantyEndDate" type="date" value="${escapeAttr(dateInputValue(row?.warranty_end_date))}" /></label>
-        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(row?.price ?? "")}" /></label>
+        <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.price, row?.currency))}" /></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${propertyPickerOrHint(propertyId)}
@@ -3762,7 +3799,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3777,7 +3814,7 @@ function formFields(type, row) {
         <label>Postcode<input name="postcode" value="${escapeAttr(row?.postcode)}" /></label>
         <label>Country<input name="country" value="${escapeAttr(row?.country ?? "Australia")}" /></label>
         <label>Occupancy<select name="occupancyStatus">${options(["OWNER_OCCUPIED", "RENTED", "VACANT"], row?.occupancy_status ?? "OWNER_OCCUPIED")}</select></label>
-        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(row?.estimated_value ?? "")}" /></label>
+        <label>Estimated value<input name="estimatedValue" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.estimated_value, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3789,7 +3826,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" /></label>
         <label>Date<input name="date" type="date" value="${escapeAttr(dateInputValue(row?.date))}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Tax deductible<select name="isTaxDeductible">${options(["NO", "YES"], row?.is_tax_deductible ? "YES" : "NO")}</select></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3801,11 +3838,11 @@ function formFields(type, row) {
       <div class="field-grid">
         <input name="propertyId" type="hidden" value="${escapeAttr(propertyId)}" />
         <label>Tenant name<input name="tenantName" value="${escapeAttr(row?.tenant_name)}" /></label>
-        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(row?.weekly_rent ?? "")}" required /></label>
+        <label>Weekly rent<input name="weeklyRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.weekly_rent, row?.currency))}" required /></label>
         <label>Management fee %<input name="managementFeePercent" type="number" min="0" step="0.01" value="${escapeAttr(row?.management_fee_percent ?? "")}" /></label>
         <label>Lease start<input name="leaseStart" type="date" value="${escapeAttr(dateInputValue(row?.lease_start))}" /></label>
         <label>Lease end<input name="leaseEnd" type="date" value="${escapeAttr(dateInputValue(row?.lease_end))}" /></label>
-        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(row?.bond_amount ?? "")}" /></label>
+        <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.bond_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
         <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
@@ -3821,10 +3858,10 @@ function formFields(type, row) {
         <label>Period start<input name="periodStart" type="date" value="${escapeAttr(dateInputValue(row?.period_start))}" /></label>
         <label>Period end<input name="periodEnd" type="date" value="${escapeAttr(dateInputValue(row?.period_end))}" /></label>
         <label>Statement date<input name="statementDate" type="date" value="${escapeAttr(dateInputValue(row?.statement_date))}" /></label>
-        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(row?.gross_rent ?? "")}" /></label>
-        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(row?.management_fee ?? "")}" /></label>
-        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(row?.other_deductions ?? "")}" /></label>
-        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(row?.net_amount ?? "")}" /></label>
+        <label>Gross rent<input name="grossRent" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.gross_rent, row?.currency))}" /></label>
+        <label>Management fee<input name="managementFee" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.management_fee, row?.currency))}" /></label>
+        <label>Other deductions<input name="otherDeductions" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.other_deductions, row?.currency))}" /></label>
+        <label>Net amount<input name="netAmount" type="number" step="0.01" value="${escapeAttr(moneyInputValue(row?.net_amount, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3839,7 +3876,7 @@ function formFields(type, row) {
         <label>Model<input name="model" value="${escapeAttr(row?.model)}" /></label>
         <label>Serial number<input name="serialNumber" value="${escapeAttr(row?.serial_number)}" /></label>
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
-        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(row?.purchase_price ?? "")}" /></label>
+        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.purchase_price, row?.currency))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
         <label>Warranty<select name="warrantyProductId">${productOptions(row?.warranty_product_id)}</select></label>
         <label class="checkbox-row"><input name="warrantyRegistered" type="checkbox" ${row?.warranty_registered ? "checked" : ""} /> Warranty registered with manufacturer</label>
@@ -3869,7 +3906,7 @@ function formFields(type, row) {
         <label>Start<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
-        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
+        <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.cost, row?.currency))}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3907,7 +3944,7 @@ function formFields(type, row) {
         <label>Date<input name="tradeDate" type="date" value="${escapeAttr(dateInputValue(row?.trade_date) || dateInputValue(nowIso()))}" required /></label>
         <label>Units<input name="units" type="number" min="0" step="0.000001" value="${escapeAttr(row?.units ?? "")}" required /></label>
         <label>Price per unit<input name="pricePerUnit" type="number" min="0" step="0.000001" value="${escapeAttr(row?.price_per_unit ?? "")}" required /></label>
-        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(row?.fees ?? "")}" /></label>
+        <label>Fees<input name="fees" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row?.fees, row?.currency))}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? portfolio?.currency ?? defaultCurrency())}" /></label>
         <label>Holding name<input name="name" value="${escapeAttr(getRecord("holdings", row?.holding_id)?.name)}" /></label>
         <label>Asset class<select name="assetClass">${options(["SHARE", "ETF", "FUND", "CRYPTO", "CASH", "OTHER"], getRecord("holdings", row?.holding_id)?.asset_class ?? "SHARE")}</select></label>
@@ -5310,7 +5347,7 @@ function renderContractRenewalForm(row) {
         <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
         <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
         <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
-        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(moneyInputValue(row.cost, row.currency))}" /></label>
         ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
           ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
           <option value="">None</option>

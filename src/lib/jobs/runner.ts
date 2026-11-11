@@ -8,6 +8,7 @@ import { runEmailIngestion } from "@/lib/emailIngestion/scheduler";
 import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
 import { giveUpSearchTextJob, isSearchTextKind, processSearchTextJob, runDocumentTextBackfill } from "@/lib/documents/documentText";
 import { JOB_PRIORITY } from "@/lib/jobs/priority";
+import { cronOwed } from "@/lib/jobs/cronDue";
 import type { ExtractionJobPayload } from "@/lib/documents/queueExtraction";
 
 // #250 — REMINDER_CHECK/BACKUP_RUN/EMAIL_INGEST join PRICE_REFRESH/
@@ -93,6 +94,68 @@ export async function enqueueJobUnlessPending(type: JobType, payload: Record<str
   } catch {
     return null; // unique constraint on activeDedupeKey — already pending or running
   }
+}
+
+/** A failed run counts as the day's run for this long, then it's tried again. */
+export const FAILED_RETRY_AFTER_MS = 60 * 60_000;
+/** Retries of a failed scheduled run before it waits for its next scheduled time. */
+export const FAILED_RETRIES = 2;
+
+export interface LastRun {
+  at: Date;
+  /** The schedule the ticker queued it under; null for a run queued by hand or before this was recorded. */
+  schedule: string | null;
+}
+
+function scheduleOf(payload: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (parsed && typeof parsed === "object" && "schedule" in parsed && typeof parsed.schedule === "string") return parsed.schedule;
+  } catch {
+    // not JSON; no schedule recorded
+  }
+  return null;
+}
+
+/**
+ * The last run of this type that a schedule should count from, by a schedule
+ * or by hand; null if none. A run stamped after `now` (while the clock was
+ * ahead) is ignored, or every new run would sit behind it. A run that failed
+ * every attempt counts for FAILED_RETRY_AFTER_MS, so the next tick doesn't
+ * retry it at once; after that the run before it counts, so the missed time
+ * is owed again, up to FAILED_RETRIES times.
+ */
+export async function lastQueuedRun(type: JobType, now = new Date()): Promise<LastRun | null> {
+  const rows = await prisma.backgroundJob.findMany({
+    where: { type, createdAt: { lte: now } },
+    orderBy: { createdAt: "desc" },
+    take: FAILED_RETRIES + 2,
+    select: { createdAt: true, status: true, payload: true },
+  });
+  const failedInARow = rows.findIndex((row) => row.status !== "FAILED");
+  const failures = failedInARow === -1 ? rows.length : failedInARow;
+  const newest = rows.at(0);
+  const giveUp = failures > FAILED_RETRIES || (newest !== undefined && now.getTime() - newest.createdAt.getTime() < FAILED_RETRY_AFTER_MS);
+  const counted = giveUp ? newest : rows.at(failures);
+  return counted ? { at: counted.createdAt, schedule: scheduleOf(counted.payload) } : null;
+}
+
+/**
+ * The scheduled-job ticker's step for one job: queue it when its schedule
+ * says a run is owed (cronOwed), recording the schedule it was queued under.
+ * The owed check reads the last run from the DB, and the singleton key lets
+ * one run be pending at a time, so two processes, or a tick after a restart,
+ * can't queue a second run for a time already run.
+ */
+export async function queueScheduledJob(
+  type: JobType,
+  pattern: string,
+  now: Date,
+  { savedAt = null, ...options }: EnqueueOptions & { savedAt?: Date | null } = {},
+) {
+  const last = await lastQueuedRun(type, now);
+  const owed = await cronOwed(type, pattern, last?.at ?? null, now, { lastSchedule: last?.schedule ?? null, savedAt });
+  return owed ? enqueueJobUnlessPending(type, { schedule: pattern }, options) : null;
 }
 
 async function claimJob(minPriority?: number) {

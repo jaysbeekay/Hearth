@@ -17,9 +17,9 @@ test("switching region changes number formatting, and resets cleanly", async ({ 
   // Default region (Australia) uses "." for decimals and "," for thousands.
   await expect(page.locator("body")).toContainText("1,234.50");
 
-  await page.goto("/settings");
+  await page.goto("/settings#preferences");
   await page.locator("#region").selectOption("de-DE");
-  // #363 — one Save changes per Settings tab.
+  // #363 — one Save changes per Settings screen.
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("#main").getByText("Preferences saved.")).toBeVisible();
 
@@ -31,9 +31,9 @@ test("switching region changes number formatting, and resets cleanly", async ({ 
   await expect(page.locator("body")).toContainText("1.234,50");
 
   // Reset back to the default so this test doesn't leak state into later runs.
-  await page.goto("/settings");
+  await page.goto("/settings#preferences");
   await page.locator("#region").selectOption("en-AU");
-  // #363 — one Save changes per Settings tab.
+  // #363 — one Save changes per Settings screen.
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("#main").getByText("Preferences saved.")).toBeVisible();
 });

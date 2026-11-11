@@ -37,6 +37,10 @@ export interface DocRow {
   parentTitle: string;
   parentHref: string;
   downloadHref: string;
+  /** #617 — for the preview image's alt text, matching the record's own Document list. */
+  typeLabel?: string | null;
+  /** The record the Document belongs to; none for an Inbox file. */
+  ownerName?: string | null;
 }
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "size-desc";

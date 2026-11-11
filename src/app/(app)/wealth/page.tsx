@@ -15,7 +15,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, inlineLinkClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Wealth" };
@@ -62,7 +62,7 @@ export default async function WealthPage() {
 
       {data.propertyStale && enabledModules.has("HOME") && (
         <Banner className="flex items-start gap-3">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <AlertTriangle size={16} className="mt-1 shrink-0" />
           <span>One or more properties don&apos;t have a valuation in the last 12 months. <Link href="/home" className="underline">Update property valuations</Link> for a more accurate net worth.</span>
         </Banner>
       )}
@@ -91,7 +91,7 @@ export default async function WealthPage() {
       {topHoldings.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">Holdings</h2>
+            <h2 className={sectionHeadingClass()}>Holdings</h2>
             {canWrite && data.portfolios.length === 1 && (
               <Link
                 href={`/wealth/portfolios/${data.portfolios[0].portfolioId}/holdings/new`}

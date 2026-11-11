@@ -2,6 +2,7 @@ import http from "http";
 import type { AddressInfo } from "net";
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE, BASE_URL } from "../env";
+import { stubPushManager } from "../pushStub";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -175,4 +176,32 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+// #375 — "Turn on reminders" with push, through the stand-in in pushStub.ts.
+// The server stores and lists it like any other device; this test turns it
+// off again so later specs see no push device.
+test("turning push on and off from the Turn on reminders screen", async ({ page }) => {
+  await stubPushManager(page);
+
+  await page.goto("/reminders");
+  await expect(page.getByRole("heading", { name: "Turn on reminders", level: 1 })).toBeVisible();
+  // No SMTP or ntfy in the e2e environment: the admin is pointed to Settings.
+  await expect(page.locator("body")).toContainText("Email isn't set up for the household.");
+  const device = page.getByTestId("push-device");
+  await device.getByRole("button", { name: "Notify this device" }).click();
+  await expect(device).toContainText("Reminders will show up on this device.");
+  await expect(device).toContainText("Push reminders are on for this device.");
+
+  // Saved on the server: still on after a reload, and counted in the health card.
+  await page.reload();
+  await expect(device).toContainText("Push reminders are on for this device.");
+  const health = page.locator("section", { has: page.getByRole("heading", { name: "Reminder delivery health" }) });
+  await expect(health).toContainText("1 device");
+
+  await device.getByRole("button", { name: "Turn off" }).click();
+  await expect(device).toContainText("Get reminders as notifications on this device.");
+  await page.reload();
+  await expect(device.getByRole("button", { name: "Notify this device" })).toBeVisible();
+  await expect(health).not.toContainText("1 device");
 });

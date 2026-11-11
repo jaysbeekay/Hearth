@@ -6,13 +6,13 @@ export const passwordSchema = z
 
 export const setupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
-  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  email: z.string().trim().toLowerCase().max(254, "Enter a valid email address").email("Enter a valid email address"),
   password: passwordSchema,
 });
 
 export const createUserSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
-  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  email: z.string().trim().toLowerCase().max(254, "Enter a valid email address").email("Enter a valid email address"),
   role: z.enum(["ADMIN", "MEMBER", "READONLY"]).default("MEMBER"),
 });
 
@@ -27,7 +27,7 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: z.string().trim().toLowerCase().max(254, "Enter a valid email address").email(),
   password: z.string().min(1),
 });
 
@@ -37,7 +37,7 @@ export const changePasswordSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  email: z.string().trim().toLowerCase().max(254, "Enter a valid email address").email("Enter a valid email address"),
 });
 
 export const resetPasswordSchema = z.object({

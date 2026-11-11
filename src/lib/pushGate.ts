@@ -13,8 +13,8 @@ import { isValidSessionMarker } from "@/lib/offlineOwner";
 // marker), someone else is signed in here, or the member's marker ran out
 // more than a week ago. A missing marker alone isn't enough: it also goes
 // missing while a member is still signed in (between a sign-out that then
-// fails and putting it back, Back to a cached sign-in page), and dropping a
-// subscription can't be undone from here.
+// fails and putting it back, Back to a cached sign-in page while the server
+// can't be reached), and dropping a subscription can't be undone from here.
 
 /** How long past its expiry a member's marker still counts as maybe signed in. */
 export const MARKER_GRACE_MS = 7 * 24 * 60 * 60 * 1000;

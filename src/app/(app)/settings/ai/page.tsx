@@ -8,18 +8,26 @@ import { saveOllamaSettings } from "@/lib/actions/app-settings";
 import { OllamaForm } from "@/components/AppSettingsForms";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { ChatSettingsForm } from "@/components/ChatSettingsForm";
+import { AssistantEnabledToggle } from "@/components/AssistantEnabledToggle";
+import { getAssistantAvailability } from "@/lib/assistant/enablement";
+import { bannerClass } from "@/lib/ui";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
 import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.ai.label };
 
 // #363 — the AI half of the old System settings page: what reads uploaded
 // documents locally, and the optional local and cloud AI that can help.
-export default async function AiSettingsPage() {
+export default async function AiSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/settings");
 
@@ -33,6 +41,8 @@ export default async function AiSettingsPage() {
     chatApiKeyIsSet,
     extractionCapabilities,
     ollamaConfigured,
+    assistant,
+    { welcome },
   ] = await Promise.all([
     getOllamaConfig(),
     getAppSetting("ai.provider"),
@@ -43,6 +53,8 @@ export default async function AiSettingsPage() {
     isAppSettingSet("chat.apiKey"),
     getExtractionCapabilities(),
     isOllamaConfigured(),
+    getAssistantAvailability(),
+    searchParams,
   ]);
 
   return (
@@ -56,9 +68,20 @@ export default async function AiSettingsPage() {
         </p>
       </div>
 
+      {/* Arrived here from first-run setup with the assistant ticked. */}
+      {welcome === "assistant" && (
+        <div role="status" className={bannerClass("neutral")}>
+          Last step: choose the AI provider for your assistant under{" "}
+          <a href="#ai-assistant" className="underline">
+            AI Assistant
+          </a>
+          , or skip this and set it up later.
+        </div>
+      )}
+
       <Card as="section" className="space-y-4">
         <div>
-          <h2 className="font-medium">Document text extraction</h2>
+          <h2 className={sectionHeadingClass()}>Document text extraction</h2>
           <p className="text-xs text-muted mt-0.5">
             Local tools this server uses to read uploaded documents before any AI is involved
           </p>
@@ -73,7 +96,7 @@ export default async function AiSettingsPage() {
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Local AI (Ollama)</h2>
+            <h2 className={sectionHeadingClass()}>Local AI (Ollama)</h2>
             <p className="text-xs text-muted mt-0.5">Used as a fallback extraction backend when no cloud AI key is set</p>
           </div>
           <OllamaForm action={saveOllamaSettings} current={{ baseUrl: ollama.baseUrl, model: ollama.model }} />
@@ -81,7 +104,7 @@ export default async function AiSettingsPage() {
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">AI document extraction</h2>
+            <h2 className={sectionHeadingClass()}>AI document extraction</h2>
             <p className="text-xs text-muted mt-0.5">
               Bring your own API key to send uploaded documents to a cloud AI provider for
               higher-accuracy field extraction, shared by the whole household. Leave this unset to
@@ -95,9 +118,9 @@ export default async function AiSettingsPage() {
           />
         </Card>
 
-        <Card as="section" className="space-y-4">
+        <Card as="section" id="ai-assistant" className="scroll-mt-8 space-y-4">
           <div>
-            <h2 className="font-medium">AI Assistant</h2>
+            <h2 className={sectionHeadingClass()}>AI Assistant</h2>
             <p className="text-xs text-muted mt-0.5">
               Bring your own API key to enable an assistant that can answer questions using the
               household&apos;s own data — contracts, warranties, trips, vehicles, properties,
@@ -107,6 +130,10 @@ export default async function AiSettingsPage() {
               — the two are independent.
             </p>
           </div>
+          <AssistantEnabledToggle
+            enabled={assistant.enabled}
+            configured={assistant.configured}
+          />
           <ChatSettingsForm
             provider={(chatProvider || null) as AiProviderId | null}
             model={chatModel || null}

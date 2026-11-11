@@ -11,6 +11,9 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { inlineLinkClass } from "@/lib/ui";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Add a warranty" };
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");

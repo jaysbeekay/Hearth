@@ -5,9 +5,15 @@
 // takes the class string from here instead of re-declaring it.
 //
 // The rules, from the issue:
-// - Type: five sizes (text-2xl/xl/base/sm/xs) and two weights (400/500),
-//   sentence case, tabular-nums set once on body.
-// - Shape: rounded-lg everywhere except rounded-full for the FAB and dots;
+// - Type: five sizes (text-2xl/xl/base/sm/xs) and three weights: 400 for
+//   body, 500 for UI text and titles, 600 only for section headings
+//   (sectionHeadingClass) so they stand apart from 14px body copy (#558).
+//   The app ships no font, so on a system stack without a semibold face
+//   (Liberation Sans / DejaVu on Linux, some older Android Roboto) the
+//   browser renders 600 as 700 and 500 as 400. Apple and Windows have both.
+//   Sentence case, tabular-nums set once on body.
+// - Shape: rounded-lg everywhere except rounded-full for the FAB, dots and
+//   the account avatar;
 //   1px borders; dashed only for the file drop zone; no card shadows, one
 //   shadow-overlay for dialogs and menus.
 // - Spacing: steps 1/2/3/4/6/8. Card padding p-4.
@@ -39,7 +45,10 @@ const CLASS_GROUPS: RegExp[] = [
   /^h-/,
   /^w-/,
   /^text-(xs|sm|base|xl|2xl)$/,
+  /^leading-/,
   /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
+  /^disabled:opacity-/,
+  /^aria-disabled:opacity-/,
 ];
 
 /** Base classes plus extras, where an extra replaces a base class of the same group. */
@@ -49,6 +58,26 @@ export function mergeClasses(base: string, extra?: string | false | null): strin
   const overridden = CLASS_GROUPS.filter((g) => extras.some((x) => g.test(x)));
   const kept = base.split(/\s+/).filter((b) => b && !overridden.some((g) => g.test(b)));
   return [...kept, ...extras].join(" ");
+}
+
+// ── Headings ────────────────────────────────────────────────────────────
+
+/**
+ * A section <h2>: 16px at weight 600. At 500 it sat only 100 weight units
+ * and 1.14x in size above 14px body text; 600 gives the 200-unit step the
+ * type hierarchy needs (#558). The page <h1> stays text-2xl at 500.
+ */
+export function sectionHeadingClass(className?: string) {
+  return mergeClasses("text-base font-semibold", className);
+}
+
+/**
+ * Running text that wraps over several lines (notes, Help answers): 14px on
+ * a 24px line (1.71) and capped at 65ch, so lines stay readable (#558).
+ * Single-line UI text keeps Tailwind's default leading.
+ */
+export function proseClass(className?: string) {
+  return mergeClasses("max-w-prose text-sm leading-6 text-foreground", className);
 }
 
 // ── Card ────────────────────────────────────────────────────────────────
@@ -132,10 +161,36 @@ export function bannerToneClass(tone: BannerTone) {
   return BANNER_TONE.get(tone) ?? "";
 }
 
-/** A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3. */
+/**
+ * A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3, 24px
+ * lines (#558). A 16px leading icon takes mt-1 to centre on the first line.
+ */
 export function bannerClass(tone: BannerTone = "neutral", className?: string) {
-  return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone)), className);
+  return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm leading-6", BANNER_TONE.get(tone)), className);
 }
+
+// ── Disabled ────────────────────────────────────────────────────────────
+
+// #620 — one dimmed look for a control that can't be used right now: 50%.
+// buttonClass and the input / select / textarea classes carry it already; a
+// one-off control uses disabledClass, and something that isn't a control
+// (a locked settings row) uses dimmedClass. An action that needs a
+// connection is fainter while offline, at 40%: buttonClass's online option,
+// or offlineClass on anything else.
+
+/** For a plain <button> that doesn't use buttonClass. */
+export const disabledClass = "disabled:opacity-50";
+
+/** For an element shown as unavailable that has no disabled state of its own. */
+export const dimmedClass = "opacity-50";
+
+/** An action that needs a connection, while offline. */
+export const offlineClass = "opacity-40";
+
+// An offline link-as-button is usually aria-disabled too, and
+// aria-disabled:opacity-50 ([aria-disabled="true"]) outranks a bare
+// opacity-40, so offline replaces the base's disabled opacities as well.
+const BUTTON_OFFLINE = `pointer-events-none ${offlineClass} disabled:opacity-40 aria-disabled:opacity-40`;
 
 // ── Button ──────────────────────────────────────────────────────────────
 
@@ -147,14 +202,14 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 // button) without the button looking any bigger. ::before is placed from the
 // padding box, so a bordered button reaches 5px past its 1px border.
 const BUTTON_BASE =
-  "relative inline-flex min-h-9 max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-1 text-center text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
+  "relative inline-flex min-h-9 max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-1 text-center text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50";
 
 const HIT_AREA = "before:-inset-1";
 const HIT_AREA_BORDERED = "before:-inset-[5px]";
 
 const BUTTON_VARIANT = new Map<ButtonVariant, string>([
   ["primary", `${HIT_AREA} bg-accent text-accent-foreground hover:bg-accent/90`],
-  ["secondary", `${HIT_AREA_BORDERED} border border-border bg-surface hover:bg-hover-surface`],
+  ["secondary", `${HIT_AREA_BORDERED} border border-border-control bg-surface hover:bg-hover-surface`],
   ["quiet", `${HIT_AREA} hover:bg-hover`],
   ["danger", `${HIT_AREA} bg-danger text-danger-foreground hover:bg-danger/90`],
 ]);
@@ -177,16 +232,11 @@ export function buttonClass(
   { icon = false, destructive = false, online = true }: ButtonOptions = {},
   className?: string,
 ) {
-  return mergeClasses(
-    cn(
-      BUTTON_BASE,
-      BUTTON_VARIANT.get(variant),
-      icon && "w-9 shrink-0 px-0",
-      destructive && "text-danger",
-      !online && "pointer-events-none opacity-40",
-    ),
-    className,
-  );
+  const styled = cn(BUTTON_BASE, BUTTON_VARIANT.get(variant), destructive && "text-danger");
+  const base = online ? styled : mergeClasses(styled, BUTTON_OFFLINE);
+  // Merged rather than appended: beside the base's px-3, a plain px-0 lost
+  // on stylesheet order and squeezed a 20px icon to 12px.
+  return mergeClasses(icon ? mergeClasses(base, "w-9 shrink-0 px-0") : base, className);
 }
 
 /**
@@ -199,7 +249,7 @@ export function chipClass(active: boolean, className?: string) {
       BUTTON_BASE,
       HIT_AREA_BORDERED,
       "border",
-      active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
+      active ? "border-accent bg-accent/10 text-accent" : "border-border-control bg-surface text-muted hover:bg-hover-surface",
     ),
     className,
   );
@@ -224,16 +274,38 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
   );
 }
 
+/**
+ * The current entry in the sidebar's account footer: the avatar button while
+ * on Settings, the Help icon on Help, the popover's Settings row. A bar down
+ * its left edge marks it as well as the accent tint, since accent and muted
+ * text differ in hue alone (WCAG 1.4.1, #558); pair it with
+ * aria-current="page". The bar is ::after because buttons use ::before for
+ * their hit area.
+ */
+export const accountCurrentClass =
+  "relative bg-accent/10 text-accent after:pointer-events-none after:absolute after:inset-y-2 after:left-0 after:w-0.5 after:rounded-full after:bg-accent after:content-['']";
+
+/** The round initials avatar on the account menu, at 32px (`md`) or 40px (`lg`). */
+export function avatarClass(size: "md" | "lg" = "md", className?: string) {
+  return mergeClasses(
+    cn(
+      "inline-flex shrink-0 items-center justify-center rounded-full bg-hover text-muted",
+      size === "md" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm",
+    ),
+    className,
+  );
+}
+
 // ── Form controls ───────────────────────────────────────────────────────
 
 const INPUT_SHAPE =
-  "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
+  "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50";
 
 /**
  * The one input / select / textarea look: 36px tall, rounded-lg, 1px border.
  * The border turns danger while FormMessage marks the field invalid (#406).
  */
-export const inputClass = cn(INPUT_SHAPE, "border-border bg-background aria-invalid:border-danger");
+export const inputClass = cn(INPUT_SHAPE, "border-border-control bg-background aria-invalid:border-danger");
 
 /**
  * #406 — a field on an Import / Inbox review row: the input look, tinted
@@ -242,7 +314,7 @@ export const inputClass = cn(INPUT_SHAPE, "border-border bg-background aria-inva
  */
 export function reviewFieldClass(fill: "none" | "extracted" | "ai" = "none") {
   if (fill === "ai") return cn(INPUT_SHAPE, "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60");
-  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent/40 bg-accent/5 ring-1 ring-accent/40");
+  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent bg-accent/5 ring-1 ring-accent/40");
   return inputClass;
 }
 
@@ -251,7 +323,7 @@ export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-60";
+  "w-full rounded-lg border border-border-control bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-50";
 
 // ── Page widths ─────────────────────────────────────────────────────────
 
@@ -268,6 +340,23 @@ const PAGE_WIDTH = new Map<PageWidth, string>([
 export function pageShellClass(width: PageWidth, className?: string) {
   return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
+
+// ── Navigation ──────────────────────────────────────────────────────────
+
+// The current nav entry is marked by a bar as well as the accent colour:
+// accent and muted text differ in hue alone (about 1.0:1), so colour can't
+// be the only cue (WCAG 1.4.1, #558). Pair it with aria-current="page".
+const NAV_BAR = "relative before:absolute before:rounded-full before:bg-accent before:content-['']";
+
+/** The current entry in the sidebar: a tint and a bar down its left edge. */
+export const sidebarActiveClass = `${NAV_BAR} bg-accent/10 text-accent before:inset-y-2 before:left-0 before:w-0.5`;
+
+/** The current tab in the phone tab bar or its More sheet: a bar along its top edge. */
+export const tabActiveClass = `${NAV_BAR} text-accent before:inset-x-3 before:top-0 before:h-0.5`;
+
+// A settings form's Test button on the left and Save on the right, with the
+// test's result on a full-width row beneath (TestConnectionButton inRow).
+export const settingsActionRowClass = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2";
 
 // ── Links ───────────────────────────────────────────────────────────────
 

@@ -6,6 +6,9 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Add a property" };
 
 export default async function NewPropertyPage() {
   await requireModuleEnabled("HOME");

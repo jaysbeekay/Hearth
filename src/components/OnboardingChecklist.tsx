@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Check, Circle, FileUp, Plus, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
-import { buttonClass, cardClass } from "@/lib/ui";
+import { onboardingComplete, onboardingSteps } from "@/lib/onboarding";
+import { buttonClass, cardClass, sectionHeadingClass } from "@/lib/ui";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // #345 — set when the "Review optional modules" step is followed, so a
@@ -28,16 +29,30 @@ export function OnboardingChecklist({
 
   if (dismissed) return null;
 
-  const steps = [
-    { label: "Invite a household member", href: "/settings/users", done: memberCount > 1 },
-    { label: "Set up reminders", href: "/settings/reminders", done: remindersConfigured },
-    {
-      label: "Review optional modules",
-      href: "/settings/modules",
-      done: enabledModules.length > 0 || modulesReviewed,
-      onClick: markModulesReviewed,
-    },
-  ];
+  const steps = onboardingSteps({
+    enabledModuleCount: enabledModules.length,
+    memberCount,
+    remindersConfigured,
+    modulesReviewed,
+  });
+
+  // #617 — once every step is done, a short confirmation instead of a list
+  // of struck-through steps. Dismissing it is the same dismissal as the X.
+  if (onboardingComplete(steps)) {
+    return (
+      <section className={cardClass({}, "space-y-3 text-center")}>
+        <div className="space-y-1">
+          <h2 className={sectionHeadingClass()}>You&apos;re set up</h2>
+          <p className="mx-auto max-w-md text-sm text-muted">
+            Every getting-started step is done.
+          </p>
+        </div>
+        <button type="button" onClick={dismiss} className={buttonClass("secondary")}>
+          Dismiss
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className={cardClass({}, "relative space-y-4 text-center")}>
@@ -51,7 +66,7 @@ export function OnboardingChecklist({
       </button>
 
       <div className="space-y-1">
-        <h2 className="text-base font-medium">Add your first document</h2>
+        <h2 className={sectionHeadingClass()}>Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">
           Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
         </p>
@@ -83,7 +98,7 @@ export function OnboardingChecklist({
           <li key={step.label}>
             <Link
               href={step.href}
-              onClick={"onClick" in step ? step.onClick : undefined}
+              onClick={step.key === "modules" ? markModulesReviewed : undefined}
               className={cardClass({ padding: "none", interactive: true }, "flex min-h-11 items-center gap-2 px-3 py-2 text-sm")}
             >
               {step.done ? (

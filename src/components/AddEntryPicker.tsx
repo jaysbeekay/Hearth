@@ -2,10 +2,11 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
+import { Plus, FileText, ShieldCheck, Home as HomeIcon, Files, X } from "lucide-react";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonClass, dialogPanelClass, cardClass } from "@/lib/ui";
+import { buttonClass, dialogPanelClass, cardClass, sectionHeadingClass } from "@/lib/ui";
 
 interface Option {
   label: string;
@@ -35,7 +36,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       label: "A warranty",
       description: "Something you bought, tracked by its warranty end date.",
       href: "/products/new",
-      icon: Package,
+      icon: ShieldCheck,
     },
   ];
 
@@ -44,7 +45,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       label: "An item you own",
       description: "Catalogue what you own — no warranty tracking needed.",
       href: "/inventory/new",
-      icon: Boxes,
+      icon: MODULE_REGISTRY.INVENTORY.icon,
     });
   }
 
@@ -81,7 +82,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         panelClassName={dialogPanelClass("max-w-md")}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-base font-medium">
+          <h2 id={titleId} className={sectionHeadingClass()}>
             What are you adding?
           </h2>
           <button

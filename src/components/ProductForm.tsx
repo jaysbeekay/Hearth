@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyInputValue } from "@/lib/utils";
 import {
   ExtractionReviewNote,
   SaveForLaterButton,
@@ -32,7 +33,7 @@ import { inputClass, textareaClass, selectClass } from "@/components/SelectWrapp
 import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
-import { bannerClass, buttonClass } from "@/lib/ui";
+import { bannerClass, buttonClass, disabledClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -313,7 +314,7 @@ export function ProductForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={effectiveValues?.price ?? product?.price ?? ""}
+            defaultValue={effectiveValues?.price ?? moneyInputValue(product?.price, product?.currency)}
             className={inputClass}
           />
         </Field>
@@ -401,7 +402,7 @@ export function ProductForm({
                   void handleBarcodeLookup();
                 }}
                 disabled={lookingUp}
-                className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
+                className={`mt-1 text-xs font-medium text-accent hover:underline ${disabledClass}`}
               >
                 {lookingUp ? "Looking up…" : "Look up barcode"}
               </button>

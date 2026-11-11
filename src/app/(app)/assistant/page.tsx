@@ -1,8 +1,9 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { isAssistantEnabled } from "@/lib/assistant/enablement";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
 import { AssistantClient } from "@/components/AssistantClient";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
@@ -19,6 +20,9 @@ export default async function AssistantPage({
   // the account's sessionVersion moves (password/role change) or the account
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
+
+  // Off for the household: the page doesn't exist, like a disabled module.
+  if (!(await isAssistantEnabled())) notFound();
 
   const userId = session.user.id;
   const { thread: requestedThreadId } = await searchParams;

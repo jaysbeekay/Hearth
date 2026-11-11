@@ -9,9 +9,15 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { billingFrequencyText, formatTermCost, nextTermDates, pickTermDocument } from "@/lib/contractTerms";
-import { formatDate } from "@/lib/utils";
+import { formatDate, moneyInputValue } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { recordMetadata } from "@/lib/recordTitles";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("contract", id, (name) => `Renew ${name}`, "Renew contract");
+}
 
 // #353 — Renew: adds the Contract's next Term and keeps the current one as
 // history. Reached from the detail page's header, its Due banner and Needs
@@ -54,7 +60,7 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
           defaults={{
             startDate: next.startDate ?? "",
             endDate: next.endDate ?? "",
-            cost: contract.cost != null ? String(contract.cost) : "",
+            cost: moneyInputValue(contract.cost, contract.currency),
           }}
           today={today}
           baseUpdatedAt={contract.updatedAt.toISOString()}
