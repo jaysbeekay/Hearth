@@ -236,9 +236,10 @@ for the full list and defaults before assuming a feature is unconfigured or misb
 - Route groups: `src/app/(app)/*` are authenticated pages sharing the sidebar/bottom-nav
   layout (`layout.tsx`); `src/app/login`, `src/app/setup`, `src/app/forgot-password`,
   `src/app/reset-password` are outside it.
-- Zod schemas in `src/lib/validation/` are the single source of truth for both server
-  action validation and (via `@hookform/resolvers`) client-side form validation — update
-  both call sites' expectations when changing a schema, not just the server action.
+- Zod schemas in `src/lib/validation/` are the single source of truth for validation,
+  which runs only on the server (server actions, and the sync, MCP, chat and import
+  handlers); forms submit `FormData` and show the action's error. Client forms import only option lists and labels from these files (e.g.
+  `TRADE_TYPES`), so check those call sites too when renaming or removing a value.
   `firstIssueMessage`-style helpers convert Zod errors to the `ActionState` shape
   (`{ error, success, values }`) returned by every action for `useActionState`/form
   display.

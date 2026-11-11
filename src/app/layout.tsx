@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { bannerClass } from "@/lib/ui";
 
 export const metadata: Metadata = {
   title: { default: "Hearth", template: "%s · Hearth" },
@@ -33,7 +34,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Form buttons stay disabled until the page's script runs (#609), so
+            say why when it never will. */}
+        <noscript>
+          <p role="status" className={bannerClass("warning", "m-4")}>
+            Hearth needs JavaScript. Turn it on to save changes; buttons stay disabled until you do.
+          </p>
+        </noscript>
+        {children}
+      </body>
     </html>
   );
 }
