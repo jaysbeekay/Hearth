@@ -299,6 +299,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Removed two unused dependencies.** `react-hook-form` and
+  `@hookform/resolvers` were in `dependencies`, but nothing imported them.
+  Forms submit to server actions, which validate with Zod. No behaviour
+  change. This replaces
+  dependabot's resolvers 5→7 bump (#569).
+
 - **One primary button per phone screen (#630).** The phone app now follows
   the web app's Buttons rule: a screen has at most one filled primary button.
   The one kept is "Confirm details" on a Contract or Warranty that needs
