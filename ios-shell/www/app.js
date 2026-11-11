@@ -12,16 +12,16 @@ const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
-// On-device document scanning and text recognition: a local native plugin
-// (ios/App/App/HearthScanPlugin.swift — VisionKit, Vision, PDFKit;
-// android/.../HearthScanPlugin.java — ML Kit). Nothing leaves the phone.
-// Absent outside the native apps, so every caller treats it as optional.
-const HearthScan = Plugins.HearthScan;
 const Share = Plugins.Share;
 // ios/App/App/SecureClipboardPlugin.swift and its Android counterpart.
 const SecureClipboard = Plugins.SecureClipboard;
 // ios-shell/www/backup-format.js, loaded before this file.
 const BackupFormat = window.HearthBackupFormat;
+// On-device document scanning and text recognition: a local native plugin
+// (ios/App/App/HearthScanPlugin.swift — VisionKit, Vision, PDFKit;
+// android/.../HearthScanPlugin.java — ML Kit). Nothing leaves the phone.
+// Absent outside the native apps, so every caller treats it as optional.
+const HearthScan = Plugins.HearthScan;
 
 // RevenueCat public SDK keys — safe to embed client-side (same class of key
 // as a Stripe publishable key), but these are placeholders until a
@@ -1631,6 +1631,8 @@ async function storeFile(ownerType, ownerId, file) {
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `${ownerType}/${ownerId}/${crypto.randomUUID()}${extension}`;
   const data = bytesToBase64(bytes);
+  // On-device OCR can take up to RECOGNIZE_TEXT_TIMEOUT_MS, so it runs
+  // before the gate rather than holding up every other write.
   const extractedText = await extractedTextFor(file, data, mimeType);
   // The file and its row are written as one step at the gate, like every
   // document change, so a restore never runs in between (#226 review).
@@ -1662,6 +1664,7 @@ async function storeInboxFile(file) {
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `inbox/${crypto.randomUUID()}${extension}`;
   const data = bytesToBase64(bytes);
+  // OCR runs before the gate, as in storeFile.
   const extractedText = await extractedTextFor(file, data, mimeType);
   await withExclusiveDb(async () => {
     await Filesystem.writeFile({
@@ -1862,18 +1865,81 @@ function scanLabeledValue(text, labels, valuePattern) {
   return undefined;
 }
 
+// --- Amount parsing: a port of parseAmount in src/lib/documents/textHeuristics.ts.
+// tests/unit/text-heuristics-cost.test.ts runs this block against the server's
+// functions, so change both together.
+const SCAN_AMOUNT_PATTERN =
+  /(\b(?:AUD|USD|NZD|GBP|EUR|JPY|ZAR)|[$£€¥]|\bR(?=[^\S\r\n]?\d))[^\S\r\n]*(\d{1,3}([,.\u00A0\u2009\u202F])\d{3}(?:\3\d{3})*(?:(?!\3)[.,]\d+)?|\d{1,3} \d{3}(?: \d{3})*(?:[.,]\d+|(?=[^\S\r\n]*(?:[\r\n]|$|[^\w\s])))|\d+(?:[.,]\d+)?)(?!\d)/g;
+const SCAN_AMOUNT_SPACES = /[ \u00A0\u2009\u202F]/g;
+// An amount cut short by a malformed grouping ("$1.234.56", "$12,34,567").
+const SCAN_MALFORMED_TAIL = /[.,]\d/y;
+// "R2D2", "R2 D2": a reference, not an amount in rand.
+const SCAN_REFERENCE_TAIL = /[A-Za-z]|[^\S\r\n]?[A-Za-z]\d/y;
+
+function scanFollowedBy(pattern, text, at) {
+  pattern.lastIndex = at;
+  return pattern.test(text);
+}
+
+// "1.234,56" → "1234.56". With both "." and "," the last one is the decimal
+// separator; with one kind only, it's a thousands separator when it splits the
+// number into groups of three.
+function scanNormaliseNumber(raw, wholeUnitsOnly) {
+  const digits = raw.replace(SCAN_AMOUNT_SPACES, "");
+  const lastDot = digits.lastIndexOf(".");
+  const lastComma = digits.lastIndexOf(",");
+  let whole;
+  let fraction;
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalAt = Math.max(lastDot, lastComma);
+    whole = digits.slice(0, decimalAt).replace(/[.,]/g, "");
+    fraction = digits.slice(decimalAt + 1);
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const parts = digits.split(/[.,]/);
+    const grouped =
+      parts.length > 2 || (parts[0] !== "0" && parts[0].length <= 3 && parts[1].length === 3);
+    if (grouped) {
+      whole = parts.join("");
+    } else {
+      whole = parts[0];
+      fraction = parts[1];
+    }
+  } else {
+    whole = digits;
+  }
+  if (fraction === undefined || wholeUnitsOnly) return whole;
+  return `${whole}.${fraction}`;
+}
+
+// The first currency-marked amount, as a plain decimal string. An "R" amount
+// only counts when nothing else is an amount, and never when it looks like a
+// reference ("R2D2") or starts with a 0 (a phone number).
+function scanParseAmount(text) {
+  let randAmount;
+  for (const match of text.matchAll(SCAN_AMOUNT_PATTERN)) {
+    const prefix = match[1];
+    const number = match[2];
+    const end = (match.index ?? 0) + match[0].length;
+    if (scanFollowedBy(SCAN_MALFORMED_TAIL, text, end)) continue;
+    if (prefix !== "R") return scanNormaliseNumber(number, prefix === "¥" || prefix === "JPY");
+    if (randAmount !== undefined || /^0\d/.test(number) || scanFollowedBy(SCAN_REFERENCE_TAIL, text, end)) continue;
+    randAmount = scanNormaliseNumber(number, false);
+  }
+  return randAmount;
+}
+
 function scanCost(text) {
   const priority = /(total|amount due|balance due|premium|monthly fee|amount payable|payment)/i;
   let fallback;
   for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.]?\d)/);
-    if (!match) continue;
-    const value = match[1].replace(/,/g, "");
+    const value = scanParseAmount(line);
+    if (!value) continue;
     if (priority.test(line)) return value;
     fallback ??= value;
   }
   return fallback;
 }
+// --- End of amount parsing.
 
 function scanEmail(text) {
   return text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0];

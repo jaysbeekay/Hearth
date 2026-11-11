@@ -164,8 +164,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   photos and PDFs also get their text read on import, and older documents get
   a *Read text* button, so Search finds documents by their contents. Nothing
   leaves the phone. The Android scanner needs Google Play services; without
-  it, the file picker still works. Shell parity: new local native plugin
-  `HearthScan` (`HearthScanPlugin.swift`, `HearthScanPlugin.java`).
+  it, the file picker still works. Amounts are read the same way as on the
+  server, including £, €, ¥, R and European-style numbers (#613). Shell
+  parity: new local native plugin `HearthScan` (`HearthScanPlugin.swift`,
+  `HearthScanPlugin.java`).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
