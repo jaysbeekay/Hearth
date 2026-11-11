@@ -90,7 +90,12 @@ test("restoring from Recently deleted focuses the next entry's name, not its Res
   const next = (labels[first + 1] ?? labels[first - 1]).trim();
 
   const row = entries.filter({ has: page.getByText(restored, { exact: true }) });
-  await row.getByRole("button", { name: "Restore" }).focus();
+  const restore = row.getByRole("button", { name: "Restore" });
+  // Restore is a SubmitButton, disabled until the page hydrates (#609);
+  // focus() doesn't wait for that the way click() does, and a disabled
+  // button can't take focus, so Enter would go nowhere.
+  await expect(restore).toBeEnabled();
+  await restore.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Restored.");
   await expect(page.getByText(restored, { exact: true })).toHaveCount(0);
@@ -122,8 +127,12 @@ test.describe("Contracts list swipe-delete", () => {
     const order = (await cards.allInnerTexts()).map((text) => titles.find((t) => text.includes(t))!);
     const [gone, next] = order;
 
-    await page.getByRole("button", { name: `Delete ${gone}`, exact: true }).focus();
-    await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
+    // Retried: Enter before the page hydrates does nothing (see 07-mobile-responsive).
+    await expect(async () => {
+      await page.getByRole("button", { name: `Delete ${gone}`, exact: true }).focus();
+      await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
+      await expect(page.getByRole("alertdialog")).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await page.keyboard.press("Tab"); // to its Delete
     await page.keyboard.press("Enter");
     await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
