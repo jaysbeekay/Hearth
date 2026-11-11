@@ -2147,12 +2147,21 @@ async function excludeStandaloneFoldersFromBackup() {
   await BackupExclusion.excludeFolders({ paths: BACKUP_EXCLUDED_FOLDERS }).catch(() => undefined);
 }
 
+// Unencrypted backups from before #226 sit in DOCUMENTS/hearth-backups,
+// also the iOS Documents folder. Excluded too, but only if the folder is
+// already there: creating it would change what the legacy-backup card finds.
+async function excludeLegacyBackupFolderFromBackup() {
+  if (!BackupExclusion || Capacitor?.getPlatform?.() !== "ios") return;
+  await BackupExclusion.excludeFolders({ paths: [BACKUP_ROOT], ifExists: true }).catch(() => undefined);
+}
+
 async function enterStandaloneApp() {
   await checkScannerAvailability();
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
   await excludeStandaloneFoldersFromBackup();
+  await excludeLegacyBackupFolderFromBackup();
   await recoverInterruptedRestore().catch(() => undefined);
   // A failure leaves the Trash as it was; the next launch tries again.
   await purgeExpiredTrashedDocuments().catch(() => undefined);

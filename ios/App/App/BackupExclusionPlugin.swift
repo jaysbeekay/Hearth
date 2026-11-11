@@ -8,8 +8,10 @@ import Foundation
 // encrypted SQLite database needs nothing here: the SQLite plugin already
 // excludes its own folder.
 //
-// excludeFolders({ paths }) creates each folder under Documents if needed and
-// sets isExcludedFromBackup on it. Apple's guidance is to group files in a
+// excludeFolders({ paths, ifExists }) creates each folder under Documents if
+// needed and sets isExcludedFromBackup on it. With ifExists: true it skips a
+// folder that isn't there instead of creating it (the shell uses that for
+// the folder of old unencrypted backups, whose presence it checks). Apple's guidance is to group files in a
 // folder and exclude the folder ("Optimizing Your App's Data for iCloud
 // Backup"), so files written into it later are covered too. The flag is lost
 // when a folder is deleted, so the shell calls this at launch and after it
@@ -35,11 +37,15 @@ public class BackupExclusionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Invalid folder name: \(path)")
             return
         }
+        let onlyIfExists = call.getBool("ifExists") ?? false
         do {
             let manager = FileManager.default
             let documents = try manager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             for path in paths {
                 var folder = documents.appendingPathComponent(path, isDirectory: true)
+                var isDirectory: ObjCBool = false
+                let exists = manager.fileExists(atPath: folder.path, isDirectory: &isDirectory)
+                if onlyIfExists && !(exists && isDirectory.boolValue) { continue }
                 try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: nil)
                 var values = URLResourceValues()
                 values.isExcludedFromBackup = true

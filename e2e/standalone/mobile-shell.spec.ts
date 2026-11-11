@@ -43,6 +43,8 @@ test.beforeEach(async ({ page }) => {
     // Every Share.share call, with the text of each shared file at the time.
     const shares: { files: string[]; contents: (string | null)[] }[] = [];
     const backupExclusions: string[][] = [];
+    // Folder removals, backup exclusions and staged-file writes, in order (#492).
+    const folderEvents: { op: string; path?: string; paths?: string[]; ifExists?: boolean }[] = [];
     let renames = 0;
     const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     // See Filesystem.stat in the mock.
@@ -631,6 +633,7 @@ test.beforeEach(async ({ page }) => {
       fileTimes,
       shares,
       backupExclusions,
+      folderEvents,
       preferences,
       get renames() {
         return renames;
@@ -699,12 +702,14 @@ test.beforeEach(async ({ page }) => {
               });
             }
             fileWrites.push(args);
+            if (String(args.path).startsWith("standalone-restore-staging/")) folderEvents.push({ op: "write", path: String(args.path) });
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             files.set(fileKey(args), args.data ?? "");
             fileTimes.set(fileKey(args), Date.now());
             return {};
           },
           appendFile: async (args: { directory?: string; path?: string; data?: string }) => {
+            if (String(args.path).startsWith("standalone-restore-staging/")) folderEvents.push({ op: "write", path: String(args.path) });
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             // "hearth-test-append-error": appends fail (a full disk mid-export).
             if (testFlag("hearth-test-append-error") && String(args.path).startsWith("hearth-backups/")) throw new Error("Disk full");
@@ -747,6 +752,7 @@ test.beforeEach(async ({ page }) => {
             return { files: [...entries.values()] };
           },
           rmdir: async (args: { directory?: string; path?: string }) => {
+            folderEvents.push({ op: "rmdir", path: String(args.path) });
             for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
           },
           rename: async (args: { directory?: string; from: string; to: string }) => {
@@ -817,8 +823,9 @@ test.beforeEach(async ({ page }) => {
             }),
         // iOS's backup exclusion (#492): records each call's folder names.
         BackupExclusion: {
-          excludeFolders: async ({ paths }: { paths: string[] }) => {
+          excludeFolders: async ({ paths, ifExists }: { paths: string[]; ifExists?: boolean }) => {
             backupExclusions.push([...paths]);
+            folderEvents.push({ op: "exclude", paths: [...paths], ifExists: Boolean(ifExists) });
             return {};
           },
         },
@@ -2013,6 +2020,23 @@ test("standalone new-phone restore checks again for records added while the back
   await expect(newPhoneOffer(page)).toHaveCount(0);
 });
 
+test("standalone new-phone restore refuses when a Document goes to Trash while the backup is being checked (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await page.evaluate(() => localStorage.setItem("hearth-test-pause-at-staging", "1"));
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Checking backup");
+  await page.waitForFunction(() => typeof (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging === "function");
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest;
+    harness.rowsByTable.documents.push({ id: "trashed-during-check", owner_type: "contract", owner_id: "gone", filename: "old.pdf", storage_key: "old.pdf", mime_type: "application/pdf", size: 10, is_head: 1, uploaded_at: "2099-01-01T00:00:00.000Z", deleted_at: "2099-01-02T00:00:00.000Z" });
+    (window as unknown as { __hearthResumeStaging: () => void }).__hearthResumeStaging();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.documents.map((row) => row.id)).toEqual(["trashed-during-check"]);
+});
+
 test("standalone Start fresh keeps the offer hidden after a relaunch, in the database not Preferences (#491)", async ({ page }) => {
   await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
   await newPhoneOffer(page).getByRole("button", { name: "Start fresh" }).click();
@@ -2045,10 +2069,16 @@ test("standalone does not offer Restore from a backup when the only Document is 
   await expect(newPhoneOffer(page)).toHaveCount(0);
 });
 
+type FolderEvent = { op: string; path?: string; paths?: string[]; ifExists?: boolean };
+const folderEvents = (page: ShellPage) => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { folderEvents: FolderEvent[] } }).__hearthStandaloneTest.folderEvents);
+
 test("standalone excludes its document folders from iOS device backups at launch and after a restore (#492)", async ({ page }) => {
   const folders = ["standalone-documents", "standalone-restore-staging", "standalone-restore-previous"];
   const exclusions = () => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { backupExclusions: string[][] } }).__hearthStandaloneTest.backupExclusions);
   expect(await exclusions()).toContainEqual(folders);
+  // Old plaintext backups' folder is excluded only if it is already there:
+  // the plugin must not create it (the legacy-backup card looks for it).
+  expect(await folderEvents(page)).toContainEqual({ op: "exclude", paths: ["hearth-backups"], ifExists: true });
   await openBackupSettings(page);
   const { text } = await exportBackup(page);
   const before = (await exclusions()).length;
@@ -2057,6 +2087,32 @@ test("standalone excludes its document folders from iOS device backups at launch
   // The staging and aside folders were removed and recreated: excluded again.
   expect((await exclusions()).length).toBeGreaterThan(before);
   expect((await exclusions()).at(-1)).toEqual(folders);
+});
+
+test("standalone excludes the restore staging folder again before staging into it after each removal (#492)", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await restoreFile(page, text, { password: "correct horse battery" });
+  // Each restore clears the staging folder before and after: wait for both
+  // restores' clears, since the status already says "Restored".
+  const stagingRemovals = (events: FolderEvent[]) => events.flatMap((event, index) => (event.op === "rmdir" && event.path === "standalone-restore-staging" ? [index] : []));
+  await expect.poll(async () => stagingRemovals(await folderEvents(page)).length).toBeGreaterThanOrEqual(4);
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const events = await folderEvents(page);
+  const removals = stagingRemovals(events);
+  let checkedWrites = 0;
+  for (const [n, removal] of removals.entries()) {
+    const nextRemoval = removals[n + 1] ?? events.length;
+    const nextWrite = events.findIndex((event, index) => index > removal && index < nextRemoval && event.op === "write");
+    if (nextWrite === -1) continue;
+    checkedWrites += 1;
+    const between = events.slice(removal + 1, nextWrite);
+    expect(between.some((event) => event.op === "exclude" && event.paths?.includes("standalone-restore-staging")), `exclude between event ${removal} and ${nextWrite}`).toBe(true);
+  }
+  // Both restores staged files after clearing the folder.
+  expect(checkedWrites).toBe(2);
 });
 
 test("standalone Help says the data lives only on this phone and links to the backup steps (#492)", async ({ page }) => {
