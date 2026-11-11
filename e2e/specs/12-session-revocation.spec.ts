@@ -88,7 +88,7 @@ test("changing a password signs out every session, including the current one", a
   const secondPage = await secondContext.newPage();
   await signIn(secondPage, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-  await secondPage.goto("/settings");
+  await secondPage.goto("/settings#password");
   await secondPage.locator("#currentPassword").fill(ADMIN_PASSWORD);
   await secondPage.locator("#newPassword").fill(NEW_PASSWORD);
   await secondPage.locator("form:has(#currentPassword) button[type=submit]").click();
@@ -111,7 +111,7 @@ test("changing a password signs out every session, including the current one", a
   // just the in-memory sessions above. Any spec that runs after this one
   // and loads ADMIN_AUTH_FILE via test.use() would otherwise be silently
   // redirected to /login — so re-authenticate and re-capture it too.
-  await secondPage.goto("/settings");
+  await secondPage.goto("/settings#password");
   await secondPage.locator("#currentPassword").fill(NEW_PASSWORD);
   await secondPage.locator("#newPassword").fill(ADMIN_PASSWORD);
   await secondPage.locator("form:has(#currentPassword) button[type=submit]").click();

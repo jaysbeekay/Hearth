@@ -12,6 +12,9 @@ import { CONTRACT_CATEGORIES } from "@/lib/validation/contract";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { inlineLinkClass } from "@/lib/ui";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Add a contract" };
 
 export default async function NewContractPage({
   searchParams,

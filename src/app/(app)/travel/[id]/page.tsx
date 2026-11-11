@@ -29,16 +29,23 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass, cardClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
   LODGING: BedDouble,
   ACTIVITY: Ticket,
 };
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("trip", id, detailTitle("trip"), "Trip");
+}
 
 export default async function TripDetailPage({
   params,
@@ -152,7 +159,7 @@ export default async function TripDetailPage({
                 <ConfirmForm
                   action={deleteTrip.bind(null, trip.id)}
                   undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
-                  confirmText="Delete this trip? Its segments and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this trip? Its segments and documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
                 >
@@ -167,14 +174,14 @@ export default async function TripDetailPage({
 
       {trip.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
+          <h2 className={sectionHeadingClass("mb-2")}>Notes</h2>
+          <p className={proseClass("whitespace-pre-wrap")}>{trip.notes}</p>
         </Card>
       )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Itinerary</h2>
+          <h2 className={sectionHeadingClass()}>Itinerary</h2>
           {canWrite && (
             <Link
               href={`/travel/${trip.id}/segments/new`}
@@ -231,7 +238,7 @@ export default async function TripDetailPage({
                                 parentId: trip.id,
                                 label: `Delete segment: ${segment.title}`,
                               }}
-                              confirmText={`Delete "${segment.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              confirmText={`Delete "${segment.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -342,7 +349,7 @@ export default async function TripDetailPage({
                   )}
 
                   {segment.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
+                    <p className={proseClass("mt-4 whitespace-pre-wrap")}>
                       {segment.notes}
                     </p>
                   )}
@@ -357,6 +364,7 @@ export default async function TripDetailPage({
                         <DocumentList
                           kind="TRIP_SEGMENT"
                           ownerId={segment.id}
+                          ownerName={segment.title}
                           trashedLinks={trashedLinks.get(segment.id)}
                           documents={segment.documents}
                         />

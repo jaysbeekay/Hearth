@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Sidebar } from "@/components/Sidebar";
@@ -9,7 +10,9 @@ import { OfflineSessionGuard } from "@/components/OfflineSessionGuard";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ToastContainer } from "@/components/Toast";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { getAssistantAvailability } from "@/lib/assistant/enablement";
+import { ASSISTANT_PANEL_COOKIE, isAssistantPanelOpen } from "@/lib/assistant/panelCookie";
+import { AssistantPanel } from "@/components/AssistantPanel";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getInboxCount } from "@/lib/documents/stats";
 import { DateFormatProvider } from "@/components/DateFormatProvider";
@@ -26,14 +29,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // only pass the enabled module keys down and let Sidebar/BottomNav build
   // their own nav item list (with icons) on the client.
   // The Inbox badge count refreshes with this layout (after a server action, router.refresh() or a full load), not live.
-  const [enabledModulesSet, chatConfig, { dateFormat, displayTimeZone }, inboxCount] = await Promise.all([
+  const [enabledModulesSet, assistant, { dateFormat, displayTimeZone }, inboxCount, cookieStore] = await Promise.all([
     getEnabledModuleKeys(),
-    getChatConfig(),
+    getAssistantAvailability(),
     getUserPreferences(),
     getInboxCount(),
+    cookies(),
   ]);
   const enabledModules = [...enabledModulesSet];
-  const chatConfigured = isChatConfigured(chatConfig);
+  // The Assistant nav item shows only when the household switched it on and
+  // a provider is saved.
+  const chatConfigured = assistant.available;
 
   return (
     <DateFormatProvider dateFormat={dateFormat} timeZone={displayTimeZone}>
@@ -62,6 +68,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      {assistant.available && (
+        <AssistantPanel
+          // Chats are private: a different account signing in on the same
+          // browser gets a fresh panel, never the previous one's chat state.
+          key={session.user.id}
+          initialOpen={isAssistantPanelOpen(cookieStore.get(ASSISTANT_PANEL_COOKIE)?.value)}
+        />
+      )}
       <BottomNav
         enabledModules={enabledModules}
         chatConfigured={chatConfigured}

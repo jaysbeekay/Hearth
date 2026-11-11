@@ -63,7 +63,8 @@ export function Dialog({
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || disableClose) return;
+      // #618 — an Escape a toast already handled is not for the dialog.
+      if (e.key !== "Escape" || e.defaultPrevented || disableClose) return;
       if (openDialogs.at(-1) !== stackEntryRef.current) return;
       onClose();
     };

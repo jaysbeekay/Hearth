@@ -11,9 +11,10 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, settingsActionRowClass } from "@/lib/ui";
 import { currencyLabel } from "@/components/CurrencySelect";
 import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
+import { smtpFromWarning } from "@/lib/smtpFrom";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -44,13 +45,16 @@ export function SmtpForm({
     secure: boolean;
     user: string;
     from: string;
+    sentFrom: string;
     passwordIsSet: boolean;
   };
   appUrlConfigured: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
+  const fromWarning = smtpFromWarning(current);
   return (
     <form action={formAction} data-save-group className="space-y-4">
+      {fromWarning && <p className={bannerClass("warning")}>{fromWarning}</p>}
       {!appUrlConfigured && (
         <p className={bannerClass("warning")}>
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
@@ -71,8 +75,8 @@ export function SmtpForm({
         <Field label="Password" htmlFor="smtpPassword">
           <SensitiveField id="smtpPassword" name="smtpPassword" isSet={current.passwordIsSet} />
         </Field>
-        <Field label="From address" htmlFor="smtpFrom">
-          <input id="smtpFrom" name="smtpFrom" defaultValue={current.from} placeholder="App <no-reply@example.com>" className={inputClass} />
+        <Field label="From address" htmlFor="smtpFrom" hint="Blank sends as the username, if it's an email address">
+          <input id="smtpFrom" name="smtpFrom" defaultValue={current.from} placeholder="Hearth <hearth@example.com>" className={inputClass} />
         </Field>
         <Field label="" htmlFor="smtpSecure" hint="Enable for port 465 (implicit TLS)">
           <div className="flex items-center gap-2 pt-1">
@@ -87,9 +91,9 @@ export function SmtpForm({
           Testing sends against the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.host && current.user ? (
-          <TestConnectionButton action={testSmtpSettings} label="Send test email" />
+          <TestConnectionButton action={testSmtpSettings} label="Send test email" inRow />
         ) : (
           <span />
         )}
@@ -150,9 +154,9 @@ export function EmailIngestForm({
           them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.host && current.user ? (
-          <TestConnectionButton action={testAction} label="Test connection" />
+          <TestConnectionButton action={testAction} label="Test connection" inRow />
         ) : (
           <span />
         )}
@@ -191,9 +195,9 @@ export function NtfyForm({
           Testing sends against the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.url && current.topic ? (
-          <TestConnectionButton action={testNtfySettings} label="Send test notification" />
+          <TestConnectionButton action={testNtfySettings} label="Send test notification" inRow />
         ) : (
           <span />
         )}
@@ -229,9 +233,9 @@ export function OllamaForm({
           Testing connects using the saved settings — save your changes first if you just edited them.
         </p>
       )}
-      <div className="flex items-center justify-between">
+      <div className={settingsActionRowClass}>
         {current.baseUrl ? (
-          <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+          <TestConnectionButton action={testOllamaConnection} label="Test connection" inRow />
         ) : (
           <span />
         )}

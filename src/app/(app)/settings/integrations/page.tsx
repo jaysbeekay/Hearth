@@ -14,7 +14,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
-import { inlineLinkClass } from "@/lib/ui";
+import { inlineLinkClass, sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.integrations.label };
 
@@ -49,7 +49,7 @@ export default async function IntegrationsSettingsPage() {
       <SaveChangesGroup>
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Barcode lookup</h2>
+            <h2 className={sectionHeadingClass()}>Barcode lookup</h2>
             <p className="text-xs text-muted mt-0.5">Looks up a scanned barcode when adding a warranty</p>
           </div>
           <BarcodeForm
@@ -60,7 +60,7 @@ export default async function IntegrationsSettingsPage() {
 
         <Card as="section" className="space-y-4">
           <div>
-            <h2 className="font-medium">Flight status (AviationStack)</h2>
+            <h2 className={sectionHeadingClass()}>Flight status (AviationStack)</h2>
             <p className="text-xs text-muted mt-0.5">
               Real-time flight status, gate, and delay data for Travel module flights.{" "}
               <a
@@ -79,7 +79,7 @@ export default async function IntegrationsSettingsPage() {
 
       <section className="space-y-4">
         <div>
-          <h2 className="font-medium">Webhooks</h2>
+          <h2 className={sectionHeadingClass()}>Webhooks</h2>
           <p className="mt-0.5 text-sm text-muted">
             Notify other platforms (e.g. Home Assistant, or an MCP agent like Hermes) when a
             contract or warranty is coming due. Each endpoint receives the same reminders as

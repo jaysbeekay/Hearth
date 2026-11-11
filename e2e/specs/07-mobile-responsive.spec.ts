@@ -141,6 +141,39 @@ test("swiping a contract card left reveals a delete action, which still uses the
   await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });
 
+// #617 — under reduced motion a swipe row moves without a transition.
+test("swipe rows have no transition under reduced motion", async ({ page }) => {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill("Reduced Motion Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
+  await page.locator("#provider").fill("Motion Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/contracts");
+  const row = page.locator("div.touch-pan-y", { hasText: "Reduced Motion Contract" });
+  await expect(row).toBeAttached();
+  expect(await row.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe("none");
+
+  // The swipe still works, the row just doesn't animate into place.
+  const card = page.locator("a", { hasText: "Reduced Motion Contract" }).first();
+  const box = await card.boundingBox();
+  if (!box) throw new Error("Contract card not found");
+  const startX = box.x + box.width - 10;
+  const startY = box.y + box.height / 2;
+  await card.dispatchEvent("pointerdown", { pointerType: "touch", clientX: startX, clientY: startY });
+  for (let i = 1; i <= 10; i++) {
+    await card.dispatchEvent("pointermove", { pointerType: "touch", clientX: startX - i * 12, clientY: startY });
+  }
+  await card.dispatchEvent("pointerup", { pointerType: "touch", clientX: startX - 120, clientY: startY });
+  await expect(page.getByRole("button", { name: "Delete Reduced Motion Contract" })).toBeVisible();
+
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  expect(await row.evaluate((el) => getComputedStyle(el).transitionProperty)).toContain("transform");
+});
+
 // How many lines a control's own text runs over. Text inside an
 // aria-hidden badge (the Inbox count sits on the icon, a line above the
 // label) is left out. A label that wraps returns 2 or more.
@@ -204,13 +237,12 @@ async function openMoreSheet(page: import("@playwright/test").Page) {
 // entry carries its count. #372 put Upcoming in the bar in Documents' place.
 const PHONE_DESTINATIONS = {
   bar: ["/dashboard", "/contracts", "/products", "/calendar"],
-  // The seed enables every optional module. Inventory has no nav entry of
-  // its own (getNavItems leaves it out; it's reached from Warranties).
-  modules: ["/travel", "/home", "/vehicles", "/wealth"],
+  // The seed enables every optional module.
+  modules: ["/inventory", "/home", "/travel", "/vehicles", "/wealth"],
   // No /assistant: the seed configures no chat provider (spec 09 sets one
   // up later in the run).
   tools: ["/documents", "/spend"],
-  footer: ["/settings", "/help"],
+  footer: ["/settings", "/settings/household", "/help"],
 };
 
 test("phones have one navigation: no menu drawer, and each destination is in the bar or the More sheet exactly once", async ({
@@ -234,7 +266,6 @@ test("phones have one navigation: no menu drawer, and each destination is in the
   expect(barHrefs).toEqual(PHONE_DESTINATIONS.bar);
   expect(new Set(hrefs)).toEqual(new Set(Object.values(PHONE_DESTINATIONS).flat()));
   expect(hrefs).not.toContain("/assistant");
-  expect(hrefs).not.toContain("/inventory");
   expect(hrefs).not.toContain("/import");
   expect(hrefs).not.toContain("/documents/inbox");
 
