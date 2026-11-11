@@ -98,9 +98,9 @@ export function IcalTokenSection({ hasToken, appUrl, embedded, inRow }: Props) {
           </form>
           {active && (
             <form action={revokeAction}>
-              <button type="submit" className={buttonClass("secondary", { destructive: true })}>
+              <SubmitButton variant="secondary" destructive pendingText="Revoking…">
                 Revoke feed
-              </button>
+              </SubmitButton>
             </form>
           )}
         </div>

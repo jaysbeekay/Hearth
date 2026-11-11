@@ -4,6 +4,7 @@ import { useState, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { disableTotp, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
+import { SubmitButton } from "@/components/SubmitButton";
 import { inputClass } from "@/components/SelectWrapper";
 import { buttonClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
@@ -114,12 +115,9 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
           className={inputClass}
         />
         <div className="flex gap-2">
-          <button
-            type="submit"
-            className={buttonClass("secondary", { destructive: true })}
-          >
+          <SubmitButton variant="secondary" destructive pendingText="Disabling…">
             Disable
-          </button>
+          </SubmitButton>
           <button
             type="button"
             onClick={() => setShowDisableForm(false)}
