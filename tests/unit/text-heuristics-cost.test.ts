@@ -30,7 +30,9 @@ describe.each(implementations)("%s", (_name, readCost) => {
     expect(readCost(text)).toBe(expected);
   });
 
-  it.each(["Total $1,23", "Total $12.345"])("rejects a malformed amount instead of a partial one: %j", (text) => {
+  // Groupings both implementations refuse. ("$1,23" and "$12.345" are no longer
+  // here: the server reads them as European amounts, 1.23 and 12345, since #613; the shell still reads only English-format amounts.)
+  it.each(["Total $1.234.56", "Total $12,34,567"])("rejects a malformed amount instead of a partial one: %j", (text) => {
     expect(readCost(text)).toBeUndefined();
   });
 
