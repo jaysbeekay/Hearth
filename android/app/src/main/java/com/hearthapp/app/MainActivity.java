@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         // Register before super.onCreate() calls load()
         registerPlugin(SecureClipboardPlugin.class);
         registerPlugin(ServerConfigPlugin.class);
+        registerPlugin(HearthScanPlugin.class);
 
         // Read the stored server URL and inject its hostname into the bridge config
         // so Capacitor keeps in-app navigation rather than handing off to the browser.
