@@ -84,6 +84,26 @@ describe("icons", () => {
   });
 });
 
+describe("submit buttons wait for hydration (#609)", () => {
+  // A click before hydration submits a server-action form natively, which
+  // the server refuses (Origin: null), so the click is lost. SubmitButton is
+  // disabled until hydrated; a hand-rolled submit button must be too, or
+  // unreachable before hydration. Each allowed file says why.
+  const ALLOWED: Record<string, string> = {
+    "components/SubmitButton.tsx": "the guard itself",
+    "components/SaveChangesGroup.tsx": "GroupedSubmit's hidden button checks useHasMounted",
+    "components/ChatComposer.tsx": "disabled while the box is empty, as it is when served",
+    "components/SnoozeButton.tsx": "inside a Dialog, which only opens after hydration",
+    "components/ExtractionReviewNote.tsx": "only renders after a client-side extraction",
+  };
+
+  it("has no other type=\"submit\" buttons", () => {
+    const allowed = Object.keys(ALLOWED).map((f) => f.split("/").join(path.sep));
+    const raw = files.filter((f) => /type="submit"/.test(f.text) && !allowed.includes(f.file)).map((f) => f.file);
+    expect(raw).toEqual([]);
+  });
+});
+
 describe("components own their class strings", () => {
   it("has no card class strings outside lib/ui", () => {
     expect(offenders((s) => /\bbg-surface\b/.test(s) && /\bborder-border\b/.test(s) && /\brounded-lg\b/.test(s))).toEqual([]);

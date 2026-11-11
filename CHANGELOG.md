@@ -648,6 +648,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **A click that lands before a page has loaded is no longer lost (#609).**
+  Clicking a form's button before the page finished loading sent the form
+  without the app's script, which the server refused, so the click did
+  nothing useful; on the calendar feed it meant the new feed URL was never
+  shown. Form buttons now stay disabled for that moment and work on the first
+  click once the page is ready. With JavaScript turned off, a notice says the
+  app needs it.
+
 - **Control edges stay visible inside warning and danger banners (#640).**
   Inputs, secondary buttons and chips sitting on a warning or danger tint had
   a border of about 2.65–3.08:1 against it, below the 3:1 WCAG 1.4.11 minimum.

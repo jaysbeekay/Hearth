@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useFormStatus } from "react-dom";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buttonClass, cardClass } from "@/lib/ui";
+import { useHasMounted } from "@/lib/useHasMounted";
 
 // #363 — one "Save changes" per Settings tab instead of a Save button on
 // every form. Each settings form keeps its own server action and messages;
@@ -46,6 +47,7 @@ export function GroupedSubmit({
   const { pending } = useFormStatus();
   const ref = useRef<HTMLButtonElement>(null);
   const wasPending = useRef(false);
+  const hydrated = useHasMounted();
 
   useEffect(() => {
     // The action finished: report it with the state it returned, which
@@ -66,7 +68,8 @@ export function GroupedSubmit({
         type="submit"
         tabIndex={-1}
         aria-hidden="true"
-        disabled={!show}
+        // No native submit on Enter before hydration (#609), as SubmitButton.
+        disabled={!show || !hydrated}
         data-save-idle={show ? undefined : ""}
         className="sr-only"
       >

@@ -5,7 +5,7 @@ import { updateMemberRole, type ActionState } from "@/lib/actions/auth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
 import { ROLE_DESCRIPTIONS } from "@/lib/utils";
-import { buttonClass } from "@/lib/ui";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export function MemberRoleForm({ userId, role, name }: { userId: string; role: string; name: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -30,12 +30,7 @@ export function MemberRoleForm({ userId, role, name }: { userId: string; role: s
             <option value="READONLY">Read-only</option>
           </select>
         </SelectWrapper>
-        <button
-          type="submit"
-          className={buttonClass("secondary")}
-        >
-          Save
-        </button>
+        <SubmitButton variant="secondary">Save</SubmitButton>
       </form>
       {/* #291 — explains the role at the point of changing it, not just its name. */}
       <p className="max-w-48 text-right text-xs text-muted">{ROLE_DESCRIPTIONS[selectedRole]}</p>
