@@ -830,10 +830,12 @@ test.beforeEach(async ({ page }) => {
         // ask (withHearthScan): without it the shell hides Scan and Read text.
         // "no-scanner" mimics a device without a document camera (or, on
         // Android, without Play services): text recognition only.
-        ...(!["1", "no-scanner"].includes(testFlag("hearth-test-hearth-scan") ?? "") ? {} : {
+        // "slow-ocr" holds recognizeText until the test calls
+        // window.__hearthReleaseOcr().
+        ...(!["1", "no-scanner", "slow-ocr"].includes(testFlag("hearth-test-hearth-scan") ?? "") ? {} : {
           HearthScan: {
             isAvailable: async () => ({
-              scanner: testFlag("hearth-test-hearth-scan") === "1",
+              scanner: testFlag("hearth-test-hearth-scan") !== "no-scanner",
               textRecognition: true,
             }),
             scanDocument: async () => ({
@@ -849,7 +851,14 @@ test.beforeEach(async ({ page }) => {
                 "claims@acme.example",
               ].join("\n"),
             }),
-            recognizeText: async ({ mimeType }: { mimeType: string }) => ({ text: `Recognised ${mimeType} text` }),
+            recognizeText: async ({ mimeType }: { mimeType: string }) => {
+              if (testFlag("hearth-test-hearth-scan") === "slow-ocr") {
+                await new Promise<void>((resolve) => {
+                  (window as Window & { __hearthReleaseOcr?: () => void }).__hearthReleaseOcr = resolve;
+                });
+              }
+              return { text: `Recognised ${mimeType} text` };
+            },
           },
         }),
         ServerConfig: {
@@ -3485,7 +3494,7 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
 
-async function withHearthScan(page: import("@playwright/test").Page, mode: "1" | "no-scanner" = "1") {
+async function withHearthScan(page: import("@playwright/test").Page, mode: "1" | "no-scanner" | "slow-ocr" = "1") {
   await reloadWithTestFlags(page, { "hearth-test-hearth-scan": mode });
 }
 
@@ -3560,6 +3569,29 @@ test("standalone inbox import reads a document's text on the device", async ({ p
   await expect(page.locator("#standalone-status")).toContainText("Document imported");
   const runs = await standaloneRuns(page);
   expect(runs.some((run) => run.statement.startsWith("INSERT INTO inbox_documents") && run.values.includes("photo.png") && run.values.includes("Recognised image/png text"))).toBe(true);
+});
+
+test("standalone says it's reading text and ignores a second tap until the import is saved", async ({ page }) => {
+  await withHearthScan(page, "slow-ocr");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const form = page.locator("form[data-import-inbox-form]");
+  await form.locator('input[type="file"]').setInputFiles({
+    name: "slow.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
+  });
+  const upload = form.getByRole("button", { name: "Upload document" });
+  await upload.click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Reading text…");
+  await expect(upload).toBeDisabled();
+  await form.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+  await page.waitForFunction(() => typeof (window as Window & { __hearthReleaseOcr?: () => void }).__hearthReleaseOcr === "function");
+  await page.evaluate(() => (window as Window & { __hearthReleaseOcr?: () => void }).__hearthReleaseOcr?.());
+
+  await expect(page.locator("#standalone-status")).toContainText("Document imported");
+  const inserts = (await standaloneRuns(page)).filter((run) => run.statement.startsWith("INSERT INTO inbox_documents") && run.values.includes("slow.png"));
+  expect(inserts).toHaveLength(1);
 });
 
 test("standalone Read text backfills a stored document so search can find it", async ({ page }) => {

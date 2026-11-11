@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * On-device document scanning and text recognition for the standalone shell
@@ -70,7 +71,9 @@ public class HearthScanPlugin extends Plugin {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private TextRecognizer recognizer;
     // One scanner at a time; a second call while one is open is refused.
-    private boolean scanInProgress = false;
+    // Set on the plugin thread, cleared on the main thread by the scanner's
+    // listeners and the activity result.
+    private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
 
     private synchronized TextRecognizer recognizer() {
         if (recognizer == null) recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
@@ -92,11 +95,10 @@ public class HearthScanPlugin extends Plugin {
 
     @PluginMethod
     public void scanDocument(PluginCall call) {
-        if (scanInProgress) {
+        if (!scanInProgress.compareAndSet(false, true)) {
             call.reject("A scan is already in progress.", "BUSY");
             return;
         }
-        scanInProgress = true;
         GmsDocumentScannerOptions options = new GmsDocumentScannerOptions.Builder()
             .setGalleryImportAllowed(false)
             .setPageLimit(MAX_SCAN_PAGES)
@@ -110,19 +112,25 @@ public class HearthScanPlugin extends Plugin {
                 // Capacitor launches Intents, so wrap the IntentSender the way
                 // the activity result registry does; this also lets Capacitor
                 // restore the call if the activity is recreated mid-scan.
-                Intent intent = new ActivityResultContracts.StartIntentSenderForResult()
-                    .createIntent(getContext(), new IntentSenderRequest.Builder(intentSender).build());
-                startActivityForResult(call, intent, "handleScanResult");
+                try {
+                    Intent intent = new ActivityResultContracts.StartIntentSenderForResult()
+                        .createIntent(getContext(), new IntentSenderRequest.Builder(intentSender).build());
+                    startActivityForResult(call, intent, "handleScanResult");
+                } catch (RuntimeException error) {
+                    // Otherwise every later scan would answer BUSY until a restart.
+                    scanInProgress.set(false);
+                    call.reject("Could not open the document scanner: " + error.getMessage(), "UNAVAILABLE");
+                }
             })
             .addOnFailureListener(error -> {
-                scanInProgress = false;
+                scanInProgress.set(false);
                 call.reject("Document scanning isn't available on this device: " + error.getMessage(), "UNAVAILABLE");
             });
     }
 
     @ActivityCallback
     private void handleScanResult(PluginCall call, ActivityResult result) {
-        scanInProgress = false;
+        scanInProgress.set(false);
         if (call == null) return;
         if (result.getResultCode() == Activity.RESULT_CANCELED) {
             JSObject cancelled = new JSObject();

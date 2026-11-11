@@ -2958,7 +2958,7 @@ function renderImport() {
     <section class="card form-card">
       <h2>Standalone import limits</h2>
       <div class="detail-grid">
-        ${detailLine("Document extraction", "Connected mode only until a local AI/OCR engine is added.")}
+        ${detailLine("Document extraction", HearthScan ? "Text is read on this device, and a scan fills empty Contract and Warranty fields. AI classification needs connected mode." : "Connected mode only.")}
         ${detailLine("Broker CSV trades", "Supported locally for CommSec, SelfWealth, Stake and generic trade CSV files.")}
         ${detailLine("Email inbox polling", "Connected server only; this phone can import files selected locally.")}
       </div>
@@ -7133,9 +7133,28 @@ mobileView.addEventListener("input", (event) => {
   }
 });
 
+// Saving a file can wait on on-device text recognition (up to
+// RECOGNIZE_TEXT_TIMEOUT_MS) before anything is written, so say so and keep a
+// second tap from storing the document twice.
+function guardFileSubmit(form) {
+  const file = formFile(form);
+  const submit = form.querySelector('button[type="submit"]');
+  if (!file || !submit) return () => {};
+  submit.disabled = true;
+  if (HearthScan && !scannedFileText.has(file) && RECOGNIZABLE_MIME_TYPES.has(file.type)) {
+    showStandaloneStatus("Reading text…", true);
+  }
+  return () => {
+    submit.disabled = false;
+  };
+}
+
 mobileView.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit?.disabled) return;
+  const releaseFileSubmit = guardFileSubmit(form);
   try {
     if (form.dataset.saveType) {
       await saveForm(form);
@@ -7197,6 +7216,8 @@ mobileView.addEventListener("submit", async (event) => {
     }
   } catch (error) {
     showStandaloneStatus(error.message || "Could not save.");
+  } finally {
+    releaseFileSubmit();
   }
 });
 
