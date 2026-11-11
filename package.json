@@ -34,7 +34,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@prisma/adapter-libsql": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "@revenuecat/purchases-capacitor": "^13.4.2",
+    "@revenuecat/purchases-capacitor": "^14.0.0",
     "@serwist/next": "^9.5.11",
     "@simplewebauthn/browser": "^9.0.1",
     "@simplewebauthn/server": "^9.0.3",
