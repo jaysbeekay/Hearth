@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reminders in the phone app (#375, part 3b).** The iOS/Android app
+  can't use Web Push, so "Notify this device" there becomes "Notify this
+  phone": it schedules the household's Reminders for the next four months as
+  notifications on the phone, worded like Web Push, and again each time the
+  app opens. Tapping one opens its record. The sign-in page cancels them, as
+  does the server saying the session has ended while the app stays open,
+  and another member signing in turns them off. They're found by a tag as
+  well as by the ids the app keeps, so ones the app's storage lost track of
+  still go; if the app's storage can't remember they're on, "Notify this
+  phone" says so instead of scheduling ones nothing would keep current.
+
 - iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
   Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
   version from the tag and a UTC-timestamp build number. Tags created by
