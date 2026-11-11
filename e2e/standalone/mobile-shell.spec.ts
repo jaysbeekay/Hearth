@@ -3936,3 +3936,122 @@ test("standalone Recently deleted buttons are 44px targets (#488)", async ({ pag
     expect((await page.getByRole("button", { name }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
 });
+
+// ---- SPIKE #493 (not for merge) ----------------------------------------
+// Round-trips a real .hearthbackup between this shell (its real app.js and
+// server-backup.js, over real fetch) and a local Hearth dev server. Runs only
+// when SPIKE_493_SERVER points at that server; see spike-493/README.md.
+type SpikeHook = {
+  configureServerBackup(options: { serverUrl: string; token: string }): Promise<void>;
+  uploadBackupToServer(password: string, confirm: string): Promise<{ id: string; sha256: string; localSha256: string; sizeBytes: number }>;
+  listServerBackups(): Promise<{ id: string; sha256: string; sizeBytes: number }[]>;
+  restoreFromServer(id: string, options: { mode: "replace" | "merge"; password: string }): Promise<unknown>;
+};
+
+test("SPIKE #493: a .hearthbackup round-trips through the user's own server", async ({ page, browser }) => {
+  const server = process.env.SPIKE_493_SERVER;
+  const backupDir = process.env.SPIKE_493_BACKUP_DIR;
+  test.skip(!server || !backupDir, "set SPIKE_493_SERVER and SPIKE_493_BACKUP_DIR");
+  test.setTimeout(180_000);
+  const { createHash } = await import("node:crypto");
+  const { readdirSync, readFileSync: readFile } = await import("node:fs");
+  const { createRequire } = await import("node:module");
+  const sha = (bytes: Buffer | string) => createHash("sha256").update(bytes).digest("hex");
+  const password = "correct horse battery";
+
+  // 1. The real setup flow on a fresh scratch DB, then mint two device tokens.
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await admin.goto(`${server}/setup`);
+  await admin.locator('input[name="name"]').fill("Spike Admin");
+  await admin.locator('input[name="email"]').fill("spike493@example.test");
+  await admin.locator('input[name="password"]').fill("spike-493-password-123");
+  await admin.locator('button[type="submit"]').click();
+  await admin.waitForURL((url) => !url.pathname.startsWith("/setup"));
+  const mint = (name: string) =>
+    admin.evaluate(async (deviceName) => {
+      const response = await fetch("/api/device-backup-tokens", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: deviceName }) });
+      return response.json() as Promise<{ id: string; token: string }>;
+    }, name);
+  const phone = await mint("Spike phone");
+  const otherPhone = await mint("Other phone");
+  expect(phone.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+
+  // 2. The shell makes a real encrypted backup and uploads it.
+  await openBackupSettings(page);
+  await page.evaluate(({ serverUrl, token }) => (window as unknown as { __hearthServerBackupSpike: SpikeHook }).__hearthServerBackupSpike.configureServerBackup({ serverUrl, token }), { serverUrl: server!, token: phone.token });
+  const uploaded = await page.evaluate((pw) => (window as unknown as { __hearthServerBackupSpike: SpikeHook }).__hearthServerBackupSpike.uploadBackupToServer(pw, pw), password);
+  expect(uploaded.sha256).toBe(uploaded.localSha256);
+  await expect(page.locator("#standalone-status")).toContainText("Backup uploaded to your Hearth server.");
+
+  // 3. List from the shell.
+  const listed = await page.evaluate(() => (window as unknown as { __hearthServerBackupSpike: SpikeHook }).__hearthServerBackupSpike.listServerBackups());
+  expect(listed.map((row) => row.id)).toEqual([uploaded.id]);
+
+  // 4. Download from Node: byte-identical to what the phone hashed, and to
+  //    the one file on disk, which has a generated name and no plaintext.
+  const download = await fetch(`${server}/api/device-backups/${uploaded.id}`, { headers: auth(phone.token) });
+  expect(download.status).toBe(200);
+  const bytes = Buffer.from(await download.arrayBuffer());
+  expect(sha(bytes)).toBe(uploaded.localSha256);
+  const stored = readdirSync(`${backupDir}/${phone.id}`);
+  expect(stored).toEqual([expect.stringMatching(/^[0-9a-f-]{36}\.hearthbackup$/)]);
+  expect(sha(readFile(`${backupDir}/${phone.id}/${stored[0]}`))).toBe(uploaded.localSha256);
+  expect(bytes.toString("utf8")).not.toContain("Broadband Plan");
+
+  //    ...and it decrypts with the password, outside the shell too.
+  const format = createRequire(__filename)(`${process.cwd()}/ios-shell/www/backup-format.js`);
+  const lines = bytes.toString("utf8").trim().split("\n");
+  const reader = await format.createReader(lines[0], password);
+  const manifest = await reader.decrypt(lines[1], 1);
+  expect(manifest.type).toBe("manifest");
+  expect(JSON.stringify(manifest.tables)).toContain("Broadband Plan");
+  expect((await reader.decrypt(lines.at(-1), lines.length - 1)).type).toBe("end");
+  await expect(format.createReader(lines[0], "wrong password here").then((r: { decrypt(l: string, i: number): Promise<unknown> }) => r.decrypt(lines[1], 1))).rejects.toThrow();
+
+  // 5. Restore from the server in the shell, through the normal restore path.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-after-backup", title: "Added later" });
+  });
+  await page.evaluate(({ id, pw }) => (window as unknown as { __hearthServerBackupSpike: SpikeHook }).__hearthServerBackupSpike.restoreFromServer(id, { mode: "replace", password: pw }), { id: uploaded.id, pw: password });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const { rowsByTable } = await backupHarness(page);
+  expect(rowsByTable.contracts.map((row) => row.id)).not.toContain("contract-after-backup");
+  expect(rowsByTable.contracts.map((row) => row.title)).toContain("Broadband Plan");
+
+  // 6. Security posture.
+  const header = lines[0];
+  const post = (body: BodyInit, token = phone.token, extra: Record<string, string> = {}) =>
+    fetch(`${server}/api/device-backups`, { method: "POST", headers: { ...auth(token), "content-type": "application/octet-stream", ...extra }, body, duplex: "half" } as RequestInit);
+  expect((await fetch(`${server}/api/device-backups`)).status).toBe(401);
+  expect((await fetch(`${server}/api/device-backups`, { headers: auth("x".repeat(43)) })).status).toBe(401);
+  // Another device sees nothing of this one.
+  expect(await (await fetch(`${server}/api/device-backups`, { headers: auth(otherPhone.token) })).json()).toEqual({ backups: [] });
+  expect((await fetch(`${server}/api/device-backups/${uploaded.id}`, { headers: auth(otherPhone.token) })).status).toBe(404);
+  // Path traversal in the id.
+  expect((await fetch(`${server}/api/device-backups/..%2F..%2Fapp.db`, { headers: auth(phone.token) })).status).toBe(404);
+  // Not a .hearthbackup.
+  expect((await post("just some text\n")).status).toBe(400);
+  expect((await post(`${JSON.stringify({ kind: "hearth-standalone-backup", formatVersion: 1 })}\n`)).status).toBe(400);
+  // Over the cap (1 MB in this run): declared, and streamed with no length.
+  const big = `${header}\n${"A".repeat(1_100_000)}\n`;
+  expect((await post(big)).status).toBe(413);
+  const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(big)); controller.close(); } });
+  expect((await post(stream)).status).toBe(413);
+  expect(readdirSync(`${backupDir}/${phone.id}`)).toEqual(stored);
+
+  // 7. Retention (3 in this run): newest kept, rows and files pruned together.
+  const ids = [uploaded.id];
+  for (let i = 0; i < 3; i += 1) ids.push((await (await post(bytes)).json()).id);
+  const after = (await (await fetch(`${server}/api/device-backups`, { headers: auth(phone.token) })).json()).backups as { id: string }[];
+  expect(after.map((row) => row.id).sort()).toEqual(ids.slice(1).sort());
+  expect(readdirSync(`${backupDir}/${phone.id}`)).toHaveLength(3);
+
+  // 8. Revoking the token stops it at once.
+  const revoked = await admin.evaluate(async (id) => (await fetch(`/api/device-backup-tokens?id=${id}`, { method: "DELETE" })).json(), phone.id);
+  expect(revoked).toEqual({ revoked: true });
+  expect((await fetch(`${server}/api/device-backups`, { headers: auth(phone.token) })).status).toBe(401);
+  await adminContext.close();
+});

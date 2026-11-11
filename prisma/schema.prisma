@@ -1561,3 +1561,38 @@ model McpImportProposal {
   @@index([status, createdAt])
   @@map("mcp_import_proposals")
 }
+
+// SPIKE #493 (not for merge): a per-device credential a standalone phone uses
+// to push its own encrypted .hearthbackup files to this server. The server
+// stores only the hash. It can upload, list and download that device's
+// backups and nothing else: no household records, no other device's files.
+model DeviceBackupToken {
+  id          String         @id @default(cuid())
+  name        String
+  tokenHash   String         @unique
+  // Audit metadata only, like createdById elsewhere.
+  createdById String
+  createdAt   DateTime       @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  backups     DeviceBackup[]
+
+  @@map("device_backup_tokens")
+}
+
+// One ciphertext blob the device uploaded. The server never has the key.
+model DeviceBackup {
+  id          String            @id @default(cuid())
+  tokenId     String
+  token       DeviceBackupToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  // Generated on the server (uuid + .hearthbackup), never client-supplied.
+  storageName String            @unique
+  sizeBytes   Int
+  sha256      String
+  // From the plaintext header the device wrote; shown in the restore list.
+  exportedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@index([tokenId, createdAt])
+  @@map("device_backups")
+}

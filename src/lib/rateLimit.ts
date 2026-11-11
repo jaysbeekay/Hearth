@@ -94,6 +94,8 @@ export const RATE_LIMITS = {
   // the same reason: anyone can ask for a reset without signing in, and
   // unbounded rows would push real sign-in failures off the log.
   passwordResetLog: { limit: 30, windowMs: 60 * 60_000 },
+  // SPIKE #493: wrong device-backup tokens, per client address.
+  deviceBackupAuth: { limit: 10, windowMs: 15 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

@@ -180,6 +180,11 @@ export const config = {
     // apple-touch and manifest icon on /login and /setup, sw.js is the
     // Serwist service worker a signed-out PWA still needs to update, and
     // leaflet/ holds PropertyMap's marker images (#343).
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|icons|icon.svg|sw.js|swe-worker|leaflet/).*)",
+    //
+    // SPIKE #493: api/device-backups is a Bearer-token API for the standalone
+    // phone. Outside the proxy so its streamed upload isn't buffered and cut
+    // at proxyClientMaxBodySize, and the cookie session/origin checks (which
+    // a token client can't satisfy) don't apply. The route authenticates itself.
+    "/((?!api/auth|api/device-backups|_next/static|_next/image|favicon.ico|manifest.json|icons|icon.svg|sw.js|swe-worker|leaflet/).*)",
   ],
 };

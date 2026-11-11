@@ -17,6 +17,8 @@ const Share = Plugins.Share;
 const SecureClipboard = Plugins.SecureClipboard;
 // ios-shell/www/backup-format.js, loaded before this file.
 const BackupFormat = window.HearthBackupFormat;
+// SPIKE #493 (not for merge): upload to the user's own Hearth server.
+const ServerBackup = window.HearthServerBackup;
 // On-device document scanning and text recognition: a local native plugin
 // (ios/App/App/HearthScanPlugin.swift — VisionKit, Vision, PDFKit;
 // android/.../HearthScanPlugin.java — ML Kit). Nothing leaves the phone.
@@ -3287,6 +3289,64 @@ async function exportAndShareBackup(password, confirm, name = backupFilename()) 
     if (!keepCopy) await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
   }
 }
+
+// ---- SPIKE #493 (not for merge): backup to the user's own Hearth server ----
+//
+// No UI: the prototype drives these through window.__hearthServerBackupSpike.
+// The token would live in the Keychain/Keystore in production, not
+// Preferences. The password is used only by writeEncryptedBackup on the phone;
+// what goes over the wire is the finished ciphertext file.
+const SERVER_BACKUP_URL_KEY = "hearth.mobile.spike493.serverUrl";
+const SERVER_BACKUP_TOKEN_KEY = "hearth.mobile.spike493.token";
+
+async function serverBackupTarget() {
+  if (!ServerBackup) throw new Error("Server backup support is missing from this build.");
+  const serverUrl = await prefGet(SERVER_BACKUP_URL_KEY);
+  const token = await prefGet(SERVER_BACKUP_TOKEN_KEY);
+  if (!serverUrl || !token) throw new Error("Connect a Hearth server for backups first.");
+  return { serverUrl, token };
+}
+
+async function configureServerBackup({ serverUrl, token }) {
+  await prefSet(SERVER_BACKUP_URL_KEY, normalizeUrl(serverUrl));
+  await prefSet(SERVER_BACKUP_TOKEN_KEY, token);
+}
+
+// Makes the same encrypted backup as Export, in the app cache, uploads it,
+// and deletes the cache copy. Counts as the last backup only when complete.
+async function uploadBackupToServer(password, confirm, name = backupFilename()) {
+  checkNewBackupPassword(password, confirm);
+  const target = await serverBackupTarget();
+  const path = `${BACKUP_ROOT}/${name}`;
+  await sweepBackupCache();
+  showStandaloneStatus("Encrypting backup…", true);
+  try {
+    const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
+    // Prototype limitation: the whole file is read into memory here. See the
+    // ADR's size section for the chunked upload a production build needs.
+    const { data } = await Filesystem.readFile({ directory: BACKUP_EXPORT_DIRECTORY, path, encoding: "utf8" });
+    showStandaloneStatus("Uploading backup…", true);
+    const row = await ServerBackup.upload({ ...target, body: data });
+    await markCompleteBackup(missingFiles);
+    showStandaloneStatus(`Backup uploaded to your Hearth server.${missingFilesNote(missingFiles)}`, true);
+    return { ...row, localSha256: await ServerBackup.sha256Hex(data) };
+  } finally {
+    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
+  }
+}
+
+async function listServerBackups() {
+  return ServerBackup.list(await serverBackupTarget());
+}
+
+// Downloads one backup and restores it through the same path as a file the
+// user picked, so every check (password, AAD, truncation, schema) applies.
+async function restoreFromServer(id, options) {
+  const blob = await ServerBackup.download({ ...(await serverBackupTarget()), id });
+  return restoreStandaloneBackup(fileBackupSource(blob), options);
+}
+
+window.__hearthServerBackupSpike = { configureServerBackup, uploadBackupToServer, listServerBackups, restoreFromServer };
 
 // Deletes backups in the app cache older than BACKUP_CACHE_MAX_AGE_MS: a
 // copy Android shared an hour or more ago, or the part-written file of an
