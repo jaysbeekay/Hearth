@@ -17,9 +17,10 @@
 //                             and its Add button; it should stay on the page
 //                             when the list is empty
 //   data-focus-row            on each row in that list
-//   data-focus-row-target     (optional) the element in a row to focus; by
-//                             default the row's "More actions" button, else
-//                             its first focusable control
+//   data-focus-row-target     (optional) the element in a row to focus, or a
+//                             wrapper whose first control is; by default the
+//                             row's "More actions" button, else its first
+//                             focusable control
 //   data-focus-list-fallback  (optional) what to focus once the list is empty;
 //                             by default its first control outside the rows,
 //                             else its heading
@@ -116,15 +117,25 @@ export function returnFocus(origin: FocusOrigin, { removed = false }: { removed?
     return true;
   };
 
-  if (step() || typeof MutationObserver === "undefined") return;
+  if (typeof MutationObserver === "undefined") {
+    step();
+    return;
+  }
   const observer = new MutationObserver(() => {
     if (step()) stop();
+    else armOnceFocused();
   });
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["inert", "disabled"] });
   // The user doing anything at all — clicking text, a link, pressing a key —
-  // means focus is theirs again.
-  document.addEventListener("pointerdown", stop, true);
-  document.addEventListener("keydown", stop, true);
+  // means focus is theirs again. Only listened for once focus has landed: a
+  // key pressed while the row is still leaving and focus is lost would
+  // otherwise cancel the hand-off and leave focus on <body>.
+  let armed = false;
+  const armOnceFocused = () => {
+    if (armed || !placed || document.activeElement !== placed) return;
+    armed = true;
+    document.addEventListener("pointerdown", stop, true);
+    document.addEventListener("keydown", stop, true);
+  };
   const timer = window.setTimeout(() => {
     stop();
     // The row never left: it's evidently staying, so its own control is a
@@ -142,6 +153,12 @@ export function returnFocus(origin: FocusOrigin, { removed = false }: { removed?
     if (stopPending === stop) stopPending = null;
   }
   stopPending = stop;
+  if (step()) {
+    stop();
+    return;
+  }
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["inert", "disabled"] });
+  armOnceFocused();
 }
 
 function focusLost(): boolean {
@@ -182,7 +199,12 @@ function rowsOf(list: HTMLElement): HTMLElement[] {
 
 function rowTarget(row: HTMLElement): HTMLElement | null {
   const explicit = row.querySelector<HTMLElement>(ROW_TARGET);
-  if (explicit && isFocusable(explicit)) return explicit;
+  if (explicit && isFocusable(explicit)) {
+    if (explicit.matches(FOCUSABLE) || explicit.hasAttribute("tabindex")) return explicit;
+    // A wrapper: the first control inside it.
+    const inner = Array.from(explicit.querySelectorAll<HTMLElement>(FOCUSABLE)).find(isFocusable);
+    if (inner) return inner;
+  }
   const menu = Array.from(row.querySelectorAll<HTMLElement>(MENU_BUTTON)).find(isFocusable);
   if (menu) return menu;
   return Array.from(row.querySelectorAll<HTMLElement>(FOCUSABLE)).find(isFocusable) ?? null;

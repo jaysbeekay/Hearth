@@ -68,7 +68,10 @@ export function SwipeableListItem({
       >
         {revealAction}
       </div>
+      {/* #646 — when a neighbouring row is deleted, focus goes to this card,
+          not to the swipe-only Delete that comes first in the DOM. */}
       <div
+        data-focus-row-target
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
