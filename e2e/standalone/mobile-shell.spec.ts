@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { colourLook, filledPrimaryButtons } from "./buttons";
 import { tooSmallHitAreas } from "./hitArea";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
@@ -777,6 +778,130 @@ test("standalone interactive elements have a 44px hit area (#616)", async ({ pag
   await view.getByRole("button", { name: "Add", exact: true }).click();
   await expect(title).toHaveText("Add record");
   await check("Add warranty");
+});
+
+test("standalone Contract detail that needs review has one filled primary button, Confirm details (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByText("Confirm details before reminders run")).toBeVisible();
+  await expect(page.locator('button[data-form-type="contractRenewal"]')).toBeVisible();
+
+  expect(await filledPrimaryButtons(page)).toEqual(["Confirm details"]);
+  // One Edit, in the record's actions row; the review banner doesn't repeat it.
+  await expect(page.locator('#mobile-view button[data-form-type="contracts"][data-id]')).toHaveCount(1);
+  for (const selector of ['button[data-form-type="contracts"][data-id]', 'button[data-form-type="contractRenewal"]']) {
+    expect(await colourLook(page, selector), selector).toEqual({ fill: "transparent", text: "accent", border: "border-control" });
+  }
+  expect(await colourLook(page, "[data-delete-record]")).toEqual({ fill: "transparent", text: "danger", border: "border-control" });
+});
+
+test("standalone Delete and the other buttons on a tinted inbox card keep a surface fill (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  expect(await colourLook(page, "[data-delete-document]")).toEqual({ fill: "transparent", text: "danger", border: "border-control" });
+  // On a warning/danger card the tint would leave the control border under
+  // 3:1, so the buttons sit on the surface colour instead.
+  expect(await colourLook(page, ".warning-card [data-delete-inbox-document]")).toEqual({ fill: "surface", text: "danger", border: "border-control" });
+  expect(await colourLook(page, ".warning-card [data-open-inbox-document]")).toEqual({ fill: "surface", text: "accent", border: "border-control" });
+  expect(await colourLook(page, '.warning-card form[data-file-inbox-id] button[type="submit"]')).toEqual({ fill: "surface", text: "accent", border: "border-control" });
+});
+
+test("standalone status toast's Undo is quiet, not a second filled button (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator(".record-card").filter({ hasText: "insurance.pdf" }).getByRole("button", { name: "Delete" }).click();
+  const undo = page.locator("#standalone-status").getByRole("button", { name: "Undo" });
+  await expect(undo).toBeVisible();
+  expect(await colourLook(page, "#standalone-status .status-action")).toEqual({ fill: "transparent", text: "accent", border: "none" });
+  expect(await filledPrimaryButtons(page)).toEqual(["Upload document"]);
+});
+
+test("standalone danger badges keep their tint and tone text (#630, #412)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    rows.contracts.push({ id: "contract-lapsed", title: "Lapsed Gym", category: "OTHER", end_date: "2000-01-01", status: "ACTIVE", currency: "AUD", updated_at: "2099-01-01T00:00:00.000Z" });
+  });
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  const badge = page.locator(".record-card").filter({ hasText: "Lapsed Gym" }).locator(".badge.danger");
+  await expect(badge).toHaveCount(1);
+  expect(await colourLook(page, '.record-card:has-text("Lapsed Gym") .badge.danger')).toEqual({ fill: "danger-soft", text: "danger", border: "none" });
+});
+
+test("standalone a disabled button is dimmed and not-allowed (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  const add = page.locator("#mobile-view").getByRole("button", { name: "Add", exact: true });
+  await add.evaluate((el) => {
+    (el as HTMLButtonElement).disabled = true;
+  });
+  const look = await add.evaluate((el) => ({ opacity: getComputedStyle(el).opacity, cursor: getComputedStyle(el).cursor }));
+  expect(look).toEqual({ opacity: "0.5", cursor: "not-allowed" });
+});
+
+test("standalone screens have at most one filled primary button (#630)", async ({ page }) => {
+  const nav = page.locator(".bottom-nav");
+  const view = page.locator("#mobile-view");
+  const title = page.locator("#view-title");
+  const check = async (screen: string) => {
+    const filled = await filledPrimaryButtons(page);
+    expect(filled.length, `${screen}: ${filled.join(", ")}`).toBeLessThanOrEqual(1);
+  };
+  const openFromMore = async (navKey: string, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-nav="${navKey}"]`).click();
+    await expect(title).toHaveText(screen);
+    await check(screen);
+  };
+  const openModule = async (recordType: string, record: RegExp, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-record-type="${recordType}"]`).click();
+    await check(screen);
+    await page.getByRole("button", { name: record }).first().click();
+    await check(`${screen} detail`);
+  };
+
+  await check("Dashboard");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await check("Contracts");
+  await view.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(title).toHaveText("Add record");
+  await check("Add contract");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await check("Contract detail");
+  await view.locator('button[data-form-type="contractRenewal"]').click();
+  await check("Renew contract");
+
+  await nav.getByRole("button", { name: "Warranties" }).click();
+  await page.getByRole("button", { name: /Laptop/ }).click();
+  await check("Warranty detail");
+  await view.locator('button[data-form-type="products"][data-id]').first().click();
+  await check("Edit warranty");
+
+  await nav.getByRole("button", { name: "Documents" }).click();
+  await check("Documents");
+  await view.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(title).toHaveText("Recently deleted documents");
+  await check("Recently deleted documents");
+
+  await nav.getByRole("button", { name: "More" }).click();
+  await check("More");
+  for (const [navKey, screen] of [
+    ["search", "Search"],
+    ["reminders", "Reminders"],
+    ["import", "Import"],
+    ["assistant", "Assistant"],
+    ["settings", "Settings"],
+    ["help", "Help"],
+  ] as const) {
+    await openFromMore(navKey, screen);
+  }
+  // Help's Switch mode is secondary, as on Settings.
+  expect(await filledPrimaryButtons(page)).toEqual([]);
+
+  await openModule("vehicles", /Family Car/, "Vehicles");
+  await openModule("properties", /Home.*1 Hearth Street/, "Properties");
+  await openModule("inventoryItems", /Camera/, "Inventory");
+  await openModule("trips", /Japan Holiday/, "Travel");
+  await openModule("portfolios", /Family Portfolio/, "Wealth");
 });
 
 test("standalone warranty form's inline \"add one\" link has a 44px hit area inside its hint (#616)", async ({ page }) => {
