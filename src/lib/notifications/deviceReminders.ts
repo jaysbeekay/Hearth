@@ -13,9 +13,10 @@ import type { ReminderPlan } from "@/lib/notifications/reminderSchedule";
 /** How far ahead the app schedules. */
 export const DEVICE_REMINDER_HORIZON_DAYS = 120;
 /**
- * How many the server sends. The app keeps at most 60 (iOS allows 64
- * pending), counted after it drops any whose time today has gone, so a few
- * spare here keep those from cutting into the days ahead.
+ * How many the server sends from tomorrow on. The app keeps at most 60 (iOS
+ * allows 64 pending), counted after it drops any whose time today has gone,
+ * so today's are sent on top of these: however many there are, they can't
+ * crowd out the days ahead.
  */
 export const DEVICE_REMINDER_FETCH_LIMIT = 80;
 
@@ -77,5 +78,16 @@ export async function deviceReminderSchedule(userId: string): Promise<DeviceRemi
       return { key: `${ownerType}:${ownerId}:${entry.field}:${entry.date}:${thresholdDays}`, day, title, body, url };
     }),
   );
-  return reminders.sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key)).slice(0, DEVICE_REMINDER_FETCH_LIMIT);
+  return limitDeviceReminders(reminders, today);
+}
+
+/**
+ * Soonest first: all of today's, then up to DEVICE_REMINDER_FETCH_LIMIT from
+ * tomorrow on. Today's time may already have gone on the phone, which the
+ * server can't tell, so they don't count toward the limit.
+ */
+export function limitDeviceReminders(reminders: DeviceReminder[], today: CalendarDay): DeviceReminder[] {
+  const sorted = [...reminders].sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key));
+  const todays = sorted.filter((r) => r.day <= today);
+  return [...todays, ...sorted.slice(todays.length, todays.length + DEVICE_REMINDER_FETCH_LIMIT)];
 }

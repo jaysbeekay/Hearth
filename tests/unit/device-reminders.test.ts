@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { getHouseholdToday } from "@/lib/appSettings";
 import { addDays } from "@/lib/duePolicy";
-import { deviceReminderSchedule, upcomingReminderDays } from "@/lib/notifications/deviceReminders";
+import {
+  DEVICE_REMINDER_FETCH_LIMIT,
+  deviceReminderSchedule,
+  limitDeviceReminders,
+  upcomingReminderDays,
+  type DeviceReminder,
+} from "@/lib/notifications/deviceReminders";
 import { notificationId, notificationsFor, safeReminderPath } from "@/lib/nativeReminders";
 import type { ReminderPlan } from "@/lib/notifications/reminderSchedule";
 import type { DueEntry } from "@/lib/duePolicy";
@@ -56,6 +62,26 @@ describe("deviceReminderSchedule", () => {
     expect(reminders[1].title).toMatch(/in 7 days$/);
     expect(reminders[2].title).toMatch(/tomorrow|in 1 day$/);
     expect(reminders[0].body).toContain("Fibre Co");
+  });
+});
+
+describe("limitDeviceReminders", () => {
+  const at = (day: string, n: number): DeviceReminder => ({ key: `k${day}:${String(n).padStart(3, "0")}`, day, title: "t", body: "b", url: "/" });
+
+  it("doesn't let today's Reminders, whose time may have gone, crowd out the days ahead", () => {
+    const today = Array.from({ length: 100 }, (_, n) => at("2026-12-17", n));
+    const ahead = Array.from({ length: 100 }, (_, n) => at("2026-12-18", n));
+    const sent = limitDeviceReminders([...ahead, ...today], "2026-12-17");
+    expect(sent.filter((r) => r.day === "2026-12-17")).toHaveLength(100);
+    expect(sent.filter((r) => r.day === "2026-12-18")).toHaveLength(DEVICE_REMINDER_FETCH_LIMIT);
+    expect(sent.map((r) => r.day)).toEqual([...sent.map((r) => r.day)].sort());
+  });
+
+  it("sends up to the limit from tomorrow on, soonest first", () => {
+    const ahead = Array.from({ length: DEVICE_REMINDER_FETCH_LIMIT + 5 }, (_, n) => at(n < 50 ? "2026-12-19" : "2026-12-18", n));
+    const sent = limitDeviceReminders(ahead, "2026-12-17");
+    expect(sent).toHaveLength(DEVICE_REMINDER_FETCH_LIMIT);
+    expect(sent.filter((r) => r.day === "2026-12-18")).toHaveLength(DEVICE_REMINDER_FETCH_LIMIT + 5 - 50);
   });
 });
 

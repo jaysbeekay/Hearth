@@ -17,7 +17,7 @@ vi.mock("@capacitor/core", () => ({
   registerPlugin: () => plugin,
 }));
 
-const fetchReminders = vi.fn<() => Promise<{ reminders: DeviceReminder[] } | { error: string }>>();
+const fetchReminders = vi.fn<() => Promise<{ reminders: DeviceReminder[] } | { error: string; signedOut?: true }>>();
 vi.mock("@/lib/actions/deviceReminders", () => ({ getDeviceReminders: () => fetchReminders() }));
 vi.mock("@/components/PushDeviceToggle", () => ({ PushDeviceToggle: () => null }));
 
@@ -282,10 +282,23 @@ describe("syncDeviceReminders", () => {
     expect(plugin.schedule).not.toHaveBeenCalled();
   });
 
-  it("returns the server's error without touching the phone", async () => {
-    fetchReminders.mockResolvedValueOnce({ error: "You're signed out." });
+  it("keeps what's scheduled when the server fails for another reason", async () => {
+    fetchReminders.mockResolvedValueOnce({ reminders: [reminder("a", 2)] });
+    await syncDeviceReminders("u1");
+    fetchReminders.mockResolvedValueOnce({ error: "Something went wrong." });
+    expect(await syncDeviceReminders("u1")).toEqual({ error: "Something went wrong." });
+    expect(plugin.cancel).not.toHaveBeenCalled();
+    expect(native.deviceRemindersUser()).toBe("u1");
+  });
+
+  it("cancels what's scheduled when the server says nobody is signed in, keeping them on", async () => {
+    fetchReminders.mockResolvedValueOnce({ reminders: [reminder("a", 2)] });
+    await syncDeviceReminders("u1");
+    fetchReminders.mockResolvedValueOnce({ error: "You're signed out.", signedOut: true });
     expect(await syncDeviceReminders("u1")).toEqual({ error: "You're signed out." });
-    expect(plugin.schedule).not.toHaveBeenCalled();
+    expect(cancelledIds()).toContain(id("a"));
+    // The same member's next sign-in schedules them again.
+    expect(native.deviceRemindersUser()).toBe("u1");
   });
 });
 

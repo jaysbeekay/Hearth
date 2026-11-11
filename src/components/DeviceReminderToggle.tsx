@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { PushDeviceToggle, type PushDevice } from "@/components/PushDeviceToggle";
 import {
   allowDeviceNotifications,
+  cancelDeviceReminders,
   DeviceRemindersSuperseded,
   deviceRemindersAvailable,
   deviceRemindersUser,
@@ -28,7 +29,13 @@ export async function syncDeviceReminders(userId: string): Promise<Message> {
   // Taken before the fetch: a sign-out or turn-off while it's out wins.
   const ticket = startDeviceReminderSync();
   const result = await getDeviceReminders();
-  if ("error" in result) return { error: result.error };
+  if ("error" in result) {
+    // The server says nobody is signed in: Reminders naming household records
+    // go now, as they do on the sign-in page. "On" is kept, so the same
+    // member's next sign-in schedules them again. Any other error keeps them.
+    if (result.signedOut) await cancelDeviceReminders();
+    return { error: result.error };
+  }
   return { success: scheduledMessage(await scheduleDeviceReminders(userId, result.reminders, ticket)) };
 }
 
