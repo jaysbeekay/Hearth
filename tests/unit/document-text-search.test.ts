@@ -92,9 +92,11 @@ function docx(name: string, text = "") {
   });
 }
 
-// Runs jobs until none is runnable now. Nothing else moves the clock, so
-// once a claim comes back empty, trying again would find nothing either.
-// The cap (the old 20 × runPendingJobs(4)) only stops a runaway loop.
+// Runs jobs until none is runnable now. Stopping at the first empty claim is
+// safe because no job is ever queued to become due within milliseconds: a
+// retry waits 30s, the backfill's next batch a minute, and these tests' own
+// delayed jobs an hour. The cap (the old 20 × runPendingJobs(4)) only stops a
+// runaway loop.
 async function drainJobs() {
   for (let i = 0; i < 80; i += 1) {
     if (!(await runOneJob())) return;
@@ -443,39 +445,45 @@ describe("Extraction on upload", () => {
 
 // A Document filed before #398: its row has no extraction status and
 // nothing is queued for it, the way the migration leaves old rows. The file
-// is saved by the Service record's real store, so it's really on disk where
-// the extraction job reads it; the rows are written in one go, which keeps
-// tests that need a batch's worth of them cheap (#647). They share one
-// Service record per test; which record a Document is on doesn't matter to
-// the backfill.
-let oldServiceRecord: Promise<{ ownerId: string }> | undefined;
-beforeEach(() => {
-  oldServiceRecord = undefined;
-});
-
+// is saved by its owner's real store, so it's really on disk where the
+// extraction job reads it. Each Document gets its own Service record, so a
+// job sent to the wrong owner's files fails; the records and rows are each
+// written in one go, which keeps tests that need a batch's worth cheap (#647).
 async function filedBeforeThisChange(file: File) {
   const [doc] = await allFiledBeforeThisChange([file]);
   return doc;
 }
 
 async function allFiledBeforeThisChange(files: File[]) {
-  oldServiceRecord ??= serviceRecord();
-  const { ownerId } = await oldServiceRecord;
-  const data = await oldDocumentFiles("VEHICLE_ITEM", ownerId, files);
-  const rows = await db.prisma.vehicleItemDocument.createManyAndReturn({ data: data.map((d) => ({ ...d, vehicleItemId: ownerId })) });
+  const vehicle = await db.prisma.vehicle.create({ data: { label: "Corolla", createdById: actorId } });
+  const owners = await db.prisma.vehicleItem.createManyAndReturn({
+    data: files.map(() => ({ vehicleId: vehicle.id, type: "SERVICE", title: "Logbook service" })),
+  });
+  const data = await oldDocumentFiles(
+    "VEHICLE_ITEM",
+    files.map((file, i) => ({ file, ownerId: owners[i].id })),
+  );
+  const rows = await db.prisma.vehicleItemDocument.createManyAndReturn({
+    data: data.map(({ ownerId, ...d }) => ({ ...d, vehicleItemId: ownerId })),
+  });
   return rows.map((row) => ({ ...row, ownerId: row.vehicleItemId }));
 }
 
+// Each call's Documents are filed after the last call's, a millisecond apart,
+// so no two share an uploadedAt and the backfill's oldest-first order is the
+// order they were filed in.
+let lastFiledAt = 0;
+
 // Saves each file where its kind's Documents are read from, and returns the
-// row fields for it, with no extraction status. One millisecond apart, oldest
-// first, so the backfill's oldest-first order is the order given.
-async function oldDocumentFiles(kind: "VEHICLE_ITEM" | "HOME_ITEM", ownerId: string, files: File[]) {
+// row fields for it, with no extraction status.
+async function oldDocumentFiles(kind: "VEHICLE_ITEM" | "HOME_ITEM", files: { file: File; ownerId: string }[]) {
   const store = documentStoreFor(kind);
-  const filedAt = Date.now() - files.length;
+  const filedAt = Math.max(Date.now() - files.length, lastFiledAt + 1);
+  lastFiledAt = filedAt + files.length - 1;
   return Promise.all(
-    files.map(async (file, i) => {
+    files.map(async ({ file, ownerId }, i) => {
       const { storedName, mimeType, size, sha256 } = await store.save(ownerId, file);
-      return { filename: file.name, storedName, mimeType, size, sha256, uploadedAt: new Date(filedAt + i) };
+      return { ownerId, filename: file.name, storedName, mimeType, size, sha256, uploadedAt: new Date(filedAt + i) };
     }),
   );
 }
@@ -486,6 +494,10 @@ async function runBackfill() {
 }
 
 describe("Backfill of Documents filed before text search", () => {
+  beforeEach(() => {
+    lastFiledAt = 0;
+  });
+
   it("makes their contents searchable", async () => {
     await filedBeforeThisChange(pdf("replaced the timing belt"));
     expect(await documentHits("timing belt")).toEqual([]);
@@ -571,10 +583,14 @@ describe("Backfill of Documents filed before text search", () => {
   it("picks up Documents of several kinds in one batch of 25", async () => {
     await allFiledBeforeThisChange(Array.from({ length: 20 }, (_, i) => pdf(`quoll${i}x`)));
     const prop = await db.prisma.property.create({ data: { label: "House", createdById: actorId } });
-    const item = await db.prisma.homeItem.create({ data: { propertyId: prop.id, type: "MAINTENANCE", title: "Gutters" } });
-    const homeFiles = Array.from({ length: 10 }, (_, i) => pdf(`dunnart${i}x`));
-    const homeRows = await oldDocumentFiles("HOME_ITEM", item.id, homeFiles);
-    await db.prisma.homeItemDocument.createMany({ data: homeRows.map((d) => ({ ...d, homeItemId: item.id })) });
+    const items = await db.prisma.homeItem.createManyAndReturn({
+      data: Array.from({ length: 10 }, () => ({ propertyId: prop.id, type: "MAINTENANCE", title: "Gutters" })),
+    });
+    const homeRows = await oldDocumentFiles(
+      "HOME_ITEM",
+      items.map((item, i) => ({ file: pdf(`dunnart${i}x`), ownerId: item.id })),
+    );
+    await db.prisma.homeItemDocument.createMany({ data: homeRows.map(({ ownerId, ...d }) => ({ ...d, homeItemId: ownerId })) });
 
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
     await runOneJob();
