@@ -33,7 +33,11 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "Is anything I add private to me, or can every household member see it?",
-        a: "Every contract, warranty, document, trip, property, vehicle, inventory item and wealth record is visible to the whole household — there's no per-record or per-person privacy setting. The one exception is [[Assistant]] conversations, which stay private to whoever started them. If you're uploading something sensitive (a payslip, a passport scan), keep in mind everyone with a household account can see it.",
+        a: "Every contract, warranty, document, trip, property, vehicle, item and wealth record is visible to the whole household — there's no per-record or per-person privacy setting. The one exception is [[Assistant]] conversations, which stay private to whoever started them. If you're uploading something sensitive (a payslip, a passport scan), keep in mind everyone with a household account can see it.",
+      },
+      {
+        q: "Are there keyboard shortcuts?",
+        a: "⌘K (Ctrl+K on Windows and Linux) opens search from any page. When a notification appears at the bottom of the screen, Alt+T (Option+T on a Mac) moves to its button, such as Undo after a delete, and keeps it open while you're there. Press Enter to use it, or Escape to close it; either way you're taken back to where you were.",
       },
     ],
   },

@@ -1,3 +1,4 @@
+import { addDescribedBy, dropDescribedBy } from "@/lib/describedBy";
 import { pillClass } from "@/lib/ui";
 
 // Heuristic (regex/text-match) hits use the accent color; AI-suggested
@@ -45,8 +46,7 @@ export function markAutoFilled(
   desc.className = "sr-only";
   desc.textContent = "Auto-filled from document — review before saving";
   el.insertAdjacentElement("afterend", desc);
-  const previousDescribedBy = el.getAttribute("aria-describedby");
-  el.setAttribute("aria-describedby", [previousDescribedBy, descId].filter(Boolean).join(" "));
+  el.setAttribute("aria-describedby", addDescribedBy(el.getAttribute("aria-describedby"), descId));
 
   const badge = document.createElement("span");
   badge.textContent = "Auto";
@@ -60,8 +60,7 @@ export function markAutoFilled(
       el.classList.remove(...classes);
       desc.remove();
       badge.remove();
-      if (previousDescribedBy) el.setAttribute("aria-describedby", previousDescribedBy);
-      else el.removeAttribute("aria-describedby");
+      dropDescribedBy(el, descId);
     },
     { once: true },
   );

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { test, expect, request as playwrightRequest, type Browser, type Page } from "@playwright/test";
 import { createClient, type Client } from "@libsql/client";
 import { ADMIN_AUTH_FILE, BASE_URL, DATABASE_URL } from "../env";
 
@@ -450,6 +450,75 @@ test.describe("sign-out clears offline data (#424)", () => {
     await page.waitForURL(/\/login/);
     // The other tab reloads, and with no session lands on the sign-in page.
     await other.waitForURL(/\/login/);
+    await page.context().close();
+  });
+
+  // #576 — the password sign-in's redirect is a push, so /login stays in
+  // history. Going Back to it while signed in must not act as a sign-out.
+  test("the sign-in page shown while still signed in (going Back) keeps offline data and the other tabs", async ({ browser }) => {
+    const page = await newPage(browser);
+    await signIn(page, ADMIN_424_EMAIL, PASSWORD);
+    await expect.poll(() => cacheNames(page)).toContain("hearth-session");
+    await seedWorkerCaches(page);
+
+    const other = await page.context().newPage();
+    await other.goto("/contracts");
+    await expect(accountMenuButton(other)).toBeVisible();
+    await expect.poll(async () => (await offlineStoreCounts(page)).pages ?? 0).toBeGreaterThan(0);
+    // A reload would lose this.
+    await other.evaluate(() => {
+      (window as unknown as { e2eNotReloaded: boolean }).e2eNotReloaded = true;
+    });
+    const pagesBefore = (await offlineStoreCounts(page)).pages;
+
+    // Going Back shows the sign-in page again without asking the server, as
+    // the browser's history keeps it. `next dev` asks the server instead,
+    // which sends a signed-in visitor on, so the page is served here as a
+    // signed-out visitor gets it.
+    const signedOut = await playwrightRequest.newContext({ baseURL: BASE_URL });
+    await page.route(/\/login\?_rsc=/, async (route) => {
+      const headers = { ...route.request().headers() };
+      delete headers.cookie;
+      const res = await signedOut.get(route.request().url(), { headers, maxRedirects: 0 });
+      // The body comes back decoded, so its encoding and length headers would be wrong.
+      const copied = Object.fromEntries(
+        Object.entries(res.headers()).filter(
+          ([name]) => !["content-encoding", "content-length", "transfer-encoding"].includes(name.toLowerCase()),
+        ),
+      );
+      await route.fulfill({ status: res.status(), headers: copied, body: await res.body() });
+    });
+    // Fails here if the cleanup never runs.
+    const checked = page.waitForResponse("**/api/auth/session");
+    await page.goBack();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    await checked;
+    // A short settle, so a clear or broadcast, were one sent, would land.
+    await page.waitForTimeout(1_000);
+
+    expect(await cacheNames(page)).toEqual(expect.arrayContaining(["hearth-session", "pages", "apis"]));
+    expect((await offlineStoreCounts(page)).pages).toBe(pagesBefore);
+    await expect(other).toHaveURL(/\/contracts$/);
+    expect(await other.evaluate(() => (window as unknown as { e2eNotReloaded?: boolean }).e2eNotReloaded)).toBe(true);
+    await signedOut.dispose();
+    await page.context().close();
+  });
+
+  test("when the sign-in page can't ask the server who is signed in, it still clears", async ({ browser }) => {
+    const page = await newPage(browser);
+    await signIn(page, ADMIN_424_EMAIL, PASSWORD);
+    await page.goto("/contracts");
+    await expect.poll(async () => (await offlineStoreCounts(page)).pages ?? 0).toBeGreaterThan(0);
+    await seedWorkerCaches(page);
+
+    // The session ends without Sign out, and the check can't reach the server.
+    await page.context().clearCookies();
+    await page.route("**/api/auth/session", (route) => route.abort("internetdisconnected"));
+    await page.goto("/login");
+
+    await expect.poll(() => cacheNames(page)).toEqual([PRECACHE]);
+    await expect.poll(async () => (await offlineStoreCounts(page)).pages).toBe(0);
     await page.context().close();
   });
 

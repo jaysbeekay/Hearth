@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { colourLook, filledPrimaryButtons } from "./buttons";
+import { tooSmallHitAreas } from "./hitArea";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
 
@@ -308,6 +310,9 @@ test.beforeEach(async ({ page }) => {
         },
       ],
     };
+    // "hearth-test-no-properties": the Home module is on but has no
+    // Properties yet, so the warranty form shows its "add one" hint (#616).
+    if (testFlag("hearth-test-no-properties")) rowsByTable.properties = [];
 
     // #455 — Broadband Plan's three-version Document (v1 <- v2 <- v3), and
     // variations on it. "1": all live. "middle": v2 in Trash. "expired":
@@ -659,6 +664,265 @@ test("standalone shell follows the 0.16 mobile navigation shape", async ({ page 
   await expect(page.locator(".bottom-nav").getByRole("button", { name: "Warranties", exact: true })).toBeVisible();
   await expect(page.locator(".bottom-nav").getByRole("button", { name: "Documents", exact: true })).toBeVisible();
   await expect(page.locator(".bottom-nav").getByRole("button", { name: "More", exact: true })).toBeVisible();
+});
+
+test("standalone nav, tabs and chips expose the current entry beyond colour (#616)", async ({ page }) => {
+  const accent = await page.evaluate(() => {
+    // The computed --accent, as the rgb() string a background resolves to.
+    const probe = document.createElement("div");
+    probe.style.background = "var(--accent)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  });
+  const bar = (locator: import("@playwright/test").Locator) =>
+    locator.evaluate((el) => {
+      const after = getComputedStyle(el, "::after");
+      return { content: after.content, height: after.height, background: after.backgroundColor };
+    });
+
+  const nav = page.locator(".bottom-nav");
+  await expect(nav.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.locator("[aria-current]")).toHaveCount(1);
+
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await expect(nav.getByRole("button", { name: "Contracts" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current", /.*/);
+  // The current nav entry carries an accent bar, not just the accent colour;
+  // the others have none.
+  expect(await bar(nav.getByRole("button", { name: "Contracts" }))).toEqual({ content: '""', height: "2px", background: accent });
+  expect((await bar(nav.getByRole("button", { name: "Dashboard" }))).content).toBe("none");
+
+  const tabs = page.locator(".tabs .tab");
+  await expect(tabs.filter({ hasText: "Contracts" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator(".tabs [aria-current]")).toHaveCount(1);
+  expect(await bar(tabs.filter({ hasText: "Contracts" }))).toEqual({ content: '""', height: "2px", background: accent });
+  expect((await bar(tabs.filter({ hasText: "Warranties" }))).content).toBe("none");
+
+  const chips = page.locator('.chips[aria-label="Filters"] .chip');
+  const chip = (name: string) => chips.and(page.getByRole("button", { name, exact: true }));
+  await expect(chip("All")).toHaveAttribute("aria-pressed", "true");
+  const widthBefore = (await chip("Needs attention").boundingBox())!.width;
+  await chip("Needs attention").click();
+  await expect(chip("Needs attention")).toHaveAttribute("aria-pressed", "true");
+  await expect(chip("All")).toHaveAttribute("aria-pressed", "false");
+  // A pressed chip shows its check mark (hidden from screen readers, so the
+  // name stays "Needs attention"), and pressing it doesn't change its width.
+  await expect(chip("Needs attention").locator(".chip-check")).toBeVisible();
+  await expect(chip("Needs attention").locator(".chip-check")).toHaveAttribute("aria-hidden", "true");
+  await expect(chip("All").locator(".chip-check")).toBeHidden();
+  expect((await chip("Needs attention").boundingBox())!.width).toBe(widthBefore);
+
+  // A record's detail screen sits under its section: "true", not a second page.
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(nav.getByRole("button", { name: "Contracts" })).toHaveAttribute("aria-current", "true");
+
+  // The Documents filters are toggle chips too.
+  await nav.getByRole("button", { name: "Documents" }).click();
+  const docChips = page.locator('.chips[aria-label="Document filters"] .chip');
+  await expect(docChips.and(page.getByRole("button", { name: "All", exact: true }))).toHaveAttribute("aria-pressed", "true");
+  await docChips.and(page.getByRole("button", { name: "Important", exact: true })).click();
+  await expect(docChips.and(page.getByRole("button", { name: "Important", exact: true }))).toHaveAttribute("aria-pressed", "true");
+  await expect(docChips.and(page.getByRole("button", { name: "All", exact: true }))).toHaveAttribute("aria-pressed", "false");
+});
+
+test("standalone interactive elements have a 44px hit area (#616)", async ({ page }) => {
+  const nav = page.locator(".bottom-nav");
+  const view = page.locator("#mobile-view");
+  const title = page.locator("#view-title");
+  const check = async (screen: string) => {
+    expect(await tooSmallHitAreas(page), screen).toEqual([]);
+  };
+
+  await check("Dashboard");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await check("Dashboard (dark)");
+  await page.emulateMedia({ colorScheme: "light" });
+
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await check("Contracts");
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByRole("button", { name: "Copy Contract number" })).toBeVisible();
+  await check("Contract detail");
+  // The Copy button's text is at least 12px.
+  const copySize = await page.locator(".inline-copy").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(copySize).toBeGreaterThanOrEqual(12);
+
+  await nav.getByRole("button", { name: "Documents" }).click();
+  await check("Documents");
+  await view.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(title).toHaveText("Recently deleted documents");
+  await check("Recently deleted documents");
+
+  for (const [navKey, screen] of [
+    ["search", "Search"],
+    ["reminders", "Reminders"],
+    ["settings", "Settings"],
+  ] as const) {
+    await nav.getByRole("button", { name: "More" }).click();
+    await check("More");
+    await view.locator(`button[data-nav="${navKey}"]`).click();
+    await expect(title).toHaveText(screen);
+    await check(screen);
+  }
+
+  // A module screen and its detail.
+  await nav.getByRole("button", { name: "More" }).click();
+  await view.locator('button[data-record-type="vehicles"]').click();
+  await check("Vehicles");
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await check("Vehicle detail");
+
+  await nav.getByRole("button", { name: "Warranties" }).click();
+  await view.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(title).toHaveText("Add record");
+  await check("Add warranty");
+});
+
+test("standalone Contract detail that needs review has one filled primary button, Confirm details (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByText("Confirm details before reminders run")).toBeVisible();
+  await expect(page.locator('button[data-form-type="contractRenewal"]')).toBeVisible();
+
+  expect(await filledPrimaryButtons(page)).toEqual(["Confirm details"]);
+  // One Edit, in the record's actions row; the review banner doesn't repeat it.
+  await expect(page.locator('#mobile-view button[data-form-type="contracts"][data-id]')).toHaveCount(1);
+  for (const selector of ['button[data-form-type="contracts"][data-id]', 'button[data-form-type="contractRenewal"]']) {
+    expect(await colourLook(page, selector), selector).toEqual({ fill: "transparent", text: "accent", border: "border-control" });
+  }
+  expect(await colourLook(page, "[data-delete-record]")).toEqual({ fill: "transparent", text: "danger", border: "border-control" });
+});
+
+test("standalone Delete and the other buttons on a tinted inbox card keep a surface fill (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  expect(await colourLook(page, "[data-delete-document]")).toEqual({ fill: "transparent", text: "danger", border: "border-control" });
+  // On a warning/danger card the tint would leave the control border under
+  // 3:1, so the buttons sit on the surface colour instead.
+  expect(await colourLook(page, ".warning-card [data-delete-inbox-document]")).toEqual({ fill: "surface", text: "danger", border: "border-control" });
+  expect(await colourLook(page, ".warning-card [data-open-inbox-document]")).toEqual({ fill: "surface", text: "accent", border: "border-control" });
+  expect(await colourLook(page, '.warning-card form[data-file-inbox-id] button[type="submit"]')).toEqual({ fill: "surface", text: "accent", border: "border-control" });
+});
+
+test("standalone status toast's Undo is quiet, not a second filled button (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator(".record-card").filter({ hasText: "insurance.pdf" }).getByRole("button", { name: "Delete" }).click();
+  const undo = page.locator("#standalone-status").getByRole("button", { name: "Undo" });
+  await expect(undo).toBeVisible();
+  expect(await colourLook(page, "#standalone-status .status-action")).toEqual({ fill: "transparent", text: "accent", border: "none" });
+  expect(await filledPrimaryButtons(page)).toEqual(["Upload document"]);
+});
+
+test("standalone danger badges keep their tint and tone text (#630, #412)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    rows.contracts.push({ id: "contract-lapsed", title: "Lapsed Gym", category: "OTHER", end_date: "2000-01-01", status: "ACTIVE", currency: "AUD", updated_at: "2099-01-01T00:00:00.000Z" });
+  });
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  const badge = page.locator(".record-card").filter({ hasText: "Lapsed Gym" }).locator(".badge.danger");
+  await expect(badge).toHaveCount(1);
+  expect(await colourLook(page, '.record-card:has-text("Lapsed Gym") .badge.danger')).toEqual({ fill: "danger-soft", text: "danger", border: "none" });
+});
+
+test("standalone a disabled button is dimmed and not-allowed (#630)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  const add = page.locator("#mobile-view").getByRole("button", { name: "Add", exact: true });
+  await add.evaluate((el) => {
+    (el as HTMLButtonElement).disabled = true;
+  });
+  const look = await add.evaluate((el) => ({ opacity: getComputedStyle(el).opacity, cursor: getComputedStyle(el).cursor }));
+  expect(look).toEqual({ opacity: "0.5", cursor: "not-allowed" });
+});
+
+test("standalone screens have at most one filled primary button (#630)", async ({ page }) => {
+  const nav = page.locator(".bottom-nav");
+  const view = page.locator("#mobile-view");
+  const title = page.locator("#view-title");
+  const check = async (screen: string) => {
+    const filled = await filledPrimaryButtons(page);
+    expect(filled.length, `${screen}: ${filled.join(", ")}`).toBeLessThanOrEqual(1);
+  };
+  const openFromMore = async (navKey: string, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-nav="${navKey}"]`).click();
+    await expect(title).toHaveText(screen);
+    await check(screen);
+  };
+  const openModule = async (recordType: string, record: RegExp, screen: string) => {
+    await nav.getByRole("button", { name: "More" }).click();
+    await view.locator(`button[data-record-type="${recordType}"]`).click();
+    await check(screen);
+    await page.getByRole("button", { name: record }).first().click();
+    await check(`${screen} detail`);
+  };
+
+  await check("Dashboard");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await check("Contracts");
+  await view.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(title).toHaveText("Add record");
+  await check("Add contract");
+  await nav.getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await check("Contract detail");
+  await view.locator('button[data-form-type="contractRenewal"]').click();
+  await check("Renew contract");
+
+  await nav.getByRole("button", { name: "Warranties" }).click();
+  await page.getByRole("button", { name: /Laptop/ }).click();
+  await check("Warranty detail");
+  await view.locator('button[data-form-type="products"][data-id]').first().click();
+  await check("Edit warranty");
+
+  await nav.getByRole("button", { name: "Documents" }).click();
+  await check("Documents");
+  await view.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(title).toHaveText("Recently deleted documents");
+  await check("Recently deleted documents");
+
+  await nav.getByRole("button", { name: "More" }).click();
+  await check("More");
+  for (const [navKey, screen] of [
+    ["search", "Search"],
+    ["reminders", "Reminders"],
+    ["import", "Import"],
+    ["assistant", "Assistant"],
+    ["settings", "Settings"],
+    ["help", "Help"],
+  ] as const) {
+    await openFromMore(navKey, screen);
+  }
+  // Help's Switch mode is secondary, as on Settings.
+  expect(await filledPrimaryButtons(page)).toEqual([]);
+
+  await openModule("vehicles", /Family Car/, "Vehicles");
+  await openModule("properties", /Home.*1 Hearth Street/, "Properties");
+  await openModule("inventoryItems", /Camera/, "Inventory");
+  await openModule("trips", /Japan Holiday/, "Travel");
+  await openModule("portfolios", /Family Portfolio/, "Wealth");
+});
+
+test("standalone warranty form's inline \"add one\" link has a 44px hit area inside its hint (#616)", async ({ page }) => {
+  await reloadWithTestFlags(page, { "hearth-test-no-properties": "1" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Warranties" }).click();
+  await page.locator("#mobile-view").getByRole("button", { name: "Add", exact: true }).click();
+  const link = page.locator(".field-hint .link-button");
+  await expect(link).toHaveText("add one");
+  expect(await tooSmallHitAreas(page)).toEqual([]);
+
+  // The link's hit area stays inside its own hint, so it can't sit over the
+  // field above or below it.
+  const { hint, area } = await link.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const before = getComputedStyle(el, "::before");
+    const top = box.top + parseFloat(before.top) + new DOMMatrix(before.transform).m42;
+    const h = el.closest(".field-hint")!.getBoundingClientRect();
+    return { hint: { top: h.top, bottom: h.bottom }, area: { top, bottom: top + parseFloat(before.height) } };
+  });
+  expect(area.top).toBeGreaterThanOrEqual(hint.top - 0.5);
+  expect(area.bottom).toBeLessThanOrEqual(hint.bottom + 0.5);
 });
 
 test("standalone dashboard header and stats remain readable on mobile", async ({ page }) => {
@@ -1731,8 +1995,8 @@ test("standalone Archiving a Property stops its lease-end Reminder (#355)", asyn
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Warranties missing key details/ })).toBeVisible();
   await page.getByRole("button", { name: /Warranties missing key details/ }).click();
-  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveClass(/active/);
-  await expect(page.locator(".chip.active")).toHaveText("Missing key details");
+  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator('.chip[aria-pressed="true"]')).toHaveAccessibleName("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
 });
 

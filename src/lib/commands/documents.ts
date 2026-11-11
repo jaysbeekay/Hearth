@@ -289,7 +289,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     delegate: (db) => db.inventoryItemDocument,
     loadOwner: async (id, db) => {
       const i = await db.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
-      return i && { paths: [`/inventory/${id}`], chain: [{ label: "Inventory item", deletedAt: i.deletedAt }] };
+      return i && { paths: [`/inventory/${id}`], chain: [{ label: "Item", deletedAt: i.deletedAt }] };
     },
   },
   TRADE: {

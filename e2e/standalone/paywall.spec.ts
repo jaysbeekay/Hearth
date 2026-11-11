@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pathToFileURL } from "node:url";
+import { filledPrimaryButtons } from "./buttons";
+import { tooSmallHitAreas } from "./hitArea";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
 
@@ -185,4 +187,36 @@ test("connected mode never configures or calls Purchases", async ({ page }) => {
 
   const calls = await page.evaluate(() => (window as Window & { __paywallTest?: { calls: unknown[] } }).__paywallTest?.calls ?? []);
   expect(calls).toEqual([]);
+});
+
+test("the mode, paywall and connect screens have 44px hit areas (#616)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await expect(page.locator("#mode-screen")).toBeVisible();
+  expect(await tooSmallHitAreas(page), "mode").toEqual([]);
+
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#paywall-screen")).toBeVisible();
+  expect(await tooSmallHitAreas(page), "paywall").toEqual([]);
+
+  await page.locator("#paywall-screen").getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Connect to my server" }).click();
+  await expect(page.locator("#connected-screen")).toBeVisible();
+  expect(await tooSmallHitAreas(page), "connect").toEqual([]);
+});
+
+test("the mode, paywall and connect screens have at most one filled primary button (#630)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await expect(page.locator("#mode-screen")).toBeVisible();
+  expect((await filledPrimaryButtons(page)).length, "mode").toBeLessThanOrEqual(1);
+
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#paywall-screen")).toBeVisible();
+  expect((await filledPrimaryButtons(page)).length, "paywall").toBeLessThanOrEqual(1);
+
+  await page.locator("#paywall-screen").getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Connect to my server" }).click();
+  await expect(page.locator("#connected-screen")).toBeVisible();
+  expect(await filledPrimaryButtons(page), "connect").toEqual(["Connect"]);
 });

@@ -10,6 +10,8 @@ import {
   inventoryRules,
   filtersForChip,
   isChipActive,
+  itemMissingParts,
+  itemRules,
   legacyListRedirect,
   listHref,
   parseListFilters,
@@ -212,6 +214,72 @@ describe("Warranty and Inventory item rules (unchanged until #380)", () => {
     const all = await db.prisma.inventoryItem.findMany();
     expect(viaWhere.map((i) => i.label)).toEqual(["no serial"]);
     expect(all.filter(inventoryRules.missingDetails.matches).map((i) => i.label)).toEqual(["no serial"]);
+  });
+});
+
+describe("Item rules (#380)", () => {
+  const ARCHIVED = new Date("2026-02-01T00:00:00Z");
+  let docSeq = 0;
+  function itemDoc(extra: { isImportant?: boolean; deletedAt?: Date } = {}) {
+    docSeq += 1;
+    return {
+      sourceKind: "PRODUCT",
+      sourceDocumentId: `item-test-doc-${docSeq}`,
+      filename: `d${docSeq}.pdf`,
+      storedName: `d${docSeq}-stored.pdf`,
+      mimeType: "application/pdf",
+      size: 1,
+      ...extra,
+    };
+  }
+
+  it("Missing key details: neither identifier, or a Warranty with no end date", async () => {
+    const make = (description: string, data: Record<string, unknown> = {}) =>
+      db.prisma.item.create({ data: { description, createdById: userId, ...data } });
+    await make("complete", { serialNumber: "S1", warranty: { create: { endDate: END } } });
+    await make("warranty no end date", { serialNumber: "S1", warranty: { create: {} } });
+    await make("barcode only, no warranty", { barcode: "123" });
+    await make("no identifier, no warranty");
+    await make("both gaps", { warranty: { create: {} } });
+    await make("archived", { archivedAt: ARCHIVED, warranty: { create: {} } });
+    await make("deleted", { deletedAt: DELETED });
+
+    const viaWhere = await db.prisma.item.findMany({ where: itemRules.missingDetails.where, select: { description: true } });
+    const all = await db.prisma.item.findMany({ include: { warranty: { select: { endDate: true } } } });
+    const expected = ["both gaps", "no identifier, no warranty", "warranty no end date"];
+    expect(viaWhere.map((i) => i.description).sort()).toEqual(expected);
+    expect(all.filter((i) => itemRules.missingDetails.matches(i)).map((i) => i.description).sort()).toEqual(expected);
+
+    expect(itemMissingParts({ deletedAt: null, archivedAt: null, serialNumber: null, barcode: null, warranty: { endDate: null } })).toEqual([
+      "No warranty end date",
+      "No serial number or barcode",
+    ]);
+    // No Warranty at all is not missing anything on that account.
+    expect(itemMissingParts({ deletedAt: null, archivedAt: null, serialNumber: "S1", barcode: null, warranty: null })).toEqual([]);
+    // Archived is never missing anything, whatever else it lacks.
+    expect(itemMissingParts({ deletedAt: null, archivedAt: ARCHIVED, serialNumber: null, barcode: null, warranty: { endDate: null } })).toEqual([]);
+  });
+
+  it("Document rules: query and in-memory check agree", async () => {
+    const make = (description: string, data: Record<string, unknown> = {}) =>
+      db.prisma.item.create({ data: { description, createdById: userId, ...data } });
+    await make("has important doc", { documents: { create: [itemDoc({ isImportant: true })] } });
+    await make("has plain doc", { documents: { create: [itemDoc()] } });
+    await make("doc deleted", { documents: { create: [itemDoc({ isImportant: true, deletedAt: DELETED })] } });
+    await make("no docs");
+    await make("archived with doc", { archivedAt: ARCHIVED, documents: { create: [itemDoc({ isImportant: true })] } });
+
+    const all = await db.prisma.item.findMany({ include: { documents: LIVE_DOCS } });
+    for (const [rule, expected] of [
+      // Archived Items are live but not housekeeping work: all three rules
+      // skip them, so "archived with doc" appears in none of these lists.
+      [itemRules.noDocument, ["doc deleted", "no docs"]],
+      [itemRules.important, ["has important doc"]],
+    ] as const) {
+      const viaWhere = await db.prisma.item.findMany({ where: rule.where, select: { description: true } });
+      expect(viaWhere.map((i) => i.description).sort()).toEqual([...expected].sort());
+      expect(all.filter((i) => (rule.matches as (row: typeof i) => boolean)(i)).map((i) => i.description).sort()).toEqual([...expected].sort());
+    }
   });
 });
 

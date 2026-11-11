@@ -61,7 +61,7 @@ export function InventoryItemForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: item ? `Update item: ${item.label}` : "Add inventory item",
+      label: item ? `Update item: ${item.label}` : "Add item",
       entity: "inventoryItem",
       operation: item ? "update" : "create",
       entityId: item?.id,

@@ -335,8 +335,8 @@ export function vehicleFilterWheres(filters: ListFilters): Prisma.VehicleWhereIn
 
 // --- Warranties (Products) and Inventory items ----------------------------
 //
-// Item rules arrive with #380. Until then these keep the behaviour the
-// Warranties list and dashboard already had, now shared with Search.
+// Legacy rules, kept until the Warranties list, the Inventory list, the
+// dashboard and Search cut over to the Item rules below (#380).
 
 export type ProductRuleRow = {
   deletedAt: Date | null;
@@ -411,6 +411,74 @@ export const inventoryRules = {
     matches: (row) => inventoryMissingParts(row).length > 0,
   } satisfies RecordRule<Prisma.InventoryItemWhereInput, InventoryRuleRow>,
 };
+
+// --- Items (#380) -----------------------------------------------------------
+//
+// The merged record's rules, per GLOSSARY.md "Missing key details": an Item
+// with neither serial nor barcode, or with a Warranty that has no end date.
+// An Item with no Warranty is not missing anything on that account, and
+// Archived or deleted Items are never missing anything (#355, as Vehicles).
+// The Lapsed chip is the Due policy's (#383/#384), not this module's.
+
+export type ItemRuleRow = {
+  deletedAt: Date | null;
+  archivedAt: Date | null;
+  serialNumber: string | null;
+  barcode: string | null;
+  warranty: { endDate: Date | null } | null;
+};
+
+export type ItemMissingPart = "No warranty end date" | "No serial number or barcode";
+
+export function itemMissingParts(row: ItemRuleRow): ItemMissingPart[] {
+  if (row.deletedAt != null || row.archivedAt != null) return [];
+  const parts: ItemMissingPart[] = [];
+  if (row.warranty && row.warranty.endDate == null) parts.push("No warranty end date");
+  if (row.serialNumber == null && row.barcode == null) parts.push("No serial number or barcode");
+  return parts;
+}
+
+export const ITEM_MISSING_SELECT = {
+  deletedAt: true,
+  archivedAt: true,
+  serialNumber: true,
+  barcode: true,
+  warranty: { select: { endDate: true } },
+} as const satisfies Prisma.ItemSelect;
+
+const LIVE_ITEM = { deletedAt: null, archivedAt: null } as const satisfies Prisma.ItemWhereInput;
+
+export const itemRules = {
+  missingDetails: {
+    where: {
+      ...LIVE_ITEM,
+      OR: [
+        { warranty: { is: { endDate: null } } },
+        { serialNumber: null, barcode: null },
+      ],
+    },
+    matches: (row) => itemMissingParts(row).length > 0,
+  } satisfies RecordRule<Prisma.ItemWhereInput, ItemRuleRow>,
+
+  noDocument: {
+    where: { ...LIVE_ITEM, documents: { none: { deletedAt: null } } },
+    matches: (row) => row.deletedAt == null && row.archivedAt == null && row.documents.length === 0,
+  } satisfies RecordRule<Prisma.ItemWhereInput, Pick<ItemRuleRow, "deletedAt" | "archivedAt"> & LiveDocumentsRow>,
+
+  important: {
+    where: { ...LIVE_ITEM, documents: { some: { deletedAt: null, isImportant: true } } },
+    matches: (row) => row.deletedAt == null && row.archivedAt == null && row.documents.some((d) => d.isImportant),
+  } satisfies RecordRule<Prisma.ItemWhereInput, Pick<ItemRuleRow, "deletedAt" | "archivedAt"> & LiveDocumentsRow>,
+};
+
+/** The `where` conditions for the non-Due filters, to AND into an Item query. */
+export function itemFilterWheres(filters: ListFilters): Prisma.ItemWhereInput[] {
+  const wheres: Prisma.ItemWhereInput[] = [];
+  if (filters.missingDetails) wheres.push(itemRules.missingDetails.where);
+  if (filters.noDocument) wheres.push(itemRules.noDocument.where);
+  if (filters.important) wheres.push(itemRules.important.where);
+  return wheres;
+}
 
 // ---------------------------------------------------------------------------
 // Counts
