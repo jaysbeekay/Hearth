@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
+  Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
+  version from the tag and a UTC-timestamp build number. Tags created by
+  running `release.yml` from the Actions tab need a manual run, and the
+  workflow doesn't gate releases yet. Setup and required secrets are in
+  `docs/deployment/ios-testflight.md`.
+
 - **Encrypted backup and restore for the standalone mobile app (#226).**
   Settings → Back up this phone exports an encrypted `.hearthbackup` file,
   protected by a password the user picks (at least 12 characters; PBKDF2-SHA256
