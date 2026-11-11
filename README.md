@@ -1149,8 +1149,12 @@ scheduler, run each job once.
 
 The response lists the job types that call queued:
 `{"triggered":"REMINDER_CHECK","status":"DONE","enqueued":["REMINDER_CHECK","BACKUP_RUN"]}`.
-A call starts jobs for up to about 30 seconds; anything not started by then
-stays queued for the next call or for Hearth's job runner. A wrong secret gets
+A call only starts new jobs for about 30 seconds; anything not started by then
+stays queued for the next call or for Hearth's job runner. A job already
+running isn't cut short, so a call that starts a slow job (a large backup) stays
+open for as long as that job takes, up to its 4.5 minute limit. Give your
+scheduler's HTTP timeout at least that long: the job still finishes if the
+client gives up, and the next call won't run it twice. A wrong secret gets
 a 401, and the endpoint 404s while `CRON_SECRET` is unset.
 
 To use only the external trigger, set `DISABLE_INTERNAL_SCHEDULER=true`. That

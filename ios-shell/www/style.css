@@ -202,7 +202,8 @@ button {
 .link-button,
 .chip,
 .icon-button,
-.subtle-button {
+.subtle-button,
+.inline-copy {
   background: transparent;
   color: var(--accent);
 }
@@ -211,9 +212,27 @@ button {
   border: 1px solid var(--border-control);
 }
 
-.danger {
-  background: var(--danger-soft);
+/* #630, the web app's Buttons rule (src/lib/ui.ts, #411): at most one primary
+   (the bare filled button) per screen, record and row actions .secondary, and
+   a Delete outside a confirm dialog is secondary with danger text, as
+   buttonClass("secondary", { destructive: true }). */
+.secondary.danger {
   color: var(--danger);
+}
+
+/* On a warning or danger card the 10% tint leaves the control border under
+   3:1, so a secondary button there sits on the surface colour, where the
+   border clears 3:1 in both themes (scripts/check-contrast.mjs). */
+.warning-card .secondary,
+.danger-card .secondary {
+  background: var(--surface);
+}
+
+/* The web app's disabled:opacity-50, so a disabled primary doesn't look
+   active. */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .status {
@@ -644,8 +663,9 @@ button {
   word-break: break-word;
 }
 
-/* A small Copy button beside a value: 28px to look at, with a ::before that
-   reaches 8px past each edge for a 44px hit area. */
+/* A small Copy button beside a value, quiet like the web's DetailField copy
+   button: 28px to look at, with a ::before that reaches 8px past each edge
+   for a 44px hit area. */
 .inline-copy {
   position: relative;
   display: inline-flex;
@@ -707,9 +727,12 @@ button {
   }
 }
 
-/* Undo button in the status toast: the default button's 44px height, and its
-   accent colours (accent-foreground on accent) clear 4.5:1, and accent 3:1
-   against the toast's surface, in both themes. */
+/* Undo button in the status toast: the default button's 44px height, quiet
+   like the web toast's action (buttonClass("quiet") with accent text), so the
+   toast never adds a second filled primary to the screen under it (#630).
+   Accent text on the toast's surface clears 4.5:1 in both themes. */
 .status-action {
   margin-left: 8px;
+  background: transparent;
+  color: var(--accent);
 }
