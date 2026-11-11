@@ -33,13 +33,17 @@ export const env = {
     secure: optional("SMTP_SECURE", "false") === "true",
     user: optional("SMTP_USER"),
     pass: optional("SMTP_PASSWORD"),
-    from: optional("SMTP_FROM", "Hearth <no-reply@localhost>"),
+    // Blank: send as SMTP_USER (see resolveSmtpFrom).
+    from: optional("SMTP_FROM"),
   },
   ntfy: {
     url: optional("NTFY_URL", "https://ntfy.sh"),
     topic: optional("NTFY_TOPIC"),
     token: optional("NTFY_TOKEN"),
   },
+  // #375 — the contact Web Push services see on our VAPID token
+  // ("mailto:…" or "https://…"). Defaults to APP_URL when that's https.
+  vapidSubject: optional("VAPID_SUBJECT"),
   ollama: {
     baseUrl: optional("OLLAMA_BASE_URL"),
     model: optional("OLLAMA_MODEL"),

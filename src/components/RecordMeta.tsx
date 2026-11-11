@@ -5,7 +5,6 @@ export function RecordMeta({
   createdAt,
   updatedAt,
   updatedByName,
-  extractionConfirmedAt,
   memberCount,
 }: {
   createdByName: string;
@@ -15,8 +14,6 @@ export function RecordMeta({
    * before this field existed, or by a since-removed member) falls back to
    * the old "Last updated {date}" wording rather than naming no one. */
   updatedByName?: string | null;
-  /** #200 — when set, shown so it's clear the auto-filled fields were reviewed, not just accepted by default. */
-  extractionConfirmedAt?: Date | null;
   /** #285 — household size, so visibility reads as a stated fact ("all 4
    * members") rather than a vague reassurance. Omitted (rather than showing
    * a wrong number) if the caller couldn't look it up. */
@@ -31,12 +28,6 @@ export function RecordMeta({
         <>
           {updatedByName ? ` · Last changed by ${updatedByName} on ` : " · Last updated "}
           <Timestamp value={updatedAt} />
-        </>
-      )}
-      {extractionConfirmedAt && (
-        <>
-          {" · Auto-filled details confirmed "}
-          <Timestamp value={extractionConfirmedAt} />
         </>
       )}
       {memberCount != null &&

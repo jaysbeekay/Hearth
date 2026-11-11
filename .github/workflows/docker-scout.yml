@@ -64,7 +64,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Reads the other Docker workflows' cache but never writes it, so a
       # scan can't evict the layers a release build needs.
@@ -81,7 +81,7 @@ jobs:
       - name: Docker Scout CVEs (blocks on critical/high severity)
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
         id: docker-scout
-        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
         with:
           command: cves
           image: ${{ env.IMAGE_TAG }}

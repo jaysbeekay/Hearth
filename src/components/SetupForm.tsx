@@ -1,16 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
-import { FileText } from "lucide-react";
+import { Bot, FileText } from "lucide-react";
 import { setupAdmin, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
+import { dimmedClass } from "@/lib/ui";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // Setup-screen-only ordering: Travel last, since it's the module most new
-// households defer. Doesn't touch MODULE_REGISTRY's own order, which also
-// drives nav grouping and the Settings > Modules list.
+// households defer. The nav and Settings > Modules sort by label instead, so
+// MODULE_REGISTRY's own order doesn't drive any list.
 const SETUP_MODULE_ORDER: ModuleKey[] = ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"];
 
 export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?: boolean }) {
@@ -86,7 +87,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
           Enable any extra modules now, or turn them on later from Settings. Records in every
           module are visible to your whole household, not just the person who added them.
         </p>
-        <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 opacity-70">
+        <label className={`flex items-start gap-3 rounded-lg border border-border px-3 py-2 ${dimmedClass}`}>
           <input
             type="checkbox"
             checked
@@ -127,6 +128,28 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
             </label>
           );
         })}
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">AI assistant (optional)</legend>
+        <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2">
+          <input
+            type="checkbox"
+            name="assistant"
+            className="mt-0.5 size-4 rounded border-border accent-accent"
+          />
+          <span>
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Bot size={16} />
+              Turn on the AI assistant
+            </span>
+            <span className="text-xs text-muted">
+              A chat panel that answers questions about your household&apos;s records, using an AI
+              provider and key you choose next. It stays off if you leave this unticked, and you
+              can change it later in Settings.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />

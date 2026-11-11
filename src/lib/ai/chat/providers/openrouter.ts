@@ -5,6 +5,7 @@ import {
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { forwardAbort } from "@/lib/ai/chat/abort";
 import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 // OpenRouter mirrors OpenAI's chat/completions + tool-calling shape exactly,
@@ -53,9 +54,11 @@ export const callOpenRouterChat: ChatProviderCall = async ({
   system,
   messages,
   tools,
+  signal,
 }, onDelta) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
+  const stopForwardingAbort = forwardAbort(signal, controller);
   try {
     const res = await aiProviderFetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -142,5 +145,6 @@ export const callOpenRouterChat: ChatProviderCall = async ({
     };
   } finally {
     clearTimeout(timeout);
+    stopForwardingAbort();
   }
 };

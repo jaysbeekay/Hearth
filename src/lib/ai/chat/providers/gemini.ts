@@ -7,6 +7,7 @@ import {
   type ToolDefinition,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { forwardAbort } from "@/lib/ai/chat/abort";
 import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 // Gemini has no separate "assistant"/"tool" roles — "model" stands in for
@@ -71,9 +72,11 @@ export const callGeminiChat: ChatProviderCall = async ({
   system,
   messages,
   tools,
+  signal,
 }, onDelta) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
+  const stopForwardingAbort = forwardAbort(signal, controller);
   try {
     const res = await aiProviderFetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
@@ -155,5 +158,6 @@ export const callGeminiChat: ChatProviderCall = async ({
     };
   } finally {
     clearTimeout(timeout);
+    stopForwardingAbort();
   }
 };

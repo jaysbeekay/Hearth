@@ -30,7 +30,7 @@ async function deleteSegment(page: Page, title: string) {
   await row.getByRole("button", { name: `More actions for ${title}` }).click();
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toContainText("Settings → Household → Recently deleted");
+  await expect(dialog).toContainText("Household settings → Recently deleted");
   await expect(dialog).not.toContainText("can't be undone");
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 }
@@ -69,7 +69,7 @@ test.describe.serial("Trades go to Trash", () => {
     await page.getByRole("button", { name: /^More actions for trade / }).click();
     await page.getByRole("dialog", { name: /^More actions for trade / }).getByRole("button", { name: "Delete", exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Household → Recently deleted");
+    await expect(dialog).toContainText("Household settings → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
     await expect(toast).toContainText("Moved to Recently deleted.");
@@ -123,5 +123,141 @@ test.describe.serial("Trip segments go to Trash", () => {
 
     await page.goto(tripUrl);
     await expect(page.locator("main")).not.toContainText(title);
+  });
+});
+
+// #618 (WCAG 2.2.1) — the Undo toast doesn't time out while the pointer is
+// over it or focus is inside it, closes once both leave, and Escape still
+// dismisses it at once without undoing, handing focus back where it was.
+test.describe.serial("The Undo toast waits while it's in use", () => {
+  test("stays up while hovered or focused, then times out once left", async ({ page }) => {
+    // Fake timers from the start (time still flows normally until runFor),
+    // so the toast's own timer is one the clock controls.
+    await page.clock.install();
+    const segment = `Toast wait ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegment(page, segment);
+
+    const toast = page.getByRole("status");
+    const message = toast.getByText("Moved to Recently deleted.");
+    await expect(message).toBeVisible();
+
+    await message.hover();
+    await page.clock.runFor(20_000);
+    await expect(message).toBeVisible();
+
+    await toast.getByRole("button", { name: "Undo" }).focus();
+    await page.mouse.move(0, 0);
+    await page.clock.runFor(20_000);
+    await expect(message).toBeVisible();
+
+    // Neither hovered nor focused: the time it had left runs out.
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    await page.clock.runFor(8_000);
+    await expect(message).toHaveCount(0);
+  });
+
+  test("Escape dismisses it without undoing and returns focus", async ({ page }) => {
+    const segment = `Toast escape ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegment(page, segment);
+
+    const toast = page.getByRole("status");
+    await expect(toast).toContainText("Moved to Recently deleted.");
+    const undo = toast.getByRole("button", { name: "Undo" });
+    await undo.focus();
+    await page.keyboard.press("Escape");
+    await expect(undo).toHaveCount(0);
+    await expect(page.locator("body")).not.toBeFocused();
+
+    await page.goto(tripUrl);
+    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(segment);
+  });
+});
+
+// #631 (WCAG 2.2.1) — Alt+T (Option+T on a Mac) moves focus into the newest
+// toast, so a keyboard user can reach Undo before it times out without
+// tabbing through the page. Focus goes back where it was afterwards.
+test.describe.serial("Alt+T reaches the newest toast", () => {
+  async function deleteSegmentByKeyboard(page: Page, title: string) {
+    await page.getByRole("button", { name: `More actions for ${title}` }).focus();
+    await page.keyboard.press("Enter"); // opens the row menu, focus on Delete
+    await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
+    await page.keyboard.press("Tab"); // to the dialog's Delete
+    await page.keyboard.press("Enter");
+  }
+
+  test("a keyboard-only delete can be undone with Alt+T, Enter", async ({ page }) => {
+    const segment = `Toast shortcut ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegmentByKeyboard(page, segment);
+
+    const toast = page.getByRole("status");
+    await expect(toast).toContainText("Moved to Recently deleted.");
+    await expect(page.locator("main")).not.toContainText(segment);
+    // The deleted row held focus, so it has dropped to <body>.
+    await expect(page.locator("body")).toBeFocused();
+
+    await page.keyboard.press("Alt+KeyT");
+    const undo = toast.getByRole("button", { name: "Undo" });
+    await expect(undo).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator("main")).toContainText(segment);
+    // Nothing held focus before Alt+T, so it goes to <main> (#618's
+    // fallback) rather than being lost.
+    await expect(page.locator("main")).toBeFocused();
+  });
+
+  test("focus returns to where it was, and the toast waits while it holds focus", async ({ page }) => {
+    await page.clock.install();
+    const segment = `Toast shortcut return ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegmentByKeyboard(page, segment);
+
+    const toast = page.getByRole("status");
+    const message = toast.getByText("Moved to Recently deleted.");
+    await expect(message).toBeVisible();
+
+    const addLink = page.getByRole("link", { name: /add segment/i }).first();
+    await addLink.focus();
+    await page.keyboard.press("Alt+KeyT");
+    await expect(toast.getByRole("button", { name: "Undo" })).toBeFocused();
+
+    // Well past the 8 s an action toast normally gets.
+    await page.clock.runFor(20_000);
+    await expect(message).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(message).toHaveCount(0);
+    await expect(addLink).toBeFocused();
+  });
+
+  test("tells screen-reader users about the shortcut", async ({ page }) => {
+    const segment = `Toast shortcut hint ${Date.now()}`;
+    await addSegment(page, segment);
+    await deleteSegment(page, segment);
+    await expect(page.getByRole("status")).toContainText("Press Alt+T to reach Undo.");
+  });
+
+  test("does nothing, and doesn't swallow the key, with no toast visible", async ({ page }) => {
+    await page.goto(`${tripUrl}/segments/new`);
+    const title = page.locator('input[name="title"]');
+    await title.focus();
+    await expect(page.getByRole("status")).toHaveCount(0);
+
+    const prevented = await page.evaluate(() => {
+      const event = new KeyboardEvent("keydown", { key: "t", code: "KeyT", altKey: true, bubbles: true, cancelable: true });
+      document.activeElement?.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(title).toBeFocused();
+
+    await page.keyboard.type("tent");
+    await expect(title).toHaveValue("tent");
   });
 });

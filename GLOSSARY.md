@@ -66,6 +66,10 @@ _Avoid_: Expired (for fixed-term Contracts)
 **Cancelled**:
 The state of a Contract that someone deliberately ended.
 
+**Cost review**:
+A periodic Due entry asking whether a Contract is still needed. Only a Contract that is not Cancelled, auto-renews, has a cost and has no notice deadline has one, whatever its Category. Its date is the household's review interval after the Contract's last Cost review, or after its start (or the day Cost reviews were switched on, whichever is later) if it has never had one. Marking it Still needed sets the next one; Cancelling the Contract ends them. Renewing or editing dates doesn't move it. See ADR 0005.
+_Avoid_: Subscription check, audit, renewal review
+
 **Category**:
 The kind of Contract, such as car insurance, registration, utility or subscription. "Policy" is fine in everyday speech for an insurance-category Contract, but it is not a separate kind of record. There is no warranty Category: that is a Warranty on an Item.
 
@@ -135,10 +139,10 @@ The household's queue of things to act on, split into Due and Housekeeping.
 _Avoid_: Alerts, tasks, to-do
 
 **Due**:
-A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date unless the Contract auto-renews), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end before it passes can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
+A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date unless the Contract auto-renews, or a Cost review), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end before it passes can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
 
 **Due entry**:
-One dated obligation of a record: a Contract's notice deadline or end date, a Warranty's end date, one of a Vehicle's rego, insurance or service dates, or a Tenancy's lease end. A record has one Due entry per such date, each with its own state.
+One dated obligation of a record: a Contract's notice deadline, end date or Cost review, a Warranty's end date, one of a Vehicle's rego, insurance or service dates, or a Tenancy's lease end. A record has one Due entry per such date, each with its own state.
 
 **Due-soon window**:
 How far ahead of its date a record becomes Due: its largest Reminder threshold, so a record enters Needs attention when its first Reminder goes out.

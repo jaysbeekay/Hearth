@@ -161,8 +161,8 @@ export function DocumentShareButton({
         aria-label={labelled ? undefined : `Share ${filename}`}
         className={
           labelled
-            ? `${buttonClass("secondary")} disabled:opacity-50`
-            : buttonClass("quiet", { icon: true }, "text-muted disabled:opacity-50")
+            ? buttonClass("secondary")
+            : buttonClass("quiet", { icon: true }, "text-muted")
         }
       >
         <Share2 size={16} aria-hidden={labelled || undefined} />
@@ -225,7 +225,7 @@ export function ShareLinkRevokeButton({ linkId, filename }: { linkId: string; fi
       onClick={() => {
         void revoke();
       }}
-      className={`${buttonClass("secondary")} disabled:opacity-50`}
+      className={buttonClass("secondary")}
     >
       Revoke
     </button>

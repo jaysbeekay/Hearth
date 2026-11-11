@@ -19,11 +19,11 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
-export const metadata: Metadata = { title: "Inventory Item" };
+export const metadata: Metadata = { title: "Item" };
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -90,7 +90,7 @@ export default async function InventoryItemPage({
                 <ConfirmForm
                   action={deleteInventoryItem.bind(null, id)}
                   undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
-                  confirmText="Delete this item? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this item? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
                 >
@@ -141,13 +141,13 @@ export default async function InventoryItemPage({
           )}
         </dl>
         {item.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{item.notes}</p>
+          <p className={proseClass("mt-4 whitespace-pre-wrap")}>{item.notes}</p>
         )}
       </Card>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Documents</h2>
-        <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
+        <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} ownerName={item.label} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />

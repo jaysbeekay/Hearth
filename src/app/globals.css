@@ -12,7 +12,12 @@
   --foreground: #1c1b19;
   --muted: #5f5d58;
   --surface: #ffffff;
+  /* Decorative lines: card edges, dividers. */
   --border: #cfccc6;
+  /* The edge of a control (input, select, textarea, secondary button, chip):
+     >=3:1 on background and surface (WCAG 1.4.11, #558), and on the warning
+     and danger 10% tints behind controls in banners and tinted cards (#640). */
+  --border-control: #84827b;
   --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   /* Solid hover for controls on a filled surface that float over content or
      a tint, where the translucent --hover would let what's behind show through. */
@@ -34,6 +39,7 @@
   --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-border-control: var(--border-control);
   --color-hover: var(--hover);
   --color-hover-surface: var(--hover-surface);
   --color-accent: var(--accent);
@@ -55,6 +61,7 @@
     --muted: #a3a19c;
     --surface: #1d1d1c;
     --border: #45443f;
+    --border-control: #777671;
     --accent: #7eaaf2;
     --accent-foreground: #141414;
     --success: #5fc48a;
@@ -91,4 +98,12 @@ body {
 
 .sr-only-focusable:focus {
   left: 0;
+}
+
+/* The assistant side panel (AssistantPanel, xl and up) is 380px wide at the
+   bottom-right; keep toasts beside it rather than over its composer. */
+@media (min-width: 80rem) {
+  html[data-assistant-panel="open"] .toast-stack {
+    padding-right: calc(380px + 1.5rem);
+  }
 }

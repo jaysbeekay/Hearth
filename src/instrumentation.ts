@@ -64,13 +64,32 @@ export async function register() {
   };
 
   const cron = await import("node-cron");
-  const { enqueueJobUnlessPending, createJobTick } = await import("@/lib/jobs/runner");
+  const { enqueueJobUnlessPending, createJobTick, queueScheduledJob } = await import("@/lib/jobs/runner");
   const { cronDue } = await import("@/lib/jobs/cronDue");
+  const { JOB_PRIORITY } = await import("@/lib/jobs/priority");
 
   if (!globalForCron.__jobTickerStarted) {
     globalForCron.__jobTickerStarted = true;
 
+    // #398 — the document text backfill: once at startup, so an upgrade
+    // starts catching up straight away, then hourly in its own try, so a
+    // server that sleeps at night still gets to it and a failure in the
+    // other steps never skips it. Once nothing is left each run is one quick
+    // look; while Documents are waiting it queues its own next batch. It's a
+    // singleton, so a run already queued makes these a no-op.
+    const enqueueBackfill = () =>
+      enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL", {}, { priority: JOB_PRIORITY.BACKGROUND }).catch((error: unknown) => {
+        console.error("[jobs] couldn't queue the document text backfill:", error);
+      });
+    void enqueueBackfill();
+
     cron.schedule("* * * * *", async () => {
+      try {
+        // Like the jobs below, a backfill hour the server slept through still runs.
+        await queueScheduledJob("DOCUMENT_TEXT_BACKFILL", "17 * * * *", new Date(), { priority: JOB_PRIORITY.BACKGROUND });
+      } catch (error) {
+        console.error("[jobs] couldn't queue the document text backfill:", error);
+      }
       try {
         const {
           getReminderConfig,
@@ -78,20 +97,30 @@ export async function register() {
           getBackupScheduleConfig,
           isEmailIngestionConfigured,
           getEmailIngestConfig,
+          settingsSavedAt,
         } = await import("@/lib/appSettings");
+        // Reminders, backups and email ingestion run when their schedule's
+        // next time after their last run has come, not only inside the
+        // scheduled second: node-cron skips a tick the process was asleep
+        // or blocked for, which used to lose that day's Reminder check.
         const now = new Date();
+        // A schedule starts no earlier than its settings' last save, so an
+        // edit or switching a job back on doesn't run it straight away.
+        const owed = async (type: "REMINDER_CHECK" | "BACKUP_RUN" | "EMAIL_INGEST", pattern: string, settingsPrefix: string) => {
+          await queueScheduledJob(type, pattern, now, { savedAt: await settingsSavedAt(settingsPrefix) });
+        };
 
         const { cron: reminderCron } = await getReminderConfig();
-        if (cronDue(reminderCron, now)) await enqueueJobUnlessPending("REMINDER_CHECK");
+        await owed("REMINDER_CHECK", reminderCron, "reminder.");
 
         if (await isBackupConfigured()) {
           const { cron: backupCron } = await getBackupScheduleConfig();
-          if (cronDue(backupCron, now)) await enqueueJobUnlessPending("BACKUP_RUN");
+          await owed("BACKUP_RUN", backupCron, "backup.");
         }
 
         if (await isEmailIngestionConfigured()) {
           const { cron: emailIngestCron } = await getEmailIngestConfig();
-          if (cronDue(emailIngestCron, now)) await enqueueJobUnlessPending("EMAIL_INGEST");
+          await owed("EMAIL_INGEST", emailIngestCron, "emailIngest.");
         }
 
         // Not user-configurable, so this could stay a fixed cron.schedule of

@@ -156,7 +156,7 @@ export function ProposedActionCard({
         {titleValue ? `: ${titleValue}` : ""}
       </p>
       {flaggedCount > 0 && (
-        <p role="status" className={bannerClass("warning", "mb-2 flex items-start gap-1.5 px-3 py-2 text-xs")}>
+        <p role="status" className={bannerClass("warning", "mb-2 flex items-start gap-1.5 px-3 py-2 text-xs leading-5")}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           {flaggedCount === 1 ? "1 field needs" : `${flaggedCount} fields need`} a closer look before you
           confirm.

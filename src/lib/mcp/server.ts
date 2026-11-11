@@ -218,7 +218,7 @@ export async function createMcpServer(options: McpServerOptions = {}) {
     server.registerTool(
       "list_inventory_items",
       {
-        title: "List inventory items",
+        title: "List items",
         annotations: READ_ONLY,
         description:
           "List catalogued household items/valuables, optionally filtered by a search term " +
@@ -252,8 +252,8 @@ export async function createMcpServer(options: McpServerOptions = {}) {
       importTools.push({
         name: "propose_import_inventory_item",
         kind: "INVENTORY_ITEM",
-        title: "Propose importing an inventory item",
-        what: "an Inventory item",
+        title: "Propose importing an item",
+        what: "an Item",
       });
     }
     for (const tool of importTools) {

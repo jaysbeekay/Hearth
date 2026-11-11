@@ -24,7 +24,7 @@ import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { ChevronDown } from "lucide-react";
-import { cardClass, chipClass } from "@/lib/ui";
+import { cardClass, chipClass, sectionHeadingClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Spending" };
@@ -230,7 +230,7 @@ export default async function SpendPage({
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
         <Card as="section">
-          <h2 className="mb-4 font-medium">Recurring cost by category</h2>
+          <h2 className={sectionHeadingClass("mb-4")}>Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
               const pct = categoryTotal > 0 ? (bucket.monthlyTotal / categoryTotal) * 100 : 0;
@@ -260,7 +260,7 @@ export default async function SpendPage({
           Monthly/Yearly toggle was used. */}
       <details open={rawView ? true : undefined} className={cardClass({ padding: "none" }, "group")}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
-          <h2 className="font-medium">
+          <h2 className={sectionHeadingClass()}>
             Recurring cost over time
           </h2>
           <ChevronDown size={16} aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-180" />
@@ -328,7 +328,7 @@ export default async function SpendPage({
       {/* Actuals by year */}
       {actualsByYear.length > 0 && (
         <Card as="section">
-          <h2 className="mb-3 font-medium">Actuals by financial year</h2>
+          <h2 className={sectionHeadingClass("mb-3")}>Actuals by financial year</h2>
           <div className="overflow-x-auto">
             {/* #403 — pl-4 + nowrap keep the amount columns from running into
                 each other at phone widths; overflow-x-auto scrolls the rest. */}

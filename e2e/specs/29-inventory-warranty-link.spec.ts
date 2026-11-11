@@ -63,7 +63,7 @@ test.describe.serial("Inventory warranty linking", () => {
     await page.goto(`/products/${productId}`);
     await expect(page.getByText("Linked to")).toBeVisible();
     await expect(page.getByText(itemName)).toBeVisible();
-    await expect(page.getByText("Inventory item — warranty registered here")).toBeVisible();
+    await expect(page.getByText("Item — warranty registered here", { exact: true })).toBeVisible();
   });
 
   test("deleting the warranty clears the inventory item's link instead of orphaning it", async ({

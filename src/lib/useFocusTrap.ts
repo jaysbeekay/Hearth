@@ -80,7 +80,13 @@ export function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, 
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
       for (const el of invertedSiblings) el.removeAttribute("inert");
-      previouslyFocusedRef.current?.focus();
+      // Hand focus back only when it is still in the overlay (Escape, a
+      // menu item) or was dropped with it. A non-modal dropdown closed by a
+      // click on a field outside it leaves focus on that field.
+      const focused = document.activeElement;
+      if (!focused || focused === document.body || container.contains(focused)) {
+        previouslyFocusedRef.current?.focus();
+      }
     };
   }, [active, containerRef]);
 }

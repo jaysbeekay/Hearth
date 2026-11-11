@@ -69,7 +69,7 @@ export function WealthImportClient({ portfolioId }: Props) {
         <p className="mb-3 text-sm text-muted">
           Supported formats: CommSec, SelfWealth, Stake, or generic (Date, Ticker, Type, Units, Price, Fees, Currency columns, plus an optional Asset Class or Exchange column; Crypto or CRYPTO marks a coin, otherwise rows import as shares).
         </p>
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-4 py-6 hover:border-accent/50 transition-colors">
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border-control px-4 py-6 hover:border-accent/50 transition-colors">
           <Upload size={20} className="text-muted" />
           <span className="text-sm text-muted">Choose CSV file…</span>
           <input type="file" accept=".csv" className="sr-only" onChange={handleFile} disabled={isParsing || isImporting} />
@@ -79,14 +79,14 @@ export function WealthImportClient({ portfolioId }: Props) {
 
       {parseError && (
         <Banner tone="danger" className="flex items-start gap-2">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <AlertCircle size={16} className="mt-1 shrink-0" />
           {parseError}
         </Banner>
       )}
 
       {result && (
         <Banner tone="success" className="flex items-start gap-2">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+          <CheckCircle2 size={16} className="mt-1 shrink-0" />
           {result}
         </Banner>
       )}
@@ -98,7 +98,7 @@ export function WealthImportClient({ portfolioId }: Props) {
             <button
               onClick={handleImport}
               disabled={isImporting}
-              className={`${buttonClass("primary")} disabled:opacity-50`}
+              className={buttonClass("primary")}
             >
               {isImporting && <Loader2 size={16} className="animate-spin" />}
               Import {rows.length} trades
