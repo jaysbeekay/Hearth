@@ -146,8 +146,9 @@ export interface SignedOutPushDeps {
  * The sign-in page's push cleanup. Whether it's settled: false when the
  * server or the browser couldn't be asked, or the unsubscribe failed, so
  * it's tried again.
- * - Signed in after all (Back to a cached sign-in page): the caches this
- *   page cleared took the service worker's marker with them, so it's
+ * - Signed in after all (the page cleared because the server couldn't be
+ *   asked at first, as when going Back to a cached sign-in page offline):
+ *   the cleared caches took the service worker's marker with them, so it's
  *   written again, and push stays.
  * - Signed out: the worker is told, and this browser's subscription is
  *   dropped. It's looked up only now, after the round-trip, so one turned on

@@ -466,6 +466,7 @@ export default async function RentalOverviewPage({
                           <DocumentList
                             kind="RENTAL_STATEMENT"
                             ownerId={stmt.id}
+                            ownerName={`statement ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`}
                             trashedLinks={trashedLinks.get(stmt.id)}
                             documents={stmt.documents}
                           />

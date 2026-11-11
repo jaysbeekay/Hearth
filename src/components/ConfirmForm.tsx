@@ -115,7 +115,7 @@ export function ConfirmForm({
             type="button"
             disabled={pending}
             onClick={close}
-            className={`${buttonClass("secondary")} disabled:opacity-50`}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>

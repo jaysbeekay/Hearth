@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +20,7 @@ export interface EmailIngestionClient {
   connect(): Promise<void>;
   getMailboxLock(mailbox: string): Promise<{ release(): void }>;
   search(query: { seen: boolean }, options: { uid: boolean }): Promise<number[] | false>;
-  download(uid: number, section?: unknown, options?: { uid: boolean }): Promise<{ content: Buffer }>;
+  download(uid: number, section?: unknown, options?: { uid: boolean }): Promise<{ content: Buffer | Readable }>; // imapflow returns a Readable; simpleParser takes either
   messageFlagsAdd(uid: number, flags: string[], options: { uid: boolean }): Promise<void>;
   logout(): Promise<void>;
   close(): void;

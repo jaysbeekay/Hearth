@@ -99,7 +99,7 @@ export async function updateInventoryItemCommand(
   await assertModuleEnabled("INVENTORY");
   const { item, previousWarrantyId } = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const loadItem = () => tx.inventoryItem.findUnique({ where: { id } });
-    const existing = await findLiveParent(loadItem(), "Inventory item");
+    const existing = await findLiveParent(loadItem(), "Item");
     assertNotStale(existing, options.baseUpdatedAt);
     if (patch.warrantyProductId && patch.warrantyProductId !== existing.warrantyProductId) {
       await assertWarrantyLive(tx, patch.warrantyProductId);
@@ -111,12 +111,12 @@ export async function updateInventoryItemCommand(
           where: { id, deletedAt: null, ...guard },
           data: { ...patch, updatedById: actorId },
         }),
-      () => findLiveParent(loadItem(), "Inventory item"),
+      () => findLiveParent(loadItem(), "Item"),
     );
     // #380 staging: mirror into the staged Item tables in the same transaction.
     await syncLegacyInventory(tx, id, existing.warrantyProductId);
     return {
-      item: await findLiveParent(loadItem(), "Inventory item"),
+      item: await findLiveParent(loadItem(), "Item"),
       previousWarrantyId: existing.warrantyProductId,
     };
   }));
@@ -136,7 +136,7 @@ export async function deleteInventoryItemCommand(id: string) {
       data: { deletedAt: new Date() },
     });
     const existing = await tx.inventoryItem.findUnique({ where: { id } });
-    if (!existing) throw new RecordNotFoundError("Inventory item");
+    if (!existing) throw new RecordNotFoundError("Item");
     if (count === 0) return null;
     await syncLegacyInventory(tx, id);
     return existing;
@@ -150,7 +150,7 @@ export async function restoreInventoryItemCommand(id: string) {
   await assertModuleEnabled("INVENTORY");
   const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const existing = await tx.inventoryItem.findUnique({ where: { id } });
-    if (!existing) throw new RecordNotFoundError("Inventory item");
+    if (!existing) throw new RecordNotFoundError("Item");
     const restored = await tx.inventoryItem.update({ where: { id }, data: { deletedAt: null } });
     await syncLegacyInventory(tx, id);
     return restored;
@@ -207,7 +207,7 @@ export async function purgeInventoryItem(id: string, options: PurgeOptions = {})
   });
   if (count === 0) {
     const existing = await prisma.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
-    if (!existing) throw new RecordNotFoundError("Inventory item");
+    if (!existing) throw new RecordNotFoundError("Item");
     if (!existing.deletedAt) throw new ItemNotInTrashError();
     return false;
   }

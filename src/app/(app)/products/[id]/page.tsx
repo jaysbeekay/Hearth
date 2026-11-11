@@ -233,7 +233,7 @@ export default async function ProductDetailPage({
                 <Package size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{invItem.label}</span>
-                  <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
+                  <span className="block text-xs text-muted">Item — warranty registered here</span>
                 </span>
               </Link>
             ))}
@@ -250,7 +250,7 @@ export default async function ProductDetailPage({
 
       <Card id="documents" className="scroll-mt-20">
         <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
-        <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
+        <DocumentList kind="PRODUCT" ownerId={product.id} ownerName={product.description} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <ProductDocumentUploadForm action={boundUpload} />

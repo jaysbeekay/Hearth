@@ -69,7 +69,8 @@ test("an error the server sends back opens the closed row it belongs to", async 
 
   await page.getByRole("button", { name: "Save changes" }).click();
   const error = row(page, "timezone").getByRole("alert");
-  await expect(error).toHaveText("Invalid timezone.");
+  // #615 — the error starts with a visually hidden "Error:" for screen readers.
+  await expect(error).toHaveText("Error: Invalid timezone.");
   await expect(error).toBeVisible();
   expect(await isOpen(page, "timezone")).toBe(true);
 });
