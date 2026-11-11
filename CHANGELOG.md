@@ -21,6 +21,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   refresh that was missed is now caught up, and it only runs while Wealth is
   on. `/api/cron` and `/api/backup` also compare the secret in constant time.
 
+- **Reminders in the phone app (#375, part 3b).** The iOS/Android app
+  can't use Web Push, so "Notify this device" there becomes "Notify this
+  phone": it schedules the household's Reminders for the next four months as
+  notifications on the phone, worded like Web Push, and again each time the
+  app opens. Tapping one opens its record. The sign-in page cancels them, as
+  does the server saying the session has ended while the app stays open,
+  and another member signing in turns them off. They're found by a tag as
+  well as by the ids the app keeps, so ones the app's storage lost track of
+  still go; if the app's storage can't remember they're on, "Notify this
+  phone" says so instead of scheduling ones nothing would keep current.
+
 - iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
   Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
   version from the tag and a UTC-timestamp build number. Tags created by
@@ -135,7 +146,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   tools a Document is retried once they're installed; one that keeps
   failing ends `FAILED` with the error in the job's `lastError`; one left
   `PENDING` with nothing queued is picked up again. Server-only; the
-  standalone shell has no text extraction. Rolling back: README → Searching
+  standalone shell reads text on the phone instead (see *Scan and read
+  documents on the phone*). Rolling back: README → Searching
   inside documents.
 - **Manage your push devices (#375, part 2).** Settings → My account lists
   your other devices with push on, each with when it last got a Reminder
@@ -171,6 +183,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   every member's devices, read-only members included, like ntfy. Rolling
   back below this release needs the `PUSH` rows deleted from
   `notification_logs` first (README → Notifications).
+- **Scan and read documents on the phone (standalone mode).** A *Scan with
+  camera* button now sits beside every document upload in the iOS and
+  Android apps. It opens the system document camera (VisionKit on iOS, the
+  ML Kit Document Scanner on Android), saves the pages as one PDF, and reads
+  the text on the device (Apple Vision, or ML Kit text recognition). On a new
+  Contract or Warranty, the server's regex field rules, ported into the shell,
+  fill in empty fields such as provider, policy number, dates and cost, and
+  tick *Needs review* so reminders wait until someone checks them. Uploaded
+  photos and PDFs also get their text read on import, and older documents get
+  a *Read text* button, so Search finds documents by their contents. Nothing
+  leaves the phone. The Android scanner needs Google Play services; without
+  it, the file picker still works. Amounts are read the same way as on the
+  server, including £, €, ¥, R and European-style numbers (#613). Shell
+  parity: new local native plugin `HearthScan` (`HearthScanPlugin.swift`,
+  `HearthScanPlugin.java`).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
@@ -920,6 +947,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
   `pdfkit` and left its font data behind. `pdfkit` is now a server external
   package, so its data files ship with it.
+- **Document auto-fill read ungrouped amounts short.** "$1234.50" was read as
+  123 and "$1000" as 100 because the amount pattern stopped after three
+  digits without a thousands separator. It now reads the whole amount, grouped
+  or not, and skips a malformed one instead of keeping part of it.
 
 ## [0.20.1] - 2026-10-31
 

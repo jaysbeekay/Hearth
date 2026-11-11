@@ -1118,6 +1118,16 @@ all of that member's devices, though a push the push service had already queued
 a browser that hasn't loaded Hearth since. A session ended on the server by
 a role change isn't seen until that browser next loads Hearth either.
 
+The iOS and Android app's WebView has no Web Push, so in the app "Notify this
+phone" schedules the household's Reminders for the next four months (up to
+60) as notifications on the phone itself, at 9am local time on each
+Reminder's day. It schedules them again each time the app opens, so a moved
+date, a Snooze or a renewal reaches the phone the next time it's opened.
+Unlike the server's channels there's no catch-up: a threshold already passed
+when it was turned on doesn't notify. These Reminders aren't in the sent log
+or the delivery health card, since the server never sends them. The sign-in
+page cancels them, and another member signing in on the phone turns them off.
+
 Rolling back to a release from before Web Push: delete the push rows from the
 sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
 since older builds don't know that channel and fail reading those rows.

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { broadcastSession, clearSignedOutData, markOfflineSession, markSignedOut } from "@/lib/offlineSession";
 import { lookupPushSubscription, readSession, settleSignedOutPush } from "@/lib/pushClient";
+import { cancelDeviceReminders } from "@/lib/nativeReminders";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
 import { runSignedOutCleanup } from "@/lib/signedOutCleanup";
 
@@ -54,7 +55,15 @@ export function SignedOutCacheCleanup() {
     runSignedOutCleanup({
       readSession: () => readSession(fetch, GATE_TIMEOUT_MS),
       hasLeft: () => unmounted,
-      clear: clearSignedOutData,
+      // #375 — in the phone app, Reminders scheduled on the device hold
+      // household records' names, so they go with the cached data, once nobody
+      // is signed in. Whether they were on is kept: the same member's next
+      // sign-in schedules them again, and anyone else's turns them off
+      // (DeviceReminderSync).
+      clear: async () => {
+        void cancelDeviceReminders().catch(() => {});
+        await clearSignedOutData();
+      },
       broadcast: () => {
         broadcastSession({ type: "signed-out" });
       },
