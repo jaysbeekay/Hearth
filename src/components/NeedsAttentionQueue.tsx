@@ -31,7 +31,7 @@ export function NeedsAttentionQueue({
 }) {
   return (
     <div className="space-y-6">
-      <section className="space-y-2" aria-labelledby="attention-due">
+      <section className="space-y-2" aria-labelledby="attention-due" data-focus-list>
         <h3 id="attention-due" className="text-sm font-medium">
           Due <span className="font-normal text-muted">({due.length})</span>
         </h3>
@@ -45,7 +45,7 @@ export function NeedsAttentionQueue({
       </section>
 
       {housekeeping.length > 0 && (
-        <section className="space-y-2" aria-labelledby="attention-housekeeping">
+        <section className="space-y-2" aria-labelledby="attention-housekeeping" data-focus-list>
           <h3 id="attention-housekeeping" className="text-sm font-medium">
             Housekeeping <span className="font-normal text-muted">({housekeeping.length})</span>
           </h3>
@@ -61,7 +61,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
     <ul className="space-y-2">
       {items.map((item) => {
         const row = (
-          <Card as="li" className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+          <Card as="li" data-focus-row className="flex flex-wrap items-center gap-3 md:flex-nowrap">
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
               <p className="truncate text-sm font-medium">{item.title}</p>
               {item.subtitle && (

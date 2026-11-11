@@ -393,7 +393,7 @@ export default async function HoldingPage({
       )}
 
       {/* Trade history */}
-      <section className="space-y-3">
+      <section className="space-y-3" data-focus-list>
         <div className="flex items-center justify-between">
           <h2 className={sectionHeadingClass()}>Trade history</h2>
           {canWrite && (
@@ -423,7 +423,7 @@ export default async function HoldingPage({
                   : null;
 
               return (
-                <Card key={trade.id}>
+                <Card key={trade.id} data-focus-row>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <Pill>

@@ -171,7 +171,7 @@ export default async function RentalOverviewPage({
 
       {/* Rental agreements */}
       {(property.isRented || agreements.length > 0) && (
-        <div className="space-y-3">
+        <div className="space-y-3" data-focus-list>
           <div className="flex items-center justify-between">
             <h2 className={sectionHeadingClass()}>Tenancies</h2>
             {canWrite && (
@@ -190,9 +190,7 @@ export default async function RentalOverviewPage({
           ) : (
             <div className="space-y-3">
               {agreements.map((ag, i) => (
-                <Card
-                  key={ag.id}
-                >
+                <Card key={ag.id} data-focus-row>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <p className="font-medium">
@@ -324,7 +322,7 @@ export default async function RentalOverviewPage({
 
       {/* Rental statements */}
       {(property.isRented || agreements.length > 0) && (
-        <div className="space-y-3">
+        <div className="space-y-3" data-focus-list>
           <div className="flex items-center justify-between">
             <h2 className={sectionHeadingClass()}>Rental statements</h2>
             {canWrite && (
@@ -361,9 +359,7 @@ export default async function RentalOverviewPage({
                 const currency = stmt.currency;
 
                 return (
-                  <Card
-                    key={stmt.id}
-                  >
+                  <Card key={stmt.id} data-focus-row>
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="font-medium">

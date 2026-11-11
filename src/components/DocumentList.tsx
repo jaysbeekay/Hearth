@@ -69,11 +69,11 @@ export function DocumentList({
   );
 
   return (
-    <ul className="divide-y divide-border">
+    <ul className="divide-y divide-border" data-focus-list>
       {groupDocumentVersions(documents, trashedLinks).map(({ latest: doc, older }) => {
         const href = documentFileHref(doc.id);
         return (
-          <li key={doc.id} className="py-2">
+          <li key={doc.id} data-focus-row className="py-2">
             <div className="flex items-center justify-between gap-3">
               {/* #403 — below sm the filename and its metadata stack instead
                   of sharing one line, which squeezed the filename at 390px. */}
@@ -132,9 +132,9 @@ export function DocumentList({
             </div>
 
             {older.length > 0 && (
-              <ul aria-label={`Older versions of ${doc.filename}`} className="ml-6 mt-1 border-l border-border pl-4">
+              <ul aria-label={`Older versions of ${doc.filename}`} data-focus-list className="ml-6 mt-1 border-l border-border pl-4">
                 {older.map((v) => (
-                  <li key={v.id} className="flex items-center justify-between gap-3">
+                  <li key={v.id} data-focus-row className="flex items-center justify-between gap-3">
                     <DocumentLink
                       href={documentFileHref(v.id)}
                       filename={v.filename}

@@ -23,7 +23,7 @@ export function PasskeyItem({
   const [state] = useActionState<ActionState, FormData>(async () => null, null);
 
   return (
-    <li className="flex items-start justify-between gap-3 py-3">
+    <li data-focus-row className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0">
         <p className="text-sm font-medium">
           {nickname ?? "Passkey"}

@@ -233,7 +233,7 @@ export default async function PropertyDetailPage({
         </Card>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-focus-list>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className={sectionHeadingClass()}>Maintenance records</h2>
           {canWrite && (
@@ -256,9 +256,7 @@ export default async function PropertyDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <Card
-                  key={item.id}
-                >
+                <Card key={item.id} data-focus-row>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
                       <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
@@ -377,11 +375,13 @@ export default async function PropertyDetailPage({
       </div>
 
       {/* Property valuations */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-focus-list>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-muted" />
-            <h2 className={sectionHeadingClass()}>Property valuations</h2>
+            <h2 className={sectionHeadingClass()} data-focus-list-fallback>
+              Property valuations
+            </h2>
           </div>
         </div>
 
@@ -397,7 +397,7 @@ export default async function PropertyDetailPage({
         {property.valuations.length > 0 && (
           <Card padding="none" className="divide-y divide-border">
             {property.valuations.map((v) => (
-              <div key={v.id} className="flex items-center justify-between gap-4 p-4">
+              <div key={v.id} data-focus-row className="flex items-center justify-between gap-4 p-4">
                 <div>
                   <p className="font-medium">{formatCurrency(v.value, v.currency, undefined, region)}</p>
                   <p className="text-xs text-muted">

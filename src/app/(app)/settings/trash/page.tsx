@@ -155,10 +155,10 @@ export default async function TrashPage() {
   const canWrite = sessionCanWrite(session);
 
   return (
-    <PageShell width="form">
+    <PageShell width="form" data-focus-list>
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.trash)} />
       <div>
-        <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.trash.label}</h1>
+        <h1 className="text-2xl font-medium" data-focus-list-fallback>{SETTINGS_ROUTES.trash.label}</h1>
         <p className="text-sm text-muted">
           Deleted records stay here for {TRASH_RETENTION_DAYS} days — restore them, or delete
           permanently right away. Their documents are kept until then too.
@@ -176,7 +176,7 @@ export default async function TrashPage() {
             const Icon = meta.icon;
             const remaining = daysLeft(entry.deletedAt);
             return (
-              <li key={`${entry.domain}-${entry.id}`} className="flex items-center justify-between gap-3 p-4">
+              <li key={`${entry.domain}-${entry.id}`} data-focus-row className="flex items-center justify-between gap-3 p-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <Icon size={16} className="mt-0.5 shrink-0 text-muted" />
                   <div className="min-w-0">

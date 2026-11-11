@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { showToast } from "@/components/Toast";
 import { deleteOperation, enqueueOperation, OfflineQueueRefusedError } from "@/lib/offlineQueue";
 import { Dialog } from "@/components/Dialog";
+import { useOverflowMenuButton } from "@/components/DetailOverflowMenu";
+import { captureFocusOrigin, returnFocus, type FocusOrigin } from "@/lib/focusReturn";
 import { buttonClass } from "@/lib/ui";
 
 export function ConfirmForm({
@@ -46,10 +48,22 @@ export function ConfirmForm({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuButtonRef = useOverflowMenuButton();
+  // Captured when the dialog opens: a trigger in a row menu is unmounted as
+  // soon as the menu closes, taking its ref with it.
+  const originRef = useRef<FocusOrigin | null>(null);
 
-  function close() {
+  function openDialog() {
+    originRef.current = captureFocusOrigin(triggerRef.current, menuButtonRef?.current ?? null);
+    setOpen(true);
+  }
+
+  // #57 — focus goes back to the trigger. #646 — when the confirmed action
+  // removed the trigger's row, it goes to a neighbouring row instead of
+  // dropping to <body>.
+  function close({ removed = false }: { removed?: boolean } = {}) {
     setOpen(false);
-    triggerRef.current?.focus();
+    returnFocus(originRef.current ?? captureFocusOrigin(triggerRef.current), { removed });
   }
 
   const confirmLabel = undo ? "Delete" : actionLabel;
@@ -91,13 +105,13 @@ export function ConfirmForm({
         type="button"
         className={className}
         aria-label={ariaLabel}
-        onClick={() => setOpen(true)}
+        onClick={openDialog}
       >
         {children}
       </button>
       <Dialog
         open={open}
-        onClose={close}
+        onClose={() => close()}
         disableClose={pending}
         role="alertdialog"
         describedBy="confirm-dialog-text"
@@ -114,7 +128,7 @@ export function ConfirmForm({
           <button
             type="button"
             disabled={pending}
-            onClick={close}
+            onClick={() => close()}
             className={buttonClass("secondary")}
           >
             Cancel
@@ -158,7 +172,7 @@ export function ConfirmForm({
                 const failure = (result as { error?: string } | undefined)?.error;
                 if (failure) showToast(failure, "error");
                 else showDoneToast();
-                close();
+                close({ removed: !failure });
               } catch (err) {
                 // Server actions that redirect() throw a special signal
                 // Next.js's router handles itself — anything else is a

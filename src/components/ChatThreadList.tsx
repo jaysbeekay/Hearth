@@ -24,7 +24,7 @@ export function ChatThreadList({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-focus-list>
       <div className="p-3">
         <Link
           href="/assistant"
@@ -45,6 +45,7 @@ export function ChatThreadList({
         {threads.map((thread) => (
           <div
             key={thread.id}
+            data-focus-row
             className={cn(
               "group flex items-center gap-1 rounded-lg px-2 py-2 text-sm",
               thread.id === activeThreadId

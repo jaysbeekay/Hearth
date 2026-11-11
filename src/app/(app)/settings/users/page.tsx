@@ -36,9 +36,9 @@ export default async function ManageUsersPage() {
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.users.label}</h1>
 
       <Card as="section">
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border" data-focus-list>
           {users.map((user) => (
-            <li key={user.id} className="flex items-center justify-between gap-3 py-3">
+            <li key={user.id} data-focus-row className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">
                   {user.name} <span className="text-muted">· {ROLE_LABELS[user.role] ?? user.role}</span>
