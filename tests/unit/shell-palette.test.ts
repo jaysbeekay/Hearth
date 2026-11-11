@@ -76,4 +76,16 @@ describe("phone shell palette", () => {
     ]);
     expect(colourLiterals(outsideTokenBlocks(":root {\n  --accent: #1e5bb6;\n}\n"))).toEqual([]);
   });
+
+  // #630 review: a selector edit once left `.badge/* ... */.secondary.danger`,
+  // which greyed out every Overdue badge. Each tone badge keeps its rule.
+  it.each([
+    ["warning", "--warning-soft", "--warning"],
+    ["danger", "--danger-soft", "--danger"],
+  ])(".badge.%s has its soft background and tone text", (tone, background, colour) => {
+    const css = read("style.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const block = css.match(new RegExp(`(?:^|\\n)\\.badge\\.${tone}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    expect(block).toContain(`background: var(${background});`);
+    expect(block).toContain(`color: var(${colour});`);
+  });
 });

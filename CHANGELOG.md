@@ -33,6 +33,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   listed with a Delete button (never deleted automatically). The format is
   written a record at a time, so large document libraries no longer have to
   fit in memory at once.
+- **Item filter rules (#380).** The record-filters module learns the merged
+  Item record's rules ahead of the Items cutover: an Item is missing key
+  details when it has neither serial nor barcode, or has a Warranty with no
+  end date — an Item with no Warranty is not missing anything on that
+  account, and Archived or deleted Items are never missing anything
+  (GLOSSARY.md). No-Document and Important rules come with it. The staged
+  Item table gains the Archived column Property and Vehicle already have
+  (#355); the archive flow itself arrives with the Items screens.
 
 - **Reach a notification's button from the keyboard (#631).** Alt+T
   (Option+T on a Mac) moves focus to the newest notification's action, such
@@ -291,6 +299,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One primary button per phone screen (#630).** The phone app now follows
+  the web app's Buttons rule: a screen has at most one filled primary button.
+  The one kept is "Confirm details" on a Contract or Warranty that needs
+  review, Add on a record list, Upload document on Documents and Import,
+  Enable reminders on Reminders, Save profile on Settings, and Save or Renew
+  on a form; other detail screens, the dashboard, Search, Assistant, Help and
+  Recently deleted have none. Edit, Renew, Archive, Attach document, the
+  child-record Add buttons, document actions, the dashboard's Quick add,
+  Switch mode and the other Settings actions are secondary (outlined), and the
+  review banner no longer repeats Edit. Delete is a secondary button with
+  danger text instead of a tinted one. Secondary buttons on a tinted inbox card
+  sit on the surface colour so their border keeps 3:1 contrast, disabled
+  buttons are dimmed to 50%, and the status toast's Undo and the inline Copy
+  button are quiet, as on the web.
+
 - **"Item", not "Inventory item", everywhere you read it (#637).** The
   Upload page's "File as" options and its "Detected as an item" note, the
   Inbox review type picker, MCP import review, Trash, the Warranty page's
@@ -323,7 +346,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   image's alt text now names the Document type and the record it belongs to
   ("Preview of invoice for Home insurance") rather than its filename; an
   Inbox file names no record.
-
 - **The phone app looks like the web app (#616).** The standalone/connected
   shell drops its own violet, beige and navy palette for the web app's
   colour tokens, value for value in light and dark, with its tints derived

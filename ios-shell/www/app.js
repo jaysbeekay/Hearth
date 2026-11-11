@@ -1960,16 +1960,16 @@ function renderDashboard() {
         <h2>Quick add</h2>
       </div>
       <div class="grid-3">
-        <button data-form-type="contracts">Contract</button>
-        <button data-form-type="products">Warranty</button>
-        ${moduleEnabled("vehicles") ? '<button data-form-type="vehicles">Vehicle</button>' : ""}
-        ${moduleEnabled("properties") ? '<button data-form-type="properties">Property</button>' : ""}
-        ${moduleEnabled("inventoryItems") ? '<button data-form-type="inventoryItems">Inventory</button>' : ""}
-        ${moduleEnabled("trips") ? '<button data-form-type="trips">Trip</button>' : ""}
-        ${moduleEnabled("portfolios") ? '<button data-form-type="portfolios">Portfolio</button>' : ""}
-        <button data-nav="import">Import</button>
-        <button data-nav="reminders">Reminders</button>
-        <button data-nav="more">More</button>
+        <button class="secondary" data-form-type="contracts">Contract</button>
+        <button class="secondary" data-form-type="products">Warranty</button>
+        ${moduleEnabled("vehicles") ? '<button class="secondary" data-form-type="vehicles">Vehicle</button>' : ""}
+        ${moduleEnabled("properties") ? '<button class="secondary" data-form-type="properties">Property</button>' : ""}
+        ${moduleEnabled("inventoryItems") ? '<button class="secondary" data-form-type="inventoryItems">Inventory</button>' : ""}
+        ${moduleEnabled("trips") ? '<button class="secondary" data-form-type="trips">Trip</button>' : ""}
+        ${moduleEnabled("portfolios") ? '<button class="secondary" data-form-type="portfolios">Portfolio</button>' : ""}
+        <button class="secondary" data-nav="import">Import</button>
+        <button class="secondary" data-nav="reminders">Reminders</button>
+        <button class="secondary" data-nav="more">More</button>
       </div>
     </section>
   `;
@@ -2209,7 +2209,7 @@ function renderReminders() {
       <p class="muted">Used by records with no thresholds of their own, for Due soon and device reminders. Leave blank for 30,14,7,1.</p>
       <form data-save-default-reminder-days class="field-grid">
         <label>Days before due date<input name="defaultReminderDays" inputmode="numeric" value="${escapeAttr(householdDefaultReminderDays())}" placeholder="${escapeAttr(DEFAULT_REMINDER_DAYS)}" /></label>
-        <div class="actions"><button type="submit">Save default</button></div>
+        <div class="actions"><button type="submit" class="secondary">Save default</button></div>
       </form>
     </section>
     <section class="list">
@@ -2671,7 +2671,7 @@ function renderAssistant() {
     </section>
     <section class="search-row">
       <input id="assistant-query" value="${escapeAttr(state.assistantQuery)}" placeholder="Try “warranty”, “rego”, “portfolio”, or a provider…" />
-      <button data-clear-assistant>Clear</button>
+      <button class="secondary" data-clear-assistant>Clear</button>
     </section>
     <section id="assistant-results" class="list">
       ${state.assistantQuery.trim() === "" ? renderAssistantHints() : results.length === 0 ? empty("No local answer", "Try searching a title, provider, serial number, plate, ticker, booking code, or filename.") : results.map(renderSearchResult).join("")}
@@ -2711,7 +2711,7 @@ function renderHelp() {
       <h2>Need the full web app?</h2>
       <p class="muted">Connected mode opens your self-hosted Hearth server with users, passkeys, household settings, integrations and AI-backed extraction.</p>
       <div class="actions">
-        <button data-switch-runtime-mode>Switch mode</button>
+        <button class="secondary" data-switch-runtime-mode>Switch mode</button>
       </div>
     </section>
   `;
@@ -2747,8 +2747,8 @@ function renderSettings() {
         ${detailLine("Device reminders", LocalNotifications ? `${state.localRemindersEnabled ? "On" : "Off"}${state.pendingNotificationCount == null ? "" : ` · ${state.pendingNotificationCount} pending`}` : "Unavailable in this build")}
       </div>
       <div class="actions">
-        <button data-switch-runtime-mode>Switch mode</button>
-        <button data-enable-local-reminders ${LocalNotifications ? "" : "disabled"}>${state.localRemindersEnabled ? "Resync reminders" : "Enable reminders"}</button>
+        <button class="secondary" data-switch-runtime-mode>Switch mode</button>
+        <button class="secondary" data-enable-local-reminders ${LocalNotifications ? "" : "disabled"}>${state.localRemindersEnabled ? "Resync reminders" : "Enable reminders"}</button>
       </div>
     </section>
     <section class="card form-card">
@@ -2774,7 +2774,7 @@ function renderSettings() {
       <h2>Recently deleted documents</h2>
       <p class="muted">Deleted Documents stay on this phone for ${TRASH_RETENTION_DAYS} days, and can be restored until then.</p>
       <div class="actions">
-        <button data-nav="trash">Open recently deleted documents</button>
+        <button class="secondary" data-nav="trash">Open recently deleted documents</button>
       </div>
     </section>
     ${renderBackupSettings()}
@@ -2786,7 +2786,7 @@ function renderSettings() {
         ${detailLine("Backups and integrations", "S3, SFTP, IMAP, AI providers and live prices require connected mode.")}
       </div>
       <div class="actions">
-        <button data-nav="help">Open help</button>
+        <button class="secondary" data-nav="help">Open help</button>
       </div>
     </section>
   `;
@@ -2804,7 +2804,7 @@ function renderModuleSetting(module) {
       <h3>${escapeHtml(module.title)}</h3>
       <p class="card-meta">${escapeHtml(module.copy)}</p>
       <div class="actions">
-        <button data-toggle-standalone-module="${escapeAttr(module.key)}">${enabled ? "Hide module" : "Show module"}</button>
+        <button class="secondary" data-toggle-standalone-module="${escapeAttr(module.key)}">${enabled ? "Hide module" : "Show module"}</button>
       </div>
     </article>
   `;
@@ -3589,7 +3589,7 @@ function renderLegacyBackupNotice({ dashboard = false } = {}) {
       <h2>Old unencrypted backups</h2>
       <p class="card-meta">${escapeHtml(legacyBackupSummary())}</p>
       <div class="actions">
-        <button class="danger" data-delete-legacy-backups>Delete</button>
+        <button class="secondary danger" data-delete-legacy-backups>Delete</button>
         ${dashboard ? '<button class="secondary" data-dismiss-legacy-backups>Not now</button>' : ""}
       </div>
     </section>
@@ -3636,7 +3636,7 @@ function renderBackupSettings() {
         <input name="file" type="file" required />
         <label>Backup password<input name="password" type="password" autocomplete="current-password" /></label>
         ${renderRestoreModeFields()}
-        <button type="submit">Restore backup</button>
+        <button type="submit" class="secondary">Restore backup</button>
       </form>
     </section>
   `;
@@ -3650,7 +3650,7 @@ function renderExportBackupForm() {
       <p class="muted" id="backup-password-hint">At least ${minLength} characters. A passphrase of four or more random words is easy to type and hard to guess.</p>
       <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
       <div class="actions">
-        <button type="submit">Export and share</button>
+        <button type="submit" class="secondary">Export and share</button>
       </div>
     </form>
   `;
@@ -3672,7 +3672,7 @@ function renderSaveBackupPasswordStep() {
       <label>Backup password<input type="text" readonly value="${escapeAttr(state.pendingBackupPassword)}" data-backup-password-value autocomplete="off" spellcheck="false" /></label>
       <div class="actions">
         <button class="secondary" data-copy-backup-password${disabled}>Copy</button>
-        <button data-continue-backup-export${disabled}>${state.backupExportFailed ? "Try again" : "I've saved it, export now"}</button>
+        <button class="secondary" data-continue-backup-export${disabled}>${state.backupExportFailed ? "Try again" : "I've saved it, export now"}</button>
         <button class="secondary" data-cancel-backup-export${disabled}>Cancel</button>
       </div>
     </div>
@@ -3978,10 +3978,10 @@ function renderDetail() {
     ${renderNeedsReviewBanner(type, row)}
     <section class="card form-card">
       <div class="actions">
-        <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
-        ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
+        <button class="secondary" data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
+        ${type === "contracts" && canRenewContract(row) ? `<button class="secondary" data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
         ${canArchive(type) ? `<button class="secondary" data-archive-record="${escapeAttr(type)}" data-archived="${isArchived(row) ? "0" : "1"}" data-id="${escapeAttr(id)}">${isArchived(row) ? "Restore" : "Archive"}</button>` : ""}
-        <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
+        <button class="secondary danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
       ${isArchived(row) ? `<p class="card-meta">Archived on ${escapeHtml(readableDate(row.archived_at))}. It no longer reminds you or shows in Needs attention.</p>` : ""}
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
@@ -4007,7 +4007,7 @@ function renderDetail() {
       </div>
       <form data-attach-owner-type="${escapeAttr(ownerType)}" data-owner-id="${escapeAttr(id)}" class="field-grid">
         <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" required />
-        <button type="submit">Attach document</button>
+        <button type="submit" class="secondary">Attach document</button>
       </form>
       <div class="list">
         ${docs.length === 0 ? empty("No documents attached", "Attach invoices, policies, photos or certificates.") : docs.map(renderDocumentCard).join("")}
@@ -4052,7 +4052,6 @@ function renderNeedsReviewBanner(type, row) {
       <p class="card-meta">This mirrors the connected app's extraction confirmation gate. Review the critical fields, then confirm them here.</p>
       <div class="actions">
         <button data-confirm-details="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Confirm details</button>
-        <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">Edit</button>
       </div>
     </section>
   `;
@@ -4067,7 +4066,7 @@ function renderTradeCsvImportSection(portfolioId) {
       <p class="muted">Import CommSec, SelfWealth, Stake or generic CSV files with Date, Ticker, Type, Units, Price, Fees and Currency columns.</p>
       <form data-import-trades-portfolio-id="${escapeAttr(portfolioId)}" class="field-grid">
         <input name="file" type="file" accept=".csv,text/csv" required />
-        <button type="submit">Import CSV trades</button>
+        <button type="submit" class="secondary">Import CSV trades</button>
       </form>
     </section>
   `;
@@ -4291,7 +4290,7 @@ function renderVehicleContracts(vehicle) {
   const covered = vehicleCovers(vehicle.id);
   const linked = cache.contracts.filter((contract) => contract.vehicle_id === vehicle.id);
   const shortcut = (label, category) =>
-    `<button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
+    `<button class="secondary" data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
   return `
     <section class="card form-card">
       <div class="section-title">
@@ -4300,7 +4299,7 @@ function renderVehicleContracts(vehicle) {
       <div class="actions">
         ${covered.has("insurance_expiry") ? "" : shortcut("Add insurance", "CAR_INSURANCE")}
         ${covered.has("rego_expiry") ? "" : shortcut("Add registration", "REGISTRATION")}
-        <button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
+        <button class="secondary" data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
       </div>
       <div class="list">
         ${linked.length === 0 ? empty("No contracts linked", "Add the insurance or registration as a contract to track its cost and documents.") : linked.map((row) => renderRecordCard("contracts", row)).join("")}
@@ -4314,7 +4313,7 @@ function renderChildRecords(title, type, rows, parentId, emptyTitle, emptyCopy) 
     <section class="card form-card">
       <div class="section-title">
         <h2>${escapeHtml(title)}</h2>
-        <button data-form-type="${escapeAttr(type)}" data-parent-id="${escapeAttr(parentId)}">Add</button>
+        <button class="secondary" data-form-type="${escapeAttr(type)}" data-parent-id="${escapeAttr(parentId)}">Add</button>
       </div>
       <div class="list">
         ${rows.length === 0 ? empty(emptyTitle, emptyCopy) : rows.map((row) => renderRecordCard(type, row)).join("")}
@@ -4328,7 +4327,7 @@ function renderDocuments() {
   const inboxDocs = filteredInboxDocuments();
   return `
     <section class="actions actions-wrap">
-      <button data-nav="trash">Recently deleted documents</button>
+      <button class="secondary" data-nav="trash">Recently deleted documents</button>
     </section>
     ${renderInboxImportSection()}
     <section class="chips" aria-label="Document filters">
@@ -4412,9 +4411,9 @@ function renderDocumentCard(doc) {
       <h3>${escapeHtml(doc.filename)}</h3>
       <p class="card-meta">${escapeHtml(ownerLabel(doc))} · ${escapeHtml(readableDate(doc.uploaded_at))}</p>
       <div class="actions">
-        <button data-open-document="${escapeAttr(doc.id)}">Open</button>
-        <button data-toggle-important-document="${escapeAttr(doc.id)}">${important ? "Unstar" : "Mark important"}</button>
-        <button class="danger" data-delete-document="${escapeAttr(doc.id)}">Delete</button>
+        <button class="secondary" data-open-document="${escapeAttr(doc.id)}">Open</button>
+        <button class="secondary" data-toggle-important-document="${escapeAttr(doc.id)}">${important ? "Unstar" : "Mark important"}</button>
+        <button class="secondary danger" data-delete-document="${escapeAttr(doc.id)}">Delete</button>
       </div>
       ${versionCount > 1 ? renderDocumentVersionHistory(doc) : ""}
     </article>
@@ -4435,9 +4434,9 @@ function renderInboxCard(doc) {
       <p class="card-meta">Inbox · ${escapeHtml(readableDate(doc.uploaded_at))}</p>
       ${duplicateMatches.length > 0 ? `<p class="card-meta">Likely duplicate of ${escapeHtml(duplicateMatches.map(ownerLabel).join(", "))}. File it to the same record to attach as a new version.</p>` : ""}
       <div class="actions">
-        <button data-open-inbox-document="${escapeAttr(doc.id)}">Open</button>
-        ${duplicateMatches.length > 0 ? `<button data-keep-inbox-separate="${escapeAttr(doc.id)}">Keep separate</button>` : ""}
-        <button class="danger" data-delete-inbox-document="${escapeAttr(doc.id)}">Delete</button>
+        <button class="secondary" data-open-inbox-document="${escapeAttr(doc.id)}">Open</button>
+        ${duplicateMatches.length > 0 ? `<button class="secondary" data-keep-inbox-separate="${escapeAttr(doc.id)}">Keep separate</button>` : ""}
+        <button class="secondary danger" data-delete-inbox-document="${escapeAttr(doc.id)}">Delete</button>
       </div>
       <form data-file-inbox-id="${escapeAttr(doc.id)}" class="field-grid">
         <label>File to existing record
@@ -4445,7 +4444,7 @@ function renderInboxCard(doc) {
             ${targets.length === 0 ? '<option value="">Add a record first</option>' : targets.map((target) => `<option value="${escapeAttr(target.value)}">${escapeHtml(target.label)}</option>`).join("")}
           </select>
         </label>
-        <button type="submit" ${targets.length === 0 ? "disabled" : ""}>File document</button>
+        <button type="submit" class="secondary" ${targets.length === 0 ? "disabled" : ""}>File document</button>
       </form>
     </article>
   `;
@@ -4594,7 +4593,7 @@ function renderSearch() {
   return `
     <section class="search-row">
       <input id="global-search" value="${escapeAttr(state.searchQuery)}" placeholder="Search records and documents…" />
-      <button data-clear-search>Clear</button>
+      <button class="secondary" data-clear-search>Clear</button>
     </section>
     <section id="search-results" class="list">
       ${state.searchQuery.trim() === "" ? empty("Search Hearth", "Find contracts, products, vehicles, vehicle records and documents stored on this phone.") : results.length === 0 ? empty("Nothing found", "Try another title, provider, serial, plate, filename or note.") : results.map(renderSearchResult).join("")}
@@ -5828,8 +5827,8 @@ function renderTrashedDocument(doc) {
       <p class="card-meta">${owner ? escapeHtml(ownerLabel(doc)) : `${escapeHtml(typeLabel(doc.owner_type))} · Its record was deleted`}</p>
       <p class="card-meta">Deleted ${escapeHtml(readableDate(doc.deleted_at) ?? "")} · ${days === 0 ? "Will be deleted soon" : `${days} day${days === 1 ? "" : "s"} left`}</p>
       <div class="actions actions-wrap">
-        ${owner ? `<button data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
-        <button class="danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
+        ${owner ? `<button class="secondary" data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
+        <button class="secondary danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
       </div>
     </article>
   `;
@@ -6274,7 +6273,7 @@ function renderPreviousTerms(contractId) {
             <article class="record-card">
               <h3>${escapeHtml(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`)}</h3>
               <p class="card-meta">${escapeHtml(meta)}</p>
-              ${doc ? `<div class="actions"><button data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
+              ${doc ? `<div class="actions"><button class="secondary" data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
             </article>
           `;
         }).join("")}
