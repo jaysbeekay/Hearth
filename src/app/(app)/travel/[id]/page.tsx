@@ -179,7 +179,7 @@ export default async function TripDetailPage({
         </Card>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-focus-list>
         <div className="flex items-center justify-between">
           <h2 className={sectionHeadingClass()}>Itinerary</h2>
           {canWrite && (
@@ -202,9 +202,7 @@ export default async function TripDetailPage({
             {displaySegments.map((segment) => {
               const Icon = SEGMENT_ICONS[segment.type] ?? Ticket;
               return (
-                <Card
-                  key={segment.id}
-                >
+                <Card key={segment.id} data-focus-row>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
                       <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
@@ -230,6 +228,7 @@ export default async function TripDetailPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for ${segment.title}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteTripSegment.bind(null, trip.id, segment.id)}
                               undo={{ action: restoreTripSegment.bind(null, segment.id) }}
                               offline={{

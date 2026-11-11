@@ -25,6 +25,7 @@ export function DocumentDeleteButton({
   return (
     <WriteOnly>
       <ConfirmForm
+        removesRow
         action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
         undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
         confirmText={`Delete ${filename}? You can restore it within 30 days from Household settings → Recently deleted.`}

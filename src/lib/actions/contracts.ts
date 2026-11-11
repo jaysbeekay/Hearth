@@ -371,6 +371,20 @@ export async function deleteContract(contractId: string): Promise<ActionState> {
   redirect("/contracts");
 }
 
+// #646 — the Contracts list's own delete: the same command, but the list
+// stays put (the command revalidates /contracts), so ConfirmForm can hand
+// focus to the next card instead of the page reloading under it.
+export async function deleteContractFromList(contractId: string): Promise<ActionState> {
+  await requireUser();
+
+  try {
+    await deleteContractCommand(contractId);
+  } catch (error) {
+    return commandError(error);
+  }
+  return { success: "Moved to Recently deleted." };
+}
+
 export async function restoreContract(contractId: string): Promise<ActionState> {
   await requireUser();
 

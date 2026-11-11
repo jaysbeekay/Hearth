@@ -26,7 +26,7 @@ export default async function PortfoliosPage() {
   });
 
   return (
-    <PageShell width="list">
+    <PageShell width="list" data-focus-list>
       <div className="flex items-center justify-between">
         <div>
           <BackLink href="/wealth" label="Wealth" />
@@ -36,6 +36,7 @@ export default async function PortfoliosPage() {
           <Link
             href="/wealth/portfolios/new"
             className={buttonClass("primary")}
+            data-focus-list-fallback
           >
             <Plus size={16} />
             Add portfolio
@@ -50,7 +51,7 @@ export default async function PortfoliosPage() {
       ) : (
         <div className="space-y-3">
           {portfolios.map((p) => (
-            <Card key={p.id}>
+            <Card key={p.id} data-focus-row>
               <div className="flex items-start justify-between gap-4">
                 <Link href={`/wealth/portfolios/${p.id}`} className="min-w-0">
                   <p className="font-medium hover:text-accent">{p.name}</p>
@@ -71,6 +72,7 @@ export default async function PortfoliosPage() {
                       </Link>
                       <DetailOverflowMenu label={`More actions for ${p.name}`}>
                         <ConfirmForm
+                          removesRow
                           action={deletePortfolio.bind(null, p.id)}
                           confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
                           actionLabel={`Delete "${p.name}"`}

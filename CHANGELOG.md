@@ -682,6 +682,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Deleting a row with the keyboard no longer loses your place (#646).**
+  Deleting a row (a trip segment, trade, rental statement, tenancy,
+  valuation, Service or Maintenance record, Document, webhook, contract and
+  the like) took the focused button away with the row, so focus fell back to
+  the start of the page. Focus now moves to the next row's More actions
+  button, or the previous row's when it was the last, or the list's Add
+  button or heading once the list is empty, after the row has actually gone.
+  Restoring from Recently deleted moves focus to the next entry's name, and
+  restoring an Archived Vehicle or Property from its notice keeps focus on
+  the page. Cancelling, and confirms that don't remove the row, still return
+  focus to where it was; Alt+T then Undo still works, coming back to the new
+  spot; and once you click or type elsewhere, focus stays where you put it.
+
 - **A click that lands before a page has loaded is no longer lost (#609).**
   Clicking a form's button before the page finished loading sent the form
   without the app's script, which the server refused, so the click did
