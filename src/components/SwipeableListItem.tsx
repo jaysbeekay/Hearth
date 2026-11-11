@@ -49,6 +49,7 @@ export function SwipeableListItem({
 
   return (
     <div
+      data-focus-row
       className={`relative overflow-hidden rounded-lg md:overflow-visible ${open ? "z-40" : ""}`}
     >
       {/*

@@ -178,10 +178,13 @@ test.describe.serial("The Undo toast waits while it's in use", () => {
   });
 });
 
-// The accessible name of the row menu after `title`'s, in page order, or null
-// when it is the last row.
+// The accessible name of the row menu after `title`'s in the trip's
+// itinerary, or null when it is the last row.
 async function rowMenuAfter(page: Page, title: string): Promise<string | null> {
-  const names = await page
+  const itinerary = page
+    .locator("[data-focus-list]")
+    .filter({ has: page.getByRole("heading", { name: "Itinerary", exact: true }) });
+  const names = await itinerary
     .getByRole("button", { name: /^More actions for / })
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
   const index = names.indexOf(`More actions for ${title}`);
@@ -326,6 +329,22 @@ test.describe.serial("Focus after a keyboard delete", () => {
     await expect(page.locator("main")).toContainText("No segments yet.");
     await expect(page.getByRole("link", { name: "Add segment" })).toBeFocused();
     await expect(page.locator("body")).not.toBeFocused();
+  });
+
+  // Review of #650 — once focus has been handed on, it's the user's again: a
+  // click somewhere else isn't undone by the next change to the page.
+  test("a click after a mouse delete keeps focus where the user put it", async ({ page }) => {
+    await addDatedSegment(page, "Focus click gone", "2026-03-04");
+    await addDatedSegment(page, "Focus click next", "2026-03-05");
+    await deleteSegment(page, "Focus click gone");
+    await expect(page.getByRole("button", { name: "More actions for Focus click gone", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More actions for Focus click next", exact: true })).toBeFocused();
+
+    await page.getByRole("heading", { name: "Itinerary", exact: true }).click();
+    await expect(page.locator("body")).toBeFocused();
+    await page.evaluate(() => document.body.appendChild(document.createElement("div")));
+    await page.waitForTimeout(200);
+    await expect(page.locator("body")).toBeFocused();
   });
 
   test("cancelling the confirm dialog hands focus back to the row", async ({ page }) => {

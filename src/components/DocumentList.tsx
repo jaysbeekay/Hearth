@@ -55,8 +55,14 @@ export function DocumentList({
    */
   trashedLinks?: DocumentVersionLink[];
 }) {
+  // #646 — the wrapper is the focus list, so it's still there to hand focus
+  // on from once the last Document is deleted.
   if (documents.length === 0) {
-    return <p className="text-sm text-muted">No documents uploaded yet.</p>;
+    return (
+      <div data-focus-list>
+        <p className="text-sm text-muted">No documents uploaded yet.</p>
+      </div>
+    );
   }
 
   const productKind = (doc: Row) => (kind === "PRODUCT" ? doc.kind : undefined);
@@ -69,115 +75,117 @@ export function DocumentList({
   );
 
   return (
-    <ul className="divide-y divide-border" data-focus-list>
-      {groupDocumentVersions(documents, trashedLinks).map(({ latest: doc, older }) => {
-        const href = documentFileHref(doc.id);
-        return (
-          <li key={doc.id} data-focus-row className="py-2">
-            <div className="flex items-center justify-between gap-3">
-              {/* #403 — below sm the filename and its metadata stack instead
-                  of sharing one line, which squeezed the filename at 390px. */}
-              <DocumentLink
-                href={href}
-                filename={doc.filename}
-                mimeType={doc.mimeType}
-                size={doc.size}
-                className="flex min-w-0 flex-col gap-0.5 text-sm hover:text-accent sm:flex-row sm:items-center sm:gap-2"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  {showsThumbnail(doc, productKind(doc)) ? (
-                    <DocumentThumbnail href={href} />
-                  ) : (
-                    <FileText size={16} className="shrink-0 text-muted" />
-                  )}
-                  <span className="min-w-0 truncate">{doc.filename}</span>
-                </span>
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
-                  <span className="text-muted">
-                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
-                  </span>
-                  {kind === "PRODUCT" && <TypePill label={documentTypeLabel(doc, productKind(doc))} />}
-                  {older.length > 0 && (
-                    <Pill>
-                      Latest
-                    </Pill>
-                  )}
-                </span>
-              </DocumentLink>
-              <div className="flex shrink-0 items-center">
-                {/* #405 — the type is set here, outside the file link, so an
-                    "Add document" upload can be typed afterwards. A Warranty
-                    Document's type is fixed at upload (it drives the hero photo). */}
-                {kind !== "PRODUCT" && (
-                  <DocumentTypeSelect
-                    kind={kind}
-                    documentId={doc.id}
-                    ownerId={ownerId}
-                    filename={doc.filename}
-                    category={doc.category}
-                  />
-                )}
-                <DocumentPreviewButton
-                  documentId={doc.id}
+    <div data-focus-list>
+      <ul className="divide-y divide-border">
+        {groupDocumentVersions(documents, trashedLinks).map(({ latest: doc, older }) => {
+          const href = documentFileHref(doc.id);
+          return (
+            <li key={doc.id} data-focus-row className="py-2">
+              <div className="flex items-center justify-between gap-3">
+                {/* #403 — below sm the filename and its metadata stack instead
+                    of sharing one line, which squeezed the filename at 390px. */}
+                <DocumentLink
                   href={href}
                   filename={doc.filename}
                   mimeType={doc.mimeType}
-                  typeLabel={documentTypeLabel(doc, productKind(doc))}
-                  ownerName={ownerName}
-                />
-                <DocumentShareButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
-                {star(doc)}
-                <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
+                  size={doc.size}
+                  className="flex min-w-0 flex-col gap-0.5 text-sm hover:text-accent sm:flex-row sm:items-center sm:gap-2"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {showsThumbnail(doc, productKind(doc)) ? (
+                      <DocumentThumbnail href={href} />
+                    ) : (
+                      <FileText size={16} className="shrink-0 text-muted" />
+                    )}
+                    <span className="min-w-0 truncate">{doc.filename}</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
+                    <span className="text-muted">
+                      {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
+                    </span>
+                    {kind === "PRODUCT" && <TypePill label={documentTypeLabel(doc, productKind(doc))} />}
+                    {older.length > 0 && (
+                      <Pill>
+                        Latest
+                      </Pill>
+                    )}
+                  </span>
+                </DocumentLink>
+                <div className="flex shrink-0 items-center">
+                  {/* #405 — the type is set here, outside the file link, so an
+                      "Add document" upload can be typed afterwards. A Warranty
+                      Document's type is fixed at upload (it drives the hero photo). */}
+                  {kind !== "PRODUCT" && (
+                    <DocumentTypeSelect
+                      kind={kind}
+                      documentId={doc.id}
+                      ownerId={ownerId}
+                      filename={doc.filename}
+                      category={doc.category}
+                    />
+                  )}
+                  <DocumentPreviewButton
+                    documentId={doc.id}
+                    href={href}
+                    filename={doc.filename}
+                    mimeType={doc.mimeType}
+                    typeLabel={documentTypeLabel(doc, productKind(doc))}
+                    ownerName={ownerName}
+                  />
+                  <DocumentShareButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                  {star(doc)}
+                  <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
+                </div>
               </div>
-            </div>
 
-            {older.length > 0 && (
-              <ul aria-label={`Older versions of ${doc.filename}`} data-focus-list className="ml-6 mt-1 border-l border-border pl-4">
-                {older.map((v) => (
-                  <li key={v.id} data-focus-row className="flex items-center justify-between gap-3">
-                    <DocumentLink
-                      href={documentFileHref(v.id)}
-                      filename={v.filename}
-                      mimeType={v.mimeType}
-                      size={v.size}
-                      className="flex min-w-0 flex-col gap-0.5 text-xs text-muted hover:text-accent sm:flex-row sm:items-center sm:gap-2"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <History size={16} className="shrink-0" />
-                        <span className="min-w-0 truncate">{v.filename}</span>
-                      </span>
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
-                        <span>
-                          {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} />
+              {older.length > 0 && (
+                <ul aria-label={`Older versions of ${doc.filename}`} data-focus-list className="ml-6 mt-1 border-l border-border pl-4">
+                  {older.map((v) => (
+                    <li key={v.id} data-focus-row className="flex items-center justify-between gap-3">
+                      <DocumentLink
+                        href={documentFileHref(v.id)}
+                        filename={v.filename}
+                        mimeType={v.mimeType}
+                        size={v.size}
+                        className="flex min-w-0 flex-col gap-0.5 text-xs text-muted hover:text-accent sm:flex-row sm:items-center sm:gap-2"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <History size={16} className="shrink-0" />
+                          <span className="min-w-0 truncate">{v.filename}</span>
                         </span>
-                        <TypePill label={documentTypeLabel(v, productKind(v))} />
-                      </span>
-                    </DocumentLink>
-                    <div className="flex shrink-0 items-center">
-                      <DocumentPreviewButton
-                        documentId={v.id}
-                        href={documentFileHref(v.id)}
-                        filename={v.filename}
-                        mimeType={v.mimeType}
-                        typeLabel={documentTypeLabel(v, productKind(v))}
-                        ownerName={ownerName}
-                      />
-                      <DocumentShareButton
-                        documentId={v.id}
-                        href={documentFileHref(v.id)}
-                        filename={v.filename}
-                        mimeType={v.mimeType}
-                      />
-                      {olderVersionShowsStar(v) && star(v)}
-                      <DocumentDeleteButton kind={kind} documentId={v.id} ownerId={ownerId} filename={v.filename} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
+                          <span>
+                            {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} />
+                          </span>
+                          <TypePill label={documentTypeLabel(v, productKind(v))} />
+                        </span>
+                      </DocumentLink>
+                      <div className="flex shrink-0 items-center">
+                        <DocumentPreviewButton
+                          documentId={v.id}
+                          href={documentFileHref(v.id)}
+                          filename={v.filename}
+                          mimeType={v.mimeType}
+                          typeLabel={documentTypeLabel(v, productKind(v))}
+                          ownerName={ownerName}
+                        />
+                        <DocumentShareButton
+                          documentId={v.id}
+                          href={documentFileHref(v.id)}
+                          filename={v.filename}
+                          mimeType={v.mimeType}
+                        />
+                        {olderVersionShowsStar(v) && star(v)}
+                        <DocumentDeleteButton kind={kind} documentId={v.id} ownerId={ownerId} filename={v.filename} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

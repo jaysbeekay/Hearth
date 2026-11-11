@@ -462,6 +462,7 @@ export default async function HoldingPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for trade ${formatDate(trade.date, dateFormat)}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteTrade.bind(null, holdingId, trade.id)}
                               undo={{ action: restoreTrade.bind(null, trade.id) }}
                               offline={{

@@ -180,7 +180,11 @@ export default async function TrashPage() {
                 <div className="flex min-w-0 items-start gap-3">
                   <Icon size={16} className="mt-0.5 shrink-0 text-muted" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{entry.label}</p>
+                    {/* #646 — after a delete or restore, focus lands on the
+                        next entry's name, not on a button Enter would press. */}
+                    <p className="truncate text-sm font-medium" tabIndex={-1} data-focus-row-target>
+                      {entry.label}
+                    </p>
                     <p className="truncate text-xs text-muted">
                       {meta.label}
                       {entry.subtitle ? ` · ${entry.subtitle}` : ""} · Deleted{" "}
@@ -193,6 +197,7 @@ export default async function TrashPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     <TrashRestoreButton action={restoreAction.bind(null, entry.domain, entry.id, entry.documentKind)} />
                     <ConfirmForm
+                      removesRow
                       action={meta.permanentlyDelete}
                       confirmText={`Permanently delete "${entry.label}"? This removes it and its documents for everyone in the household — it can't be undone.`}
                       actionLabel="Delete permanently"

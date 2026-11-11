@@ -103,9 +103,10 @@ test.describe.serial("Archive a Vehicle", () => {
     await expect(page.getByTestId("archived-notice")).toHaveCount(0);
   });
 
-  // #646 — the Archive item closes with its menu; focus goes back to the
-  // menu's own button instead of dropping to <body>.
-  test("archiving with the keyboard keeps focus on the page", async ({ page }) => {
+  // #646 regression guard: this already passed before #646 (the menu's focus
+  // trap hands focus back to its ⋮ button); it keeps ArchiveButton's own
+  // focus return from breaking that.
+  test("archiving with the keyboard keeps focus on the menu button (regression guard)", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
     const menu = page.getByRole("button", { name: "More actions", exact: true }).first();
     await menu.focus();

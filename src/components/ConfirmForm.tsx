@@ -19,6 +19,7 @@ export function ConfirmForm({
   successMessage,
   offline,
   undo,
+  removesRow,
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
@@ -43,6 +44,11 @@ export function ConfirmForm({
   // "Delete" and the toast "Moved to Recently deleted.", whatever the record. `href` is where to go back to when
   // the delete navigated away (deleting from a record's own detail page).
   undo?: { action: () => Promise<unknown>; href?: string };
+  // #646 — set when a successful action takes its own row off the page (a
+  // delete), so focus waits for the row to go and then moves to a
+  // neighbouring row. Without it (a status change, a settings reset) focus
+  // goes straight back to the trigger, or to the row's ⋮ button.
+  removesRow?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -59,7 +65,7 @@ export function ConfirmForm({
   }
 
   // #57 — focus goes back to the trigger. #646 — when the confirmed action
-  // removed the trigger's row, it goes to a neighbouring row instead of
+  // removes the trigger's row, it goes to a neighbouring row instead of
   // dropping to <body>.
   function close({ removed = false }: { removed?: boolean } = {}) {
     setOpen(false);
@@ -172,7 +178,7 @@ export function ConfirmForm({
                 const failure = (result as { error?: string } | undefined)?.error;
                 if (failure) showToast(failure, "error");
                 else showDoneToast();
-                close({ removed: !failure });
+                close({ removed: Boolean(removesRow) && !failure });
               } catch (err) {
                 // Server actions that redirect() throw a special signal
                 // Next.js's router handles itself — anything else is a

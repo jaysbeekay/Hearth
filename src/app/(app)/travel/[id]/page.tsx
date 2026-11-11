@@ -228,6 +228,7 @@ export default async function TripDetailPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for ${segment.title}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteTripSegment.bind(null, trip.id, segment.id)}
                               undo={{ action: restoreTripSegment.bind(null, segment.id) }}
                               offline={{

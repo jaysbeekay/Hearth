@@ -6,16 +6,18 @@
 // action removed that button's row, it goes to, in order:
 //   1. the next row's own control (its "More actions" button) in the same list
 //   2. otherwise the previous row's
-//   3. otherwise (the list is now empty) the list's Add button or heading,
-//      or, for a list inside a row (a segment's Documents), that row's
+//   3. otherwise (the list is now empty) the list's Add button or heading; for
+//      a list inside a row (a segment's Documents), that row's control; for a
+//      list inside another list (a record's Documents card), that one's
 //   4. as a last resort <main>, matching the Toast fallback (#618)
 // so a keyboard or screen-reader user isn't dropped onto <body>.
 //
 // Pages opt in with data attributes, so no list has to know about focus:
 //   data-focus-list           on the element that holds the list, its heading
-//                             and its Add button
+//                             and its Add button; it should stay on the page
+//                             when the list is empty
 //   data-focus-row            on each row in that list
-//   data-focus-row-target     (optional) the control in a row to focus; by
+//   data-focus-row-target     (optional) the element in a row to focus; by
 //                             default the row's "More actions" button, else
 //                             its first focusable control
 //   data-focus-list-fallback  (optional) what to focus once the list is empty;
@@ -32,8 +34,11 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const HEADING = "h1, h2, h3, h4, h5, h6";
 
-// How long to wait for a revalidated page to drop the row before giving up.
-const WAIT_MS = 5000;
+// The longest we watch the page for: a row that should be removed has this
+// long to leave after the action resolves (a slow revalidation), and a target
+// that is re-rendered away within it is followed. Any click or key press by
+// the user ends the watch sooner.
+const WAIT_MS = 30_000;
 
 export type FocusOrigin = {
   /** The button that opened the dialog or ran the action. */
@@ -44,6 +49,8 @@ export type FocusOrigin = {
   list: HTMLElement | null;
   /** The row the list itself sits in, e.g. the segment a Document list belongs to. */
   outerRow: HTMLElement | null;
+  /** The list the list itself sits in, e.g. a record's Documents card. */
+  outerList: HTMLElement | null;
   /** The row's position among its list's rows when captured. */
   index: number;
 };
@@ -59,17 +66,24 @@ export function captureFocusOrigin(trigger: HTMLElement | null, menuButton: HTML
   const list = (row ?? anchor)?.closest<HTMLElement>(LIST) ?? null;
   const index = row && list ? rowsOf(list).indexOf(row) : -1;
   const outerRow = list?.parentElement?.closest<HTMLElement>(ROW) ?? null;
-  return { trigger, menuButton, row, list, outerRow, index };
+  const outerList = list?.parentElement?.closest<HTMLElement>(LIST) ?? null;
+  return { trigger, menuButton, row, list, outerRow, outerList, index };
 }
 
 let stopPending: (() => void) | null = null;
 
 /**
- * Gives focus back after the action that `origin` describes. With `removed`
- * (the action succeeded and its row is on its way out), focus moves once the
- * row has actually left the page — after the server action's revalidation
- * re-render, not before — and only if focus was lost with it. Otherwise it
- * goes back to the trigger at once, or to the nearest thing still there.
+ * Gives focus back after the action that `origin` describes.
+ *
+ * Without `removed`, focus goes back at once: to the trigger, or the nearest
+ * thing still there. If what it lands on is then re-rendered away (a status
+ * change that drops the row after all), focus follows to a neighbour.
+ *
+ * With `removed` (a delete or archive that succeeded, so the row is on its way
+ * out), focus moves once the row has actually left the page — after the
+ * server action's revalidation re-render, not before — and only if focus was
+ * lost with it. Until then it stays where the closing menu or dialog left it,
+ * normally the row's ⋮ button, rather than moving onto the doomed row.
  */
 export function returnFocus(origin: FocusOrigin, { removed = false }: { removed?: boolean } = {}): void {
   stopPending?.();
@@ -80,36 +94,53 @@ export function returnFocus(origin: FocusOrigin, { removed = false }: { removed?
     if (placed) focusElement(placed);
   };
 
-  const step = () => {
-    if (removed && origin.row?.isConnected) return;
+  // Returns true once there's nothing left to watch for.
+  const step = (): boolean => {
+    if (removed && origin.row?.isConnected) return false;
     if (!placed) {
-      // Somebody already moved focus on purpose (e.g. into the toast): leave it.
-      if (removed && !focusLost()) {
-        placed = document.activeElement as HTMLElement;
-        return;
+      if (removed && !focusLost() && document.activeElement !== origin.trigger) {
+        // Focus already went somewhere on purpose (e.g. into the toast).
+        return true;
       }
       place();
-      return;
+      return false;
     }
-    // What we focused was re-rendered away after all, or couldn't take focus
-    // yet (a closing dialog still had the page inert, or it was disabled).
-    if (focusLost()) place();
+    if (document.activeElement === placed) return false;
+    // It hasn't taken focus yet (a closing dialog still had the page inert,
+    // or it was disabled while the action ran), or it was re-rendered away.
+    if (focusLost()) {
+      place();
+      return false;
+    }
+    // Focus is somewhere else on purpose: stop.
+    return true;
   };
 
-  step();
-  if (typeof MutationObserver === "undefined") return;
-  const observer = new MutationObserver(step);
+  if (step() || typeof MutationObserver === "undefined") return;
+  const observer = new MutationObserver(() => {
+    if (step()) stop();
+  });
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["inert", "disabled"] });
-  const stop = () => {
-    observer.disconnect();
-    window.clearTimeout(timer);
-    if (stopPending === stop) stopPending = null;
-  };
+  // The user doing anything at all — clicking text, a link, pressing a key —
+  // means focus is theirs again.
+  document.addEventListener("pointerdown", stop, true);
+  document.addEventListener("keydown", stop, true);
   const timer = window.setTimeout(() => {
     stop();
-    // The row never left (nothing re-rendered it away): don't leave focus lost.
-    if (!placed && focusLost()) place();
+    // The row never left: it's evidently staying, so its own control is a
+    // safe place for focus that would otherwise be lost.
+    if (!placed && focusLost()) {
+      const target = pickTarget(origin);
+      if (target) focusElement(target);
+    }
   }, WAIT_MS);
+  function stop() {
+    observer.disconnect();
+    window.clearTimeout(timer);
+    document.removeEventListener("pointerdown", stop, true);
+    document.removeEventListener("keydown", stop, true);
+    if (stopPending === stop) stopPending = null;
+  }
   stopPending = stop;
 }
 
@@ -119,11 +150,14 @@ function focusLost(): boolean {
 }
 
 function pickTarget(origin: FocusOrigin): HTMLElement | null {
-  const { trigger, menuButton, row, list, outerRow, index } = origin;
+  const { trigger, menuButton, row, list, outerRow, outerList, index } = origin;
   // Not isFocusable: a trigger is often disabled only while its action runs.
   if (trigger && isVisible(trigger)) return trigger;
   if (menuButton && isFocusable(menuButton)) return menuButton;
-  if (row?.isConnected) return rowTarget(row);
+  if (row?.isConnected) {
+    const own = rowTarget(row);
+    if (own) return own;
+  }
   if (list?.isConnected) {
     const rows = rowsOf(list);
     if (index >= 0) {
@@ -134,8 +168,9 @@ function pickTarget(origin: FocusOrigin): HTMLElement | null {
     const fallback = listFallback(list);
     if (fallback) return fallback;
   }
-  // The list went with its last row (it renders an empty message instead).
-  const outer = outerRow?.isConnected ? rowTarget(outerRow) : null;
+  // The list is empty, or went with its last row.
+  const outer =
+    (outerRow?.isConnected ? rowTarget(outerRow) : null) ?? (outerList?.isConnected ? listFallback(outerList) : null);
   if (outer) return outer;
   return document.querySelector<HTMLElement>("main");
 }
@@ -160,7 +195,7 @@ function listFallback(list: HTMLElement): HTMLElement | null {
     (el) => !el.closest(ROW) && isFocusable(el),
   );
   if (control) return control;
-  return Array.from(list.querySelectorAll<HTMLElement>(HEADING)).find(isVisible) ?? null;
+  return Array.from(list.querySelectorAll<HTMLElement>(HEADING)).find((el) => !el.closest(ROW) && isVisible(el)) ?? null;
 }
 
 function isVisible(el: HTMLElement): boolean {
@@ -172,7 +207,12 @@ function isFocusable(el: HTMLElement): boolean {
 }
 
 function focusElement(el: HTMLElement) {
-  // A heading or <main> isn't focusable by default; -1 keeps it out of the Tab order.
-  if (!el.matches(FOCUSABLE) && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
-  el.focus();
+  if (el.matches(FOCUSABLE)) {
+    el.focus();
+    return;
+  }
+  // A heading, row label or <main> isn't focusable by default; -1 keeps it out
+  // of the Tab order. Like the Toast's fallback (#618), don't scroll to it.
+  if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+  el.focus({ preventScroll: true });
 }

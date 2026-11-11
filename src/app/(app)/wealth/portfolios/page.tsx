@@ -72,6 +72,7 @@ export default async function PortfoliosPage() {
                       </Link>
                       <DetailOverflowMenu label={`More actions for ${p.name}`}>
                         <ConfirmForm
+                          removesRow
                           action={deletePortfolio.bind(null, p.id)}
                           confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
                           actionLabel={`Delete "${p.name}"`}

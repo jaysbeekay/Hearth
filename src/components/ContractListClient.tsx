@@ -188,7 +188,7 @@ export function ContractListClient({
   const nothingYet = !filtered && contracts.length === 0 && pendingOps.length === 0;
 
   return (
-    <PageShell width="list">
+    <PageShell width="list" data-focus-list>
       <ListPageHeader
         title="Contracts"
         description="Insurance policies, plans, leases, loans and subscriptions"
@@ -335,6 +335,7 @@ export function ContractListClient({
                 key={contract.id}
                 revealAction={
                   <ConfirmForm
+                    removesRow
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}

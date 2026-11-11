@@ -289,6 +289,7 @@ export default async function PropertyDetailPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for ${item.title}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteHomeItem.bind(null, property.id, item.id)}
                               undo={{ action: restoreHomeItem.bind(null, item.id) }}
                               confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
@@ -408,6 +409,7 @@ export default async function PropertyDetailPage({
                 {canWrite && (
                   <DetailOverflowMenu label={`More actions for valuation ${formatDate(v.valuedAt, dateFormat)}`}>
                     <ConfirmForm
+                      removesRow
                       action={deletePropertyValuation.bind(null, property.id, v.id)}
                       undo={{ action: restorePropertyValuation.bind(null, v.id) }}
                       offline={{

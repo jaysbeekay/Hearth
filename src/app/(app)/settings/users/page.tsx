@@ -51,6 +51,7 @@ export default async function ManageUsersPage() {
                 <div className="flex items-center gap-3">
                   <MemberRoleForm userId={user.id} role={user.role} name={user.name} />
                   <ConfirmForm
+                    removesRow
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household? Their records and documents stay with the household.`}
                     actionLabel={`Remove ${user.name}`}

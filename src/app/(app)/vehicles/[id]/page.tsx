@@ -394,6 +394,7 @@ export default async function VehicleDetailPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for ${item.title}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                               undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                               confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
