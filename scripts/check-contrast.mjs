@@ -14,6 +14,9 @@
 //   - decorative borders against background and surface: >= 1.4:1 (visible)
 //   - control borders (inputs, secondary buttons, chips) against background
 //     and surface: >= 3:1 (WCAG 1.4.11, #558)
+//   - a secondary button on a warning/danger tinted card: the control border
+//     against the button's surface fill: >= 3:1 (#630)
+
 //   - control borders against the warning and danger 10% tints that banners
 //     and tinted cards use, over both surface and background: >= 3:1 (#640)
 //
@@ -172,6 +175,19 @@ export function checkContrast(css) {
       for (const tone of CONTROL_TINT_TOKENS) {
         const tint = mix(need(tone), need(ground), TINT_ALPHA);
         add(`border-control on ${tone}/10 over ${ground}`, contrast(need("border-control"), tint), CONTROL_BORDER_MIN);
+      }
+    }
+    // A secondary button on a warning or danger card (#630). Against the
+    // card's 10% tint the control border falls just under 3:1 in places, so
+    // the phone shell fills such a button with surface: the border has to
+    // clear 3:1 against that fill, and the fill is what sits on the tint.
+    for (const tone of ["warning", "danger"]) {
+      for (const ground of GROUNDS) {
+        add(
+          `border-control on a surface-filled control on ${tone}/10 over ${ground}`,
+          contrast(need("border-control"), need("surface")),
+          CONTROL_BORDER_MIN,
+        );
       }
     }
   }
