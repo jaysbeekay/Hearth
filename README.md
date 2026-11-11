@@ -1199,9 +1199,12 @@ where the public SDK keys go, sandbox testing and key rotation are covered in
 [`docs/mobile/revenuecat.md`](docs/mobile/revenuecat.md).
 
 Standalone data is stored only on the phone. Nothing is sent to Hearth or any
-cloud, and Android Auto Backup is turned off on purpose. Backups are encrypted
-files the user exports and keeps (Settings → Back up this phone), protected by
-a password that can't be reset.
+cloud. On Android, Auto Backup is turned off. On iOS, the database and the
+document folders are marked to be left out of iCloud and computer backups
+(`BackupExclusionPlugin.swift`); small settings kept in iOS preferences, such
+as which modules are shown, can still be in a device backup. Backups are
+encrypted files the user exports and keeps (Settings → Back up this phone),
+protected by a password that can't be reset.
 
 To set up a new phone in standalone mode:
 
@@ -1211,12 +1214,13 @@ To set up a new phone in standalone mode:
    iCloud Drive, Google Drive, or send it to yourself.
 3. Install Hearth on the new phone and choose **Use on this device**.
 4. Buy the standalone unlock, or tap **Restore purchases** if you bought it
-   with the same store account before.
+   before on the same kind of phone with the same Apple or Google account.
+   Moving between iPhone and Android means buying the unlock again.
 5. On the first screen, choose **Restore from a backup**, pick the file and
    enter its password. The offer shows only while the phone has no records;
    after that, use Settings → Restore from a file.
 
-Backups restore across iPhone and Android. Store-listing copy is drafted in
+The backup file restores on either iPhone or Android. Store-listing copy is drafted in
 [`docs/mobile/store-listing.md`](docs/mobile/store-listing.md).
 
 ## Releasing

@@ -7,8 +7,8 @@ automatically. Tracked in #492.
 The standalone promise below is the wording agreed in
 [`docs/proposals/standalone-backup-226.md`](../proposals/standalone-backup-226.md)
 (section 4, "The promise"). It matches the notice on the paywall and in Help
-(`DEVICE_ONLY_NOTICE` in `ios-shell/www/app.js` and the paywall in
-`ios-shell/www/index.html`). If you change one, change all three. The app's
+(`DEVICE_ONLY_NOTICE` in `ios-shell/www/app.js`, which the paywall and Help
+both show). If you change one, change both. The app's
 backup screens say "password", so the listing does too, where the proposal
 said "passphrase".
 
@@ -31,7 +31,7 @@ Rules for any edit:
 
 **Subtitle** (30 characters max):
 
-> Household records, kept private
+> Household records, private
 
 **Promotional text** (170 characters max):
 
@@ -51,8 +51,8 @@ Rules for any edit:
 > keeps scheduled backups.
 >
 > Standalone mode (one-time purchase). Use Hearth on this phone without a
-> server. Records and documents are stored in encrypted storage on the
-> device.
+> server. Records are kept in an encrypted database on the device, and
+> documents in the app's private storage.
 >
 > Standalone mode keeps everything on this phone only. Nothing is sent to
 > Hearth or any cloud. Back up regularly to a file protected by your own
@@ -61,8 +61,9 @@ Rules for any edit:
 >
 > To move to a new phone, export a backup on the old one, save the file to
 > Files, iCloud Drive or another place you trust, then choose "Restore from a
-> backup" after unlocking standalone mode on the new phone. Backups also move
-> between iPhone and Android.
+> backup" after unlocking standalone mode on the new phone. The backup file
+> also works on Android; moving between iPhone and Android means buying the
+> unlock again.
 >
 > Optional: Connected mode keeps your data on your own Hearth server, with
 > scheduled server backups.
@@ -91,8 +92,8 @@ Rules for any edit:
 > keeps scheduled backups.
 >
 > Standalone mode (one-time purchase). Use Hearth on this phone without a
-> server. Records and documents are stored in encrypted storage on the
-> device.
+> server. Records are kept in an encrypted database on the device, and
+> documents in the app's private storage.
 >
 > Standalone mode keeps everything on this phone only. Nothing is sent to
 > Hearth or any cloud. Back up regularly to a file protected by your own
@@ -101,8 +102,9 @@ Rules for any edit:
 >
 > To move to a new phone, export a backup on the old one, save the file to
 > Google Drive or another place you trust, then choose "Restore from a
-> backup" after unlocking standalone mode on the new phone. Backups also move
-> between Android and iPhone.
+> backup" after unlocking standalone mode on the new phone. The backup file
+> also works on iPhone; moving between Android and iPhone means buying the
+> unlock again.
 >
 > Optional: Connected mode keeps your data on your own Hearth server, with
 > scheduled server backups.

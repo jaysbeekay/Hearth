@@ -15,7 +15,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   "Restore from a backup" on its first screen, next to "Start fresh". It
   runs the same Replace restore as Settings; if the file picker is closed or
   the restore fails, the phone stays empty and the offer stays. Before
-  replacing, it checks again that the phone has no records. The "Use on this
+  replacing, it checks again, inside the restore's write lock, that the
+  phone still has no records, so one added while the backup is being
+  checked is never wiped. "Start fresh" is saved in the encrypted database,
+  not iOS preferences, so a new iPhone set up from an iCloud backup still
+  gets the offer. On iOS, the standalone document folders are now left out
+  of iCloud and computer backups (a small `BackupExclusion` plugin; the
+  database was already excluded). The "Use on this
   device" choice and the paywall now say that standalone data is kept only on
   this phone and that backups are up to the user, and Help repeats it, links
   to Back up this phone and lists the new-phone steps (also in the README's
@@ -23,7 +29,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `docs/mobile/store-listing.md`, and the accepted backup proposal is in
   `docs/proposals/standalone-backup-226.md`. The Android manifest now says
   why `android:allowBackup` stays `false`. Changes are in
-  `ios-shell/www/app.js`, `index.html` and `style.css`.
+  `ios-shell/www/app.js`, `index.html`, `style.css` and
+  `ios/App/App/BackupExclusionPlugin.swift`.
 
 - **Reminders in the phone app (#375, part 3b).** The iOS/Android app
   can't use Web Push, so "Notify this device" there becomes "Notify this

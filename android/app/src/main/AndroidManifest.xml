@@ -3,10 +3,11 @@
 
     <!-- Keep android:allowBackup="false" and the exclusions in
          res/xml/data_extraction_rules.xml (#492). Standalone mode keeps its
-         records in a SQLite database encrypted with a key held in the
-         Android Keystore, which never leaves this device. Auto Backup or
-         device transfer would copy the encrypted database without that key,
-         so the copy could not be opened. It would also send the connected
+         records in an encrypted SQLite database. Its passphrase is stored
+         in EncryptedSharedPreferences under an Android Keystore key, and
+         Keystore keys never leave this device. Auto Backup or device
+         transfer would copy the encrypted database without that key, so
+         the copy could not be opened. It would also send the connected
          mode session cookie and server address off the phone. Standalone
          users back up with Settings > Back up this phone, an encrypted file
          they keep themselves (docs/proposals/standalone-backup-226.md). -->

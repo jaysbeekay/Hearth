@@ -3,8 +3,12 @@
 Status: accepted 2026-11-04 (#226 grilling) and implemented. PR #500 built
 the encrypted backup, restore, last-backup status and nudge. The PR that
 closes #491 and #492 added the new-phone restore offer and the "only on this
-phone" notice. An iCloud backup option is tracked separately in #547. Refs
-#226, #399. Written 2026-10-31.
+phone" notice. That PR also goes one step past option (d) below: on iOS the
+standalone document folders are now excluded from iCloud and computer
+backups (`ios/App/App/BackupExclusionPlugin.swift`; the SQLite plugin already
+excluded the database), so the promise holds on iOS as well as Android. An
+opt-in iCloud backup is tracked separately in #547. Refs #226, #399. Written
+2026-10-31.
 
 Kept as the record of why standalone backup works the way it does, and as the
 source of the agreed promise copy in section 4. The paywall, Help and

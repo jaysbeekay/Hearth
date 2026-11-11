@@ -42,6 +42,7 @@ test.beforeEach(async ({ page }) => {
     const fileTimes = new Map<string, number>();
     // Every Share.share call, with the text of each shared file at the time.
     const shares: { files: string[]; contents: (string | null)[] }[] = [];
+    const backupExclusions: string[][] = [];
     let renames = 0;
     const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     // See Filesystem.stat in the mock.
@@ -428,6 +429,8 @@ test.beforeEach(async ({ page }) => {
       if (!match) return [];
       const table = match[1];
       const rows = rowsByTable[table] ?? [];
+      const metadataKey = table === "schema_metadata" ? /key = '([a-z_]+)'/.exec(statement)?.[1] : undefined;
+      if (metadataKey) return (rows as { key?: unknown }[]).filter((row) => row.key === metadataKey);
       if (table === "documents") {
         // Each clause narrows the rows, like the WHERE it mirrors.
         let documents = rows as { id?: string; deleted_at?: string | null; storage_key?: string; uploaded_at?: string }[];
@@ -489,9 +492,11 @@ test.beforeEach(async ({ page }) => {
         return;
       }
       const restoreRow = /^INSERT OR REPLACE INTO ([a-z_]+) \(([^)]+)\) VALUES/i.exec(sql);
-      // A restore's commit marker (#226).
-      if (restoreRow?.[1] === "schema_metadata" && /'last_restore_id'/.test(sql)) {
-        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== "last_restore_id"), { key: "last_restore_id", value: values[0] }];
+      // schema_metadata rows by key: a restore's commit marker (#226), the
+      // new-phone offer's "Start fresh" (#491).
+      const metadataKey = restoreRow?.[1] === "schema_metadata" ? /VALUES \('([a-z_]+)', \?\)/.exec(sql)?.[1] : undefined;
+      if (metadataKey) {
+        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== metadataKey), { key: metadataKey, value: values[0] }];
         return;
       }
       if (restoreRow && !["documents", "local_profile", "schema_metadata"].includes(restoreRow[1])) {
@@ -625,6 +630,7 @@ test.beforeEach(async ({ page }) => {
       files,
       fileTimes,
       shares,
+      backupExclusions,
       preferences,
       get renames() {
         return renames;
@@ -683,6 +689,15 @@ test.beforeEach(async ({ page }) => {
         },
         Filesystem: {
           writeFile: async (args: { directory?: string; path?: string; data?: string }) => {
+            // "hearth-test-pause-at-staging": a restore's first staged file
+            // waits until the test calls __hearthResumeStaging(), so the test
+            // can act while the backup is being checked (#491).
+            if (testFlag("hearth-test-pause-at-staging") && String(args.path).startsWith("standalone-restore-staging/")) {
+              localStorage.removeItem("hearth-test-pause-at-staging");
+              await new Promise((resolve) => {
+                (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging = () => resolve(undefined);
+              });
+            }
             fileWrites.push(args);
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             files.set(fileKey(args), args.data ?? "");
@@ -800,6 +815,13 @@ test.beforeEach(async ({ page }) => {
                 },
               },
             }),
+        // iOS's backup exclusion (#492): records each call's folder names.
+        BackupExclusion: {
+          excludeFolders: async ({ paths }: { paths: string[] }) => {
+            backupExclusions.push([...paths]);
+            return {};
+          },
+        },
         // "hearth-test-share" = "cancel" (the user closes the share sheet) or
         // "error" (it fails); otherwise sharing succeeds.
         Share: {
@@ -1965,9 +1987,76 @@ test("standalone new-phone restore refuses to replace records added since the of
   });
   await restoreThroughOffer(page, text, "correct horse battery");
   await expect(page.locator("#standalone-status")).toContainText("already has records");
+  // Redrawn: the phone has a record, so the offer is gone.
+  await expect(newPhoneOffer(page)).toHaveCount(0);
   const { sqliteRuns, rowsByTable } = await backupHarness(page);
   expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
   expect(rowsByTable.contracts.map((row) => row.id)).toEqual(["contract-new-phone"]);
+});
+
+test("standalone new-phone restore checks again for records added while the backup was being checked (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await page.evaluate(() => localStorage.setItem("hearth-test-pause-at-staging", "1"));
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Checking backup");
+  await page.waitForFunction(() => typeof (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging === "function");
+  // A record lands while the backup is being decrypted and staged.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-during-check", title: "Added during the check" });
+    (window as unknown as { __hearthResumeStaging: () => void }).__hearthResumeStaging();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.contracts.map((row) => row.id)).toEqual(["contract-during-check"]);
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone Start fresh keeps the offer hidden after a relaunch, in the database not Preferences (#491)", async ({ page }) => {
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  await newPhoneOffer(page).getByRole("button", { name: "Start fresh" }).click();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+  const saved = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]>; preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return { metadata: harness.rowsByTable.schema_metadata ?? [], preferences: [...harness.preferences.keys()] };
+  });
+  expect(saved.metadata).toContainEqual({ key: "new_phone_offer_dismissed", value: "true" });
+  expect(saved.preferences.some((key) => /newPhone/i.test(key))).toBe(false);
+
+  // Relaunch with that database: the offer stays hidden.
+  await page.evaluate((metadata) => {
+    window.name = `hearth-test-seed:${JSON.stringify({ rows: { schema_metadata: metadata } })}`;
+  }, saved.metadata);
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone does not offer Restore from a backup when the only Document is in Trash (#491)", async ({ page }) => {
+  await page.evaluate(() => {
+    const trashed = { id: "trashed-only", owner_type: "contract", owner_id: "gone", filename: "old.pdf", storage_key: "old.pdf", mime_type: "application/pdf", size: 10, is_head: 1, uploaded_at: "2099-01-01T00:00:00.000Z", deleted_at: "2099-01-02T00:00:00.000Z" };
+    window.name = `hearth-test-seed:${JSON.stringify({ rows: { documents: [trashed] } })}`;
+  });
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone excludes its document folders from iOS device backups at launch and after a restore (#492)", async ({ page }) => {
+  const folders = ["standalone-documents", "standalone-restore-staging", "standalone-restore-previous"];
+  const exclusions = () => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { backupExclusions: string[][] } }).__hearthStandaloneTest.backupExclusions);
+  expect(await exclusions()).toContainEqual(folders);
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  const before = (await exclusions()).length;
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  // The staging and aside folders were removed and recreated: excluded again.
+  expect((await exclusions()).length).toBeGreaterThan(before);
+  expect((await exclusions()).at(-1)).toEqual(folders);
 });
 
 test("standalone Help says the data lives only on this phone and links to the backup steps (#492)", async ({ page }) => {
@@ -2172,7 +2261,9 @@ async function crashRestoreAt(page: ShellPage, crash: { rename?: number; commit?
   let left: CrashSnapshot = await snapshot();
   await expect.poll(async () => {
     left = await snapshot();
-    return left.done || (crash.commit ? left.rows.schema_metadata.length > 0 : left.renames >= target);
+    // schema_metadata also holds other keys (the schema version, #491's
+    // Start fresh): only the restore's marker means it committed.
+    return left.done || (crash.commit ? left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id") : left.renames >= target);
   }).toBe(true);
   if (left.done) return { reached: false };
   const committed = left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id");
