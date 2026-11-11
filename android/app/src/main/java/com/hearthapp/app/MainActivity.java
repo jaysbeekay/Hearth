@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Register before super.onCreate() calls load()
+        registerPlugin(SecureClipboardPlugin.class);
         registerPlugin(ServerConfigPlugin.class);
         registerPlugin(HearthScanPlugin.class);
 

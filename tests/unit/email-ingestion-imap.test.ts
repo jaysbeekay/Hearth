@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 
 const { prisma, config } = vi.hoisted(() => ({
@@ -26,12 +27,12 @@ vi.mock("@/lib/documents/inboxIntake", () => ({ computeInboxIntake: vi.fn().mock
 
 import { runEmailIngestion, type EmailIngestionClient } from "@/lib/emailIngestion/scheduler";
 
-function fakeClient(messages: Buffer[]): EmailIngestionClient {
+function fakeClient(messages: Buffer[], asStream = false): EmailIngestionClient {
   return {
     connect: vi.fn().mockResolvedValue(undefined),
     getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }),
     search: vi.fn().mockResolvedValue(messages.map((_, i) => i + 1)),
-    download: vi.fn().mockImplementation(async (uid: number) => ({ content: messages[uid - 1] })),
+    download: vi.fn().mockImplementation(async (uid: number) => ({ content: asStream ? Readable.from([messages[uid - 1]]) : messages[uid - 1] })),
     messageFlagsAdd: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     close: vi.fn(),
@@ -53,5 +54,16 @@ describe("email ingestion IMAP seam", () => {
     expect(client.messageFlagsAdd).toHaveBeenCalledTimes(2);
     expect(prisma.inboxDocument.create).toHaveBeenCalledTimes(1);
     expect(prisma.processedEmailMessage.create).toHaveBeenCalledTimes(2);
+  });
+
+  // imapflow's download() hands back a Readable, not a Buffer (v2 types say so).
+  it("parses a message delivered as a stream, as imapflow does", async () => {
+    vi.clearAllMocks();
+    const message = Buffer.from(
+      "From: sender@example.com\r\nMessage-ID: <fixture-stream>\r\nContent-Type: multipart/mixed; boundary=abc\r\n\r\n--abc\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=receipt.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\ndGRl\r\n--abc--\r\n",
+    );
+    const result = await runEmailIngestion(() => fakeClient([message], true));
+    expect(result.ingested).toBe(1);
+    expect(prisma.inboxDocument.create).toHaveBeenCalledTimes(1);
   });
 });

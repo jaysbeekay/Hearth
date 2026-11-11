@@ -77,7 +77,7 @@ export function ConfirmForm({
             if (undo.href) router.push(undo.href);
             else router.refresh();
           } catch {
-            showToast("Couldn't restore it — find it in Settings → Household → Recently deleted.", "error");
+            showToast("Couldn't restore it — find it in Household settings → Recently deleted.", "error");
           }
         },
       },
@@ -115,7 +115,7 @@ export function ConfirmForm({
             type="button"
             disabled={pending}
             onClick={close}
-            className={`${buttonClass("secondary")} disabled:opacity-50`}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>
@@ -189,7 +189,7 @@ export function ConfirmForm({
 }
 
 // A confirmation that already explains the household-wide effect doesn't need
-// the generic note; a "Settings → Household → …" path doesn't count as one.
+// the generic note; a "Household settings → …" path doesn't count as one.
 function mentionsHousehold(text: string): boolean {
-  return /household/i.test(text.replaceAll("Settings → Household", ""));
+  return /household/i.test(text.replaceAll("Household settings", ""));
 }

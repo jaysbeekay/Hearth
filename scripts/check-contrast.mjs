@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Contrast check for the colour tokens in src/app/globals.css (#408).
+// Contrast check for the colour tokens in src/app/globals.css (#408) and the
+// phone shell's ios-shell/www/style.css (#616), which takes the same values.
 //
 // Parses the light (`:root`) and dark (`prefers-color-scheme: dark`) token
 // blocks and checks every text pairing the UI uses against WCAG 2.x:
@@ -10,7 +11,14 @@
 //     over both surface and background: >= 4.5:1
 //   - text tokens on the solid hover-surface: >= 4.5:1
 //   - accent-foreground on accent, danger-foreground on danger: >= 4.5:1
-//   - borders against background and surface: >= 1.4:1 (non-text, visible)
+//   - decorative borders against background and surface: >= 1.4:1 (visible)
+//   - control borders (inputs, secondary buttons, chips) against background
+//     and surface: >= 3:1 (WCAG 1.4.11, #558)
+//   - a secondary button on a warning/danger tinted card: the control border
+//     against the button's surface fill: >= 3:1 (#630)
+
+//   - control borders against the warning and danger 10% tints that banners
+//     and tinted cards use, over both surface and background: >= 3:1 (#640)
 //
 // Run directly (`node scripts/check-contrast.mjs`) for a table, or through
 // `npm run test:unit` (tests/unit/contrast.test.ts), which fails on any miss.
@@ -21,11 +29,14 @@ import path from "node:path";
 
 const TEXT_MIN = 4.5;
 const BORDER_MIN = 1.4;
+const CONTROL_BORDER_MIN = 3;
 const TINT_ALPHA = 0.1;
 
 const TEXT_TOKENS = ["foreground", "muted", "accent", "danger", "warning", "success"];
 const SEMANTIC_TOKENS = ["muted", "accent", "danger", "warning", "success"];
 const GROUNDS = ["background", "surface"];
+// The tints that banners and tinted cards use behind controls (#640).
+const CONTROL_TINT_TOKENS = ["warning", "danger"];
 
 function hexToRgb(hex) {
   const h = hex.replace("#", "");
@@ -157,22 +168,52 @@ export function checkContrast(css) {
     add("danger-foreground on danger", contrast(need("danger-foreground"), need("danger")), TEXT_MIN);
     for (const ground of GROUNDS) {
       add(`border on ${ground}`, contrast(need("border"), need(ground)), BORDER_MIN);
+      add(`border-control on ${ground}`, contrast(need("border-control"), need(ground)), CONTROL_BORDER_MIN);
+      // A control (input, secondary button, chip) sitting inside a warning or
+      // danger banner or tinted card: its border is the visible edge against
+      // the tint, not against the plain ground (#640).
+      for (const tone of CONTROL_TINT_TOKENS) {
+        const tint = mix(need(tone), need(ground), TINT_ALPHA);
+        add(`border-control on ${tone}/10 over ${ground}`, contrast(need("border-control"), tint), CONTROL_BORDER_MIN);
+      }
+    }
+    // A secondary button on a warning or danger card (#630). Against the
+    // card's 10% tint the control border falls just under 3:1 in places, so
+    // the phone shell fills such a button with surface: the border has to
+    // clear 3:1 against that fill, and the fill is what sits on the tint.
+    for (const tone of ["warning", "danger"]) {
+      for (const ground of GROUNDS) {
+        add(
+          `border-control on a surface-filled control on ${tone}/10 over ${ground}`,
+          contrast(need("border-control"), need("surface")),
+          CONTROL_BORDER_MIN,
+        );
+      }
     }
   }
   return rows;
 }
 
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 export function readGlobalsCss() {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return readFileSync(path.join(here, "..", "src", "app", "globals.css"), "utf8");
+  return readFileSync(path.join(ROOT, "src", "app", "globals.css"), "utf8");
+}
+
+/** The phone shell's stylesheet, whose tokens mirror globals.css (#616). */
+export function readShellCss() {
+  return readFileSync(path.join(ROOT, "ios-shell", "www", "style.css"), "utf8");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const rows = checkContrast(readGlobalsCss());
+  const rows = [
+    ...checkContrast(readGlobalsCss()).map((r) => ({ ...r, source: "web" })),
+    ...checkContrast(readShellCss()).map((r) => ({ ...r, source: "shell" })),
+  ];
   const width = Math.max(...rows.map((r) => r.pair.length));
   for (const r of rows) {
     console.log(
-      `${r.pass ? "ok  " : "FAIL"} ${r.theme.padEnd(5)} ${r.pair.padEnd(width)} ${r.ratio.toFixed(2).padStart(5)}:1 (min ${r.min})`,
+      `${r.pass ? "ok  " : "FAIL"} ${r.source.padEnd(5)} ${r.theme.padEnd(5)} ${r.pair.padEnd(width)} ${r.ratio.toFixed(2).padStart(5)}:1 (min ${r.min})`,
     );
   }
   const failed = rows.filter((r) => !r.pass);

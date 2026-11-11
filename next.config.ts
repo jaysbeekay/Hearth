@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import withSerwistInit from "@serwist/next";
 
 const withSerwist = withSerwistInit({
@@ -7,7 +9,27 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV === "development",
 });
 
+// The account menu's "Version" row: package.json's version, bumped on every
+// release, and the commit the build came from. Docker builds have no .git
+// (.dockerignore), so the publish workflow passes the commit in as the
+// GIT_SHA build arg; elsewhere git is asked, and a build with neither just
+// shows the version.
+function buildCommit(): string {
+  if (process.env.GIT_SHA) return process.env.GIT_SHA.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short=7 HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+    NEXT_PUBLIC_APP_COMMIT: buildCommit(),
+  },
   output: "standalone",
   // The dev-mode build indicator (bottom-left badge) has no purpose in a
   // household-admin UI and previously leaked into published screenshots,

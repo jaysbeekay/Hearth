@@ -83,3 +83,63 @@ test("XSS-shaped input is escaped, not executed", async ({ page }) => {
   expect(await page.content()).not.toContain("<script>alert(1)</script>");
   expect(dialogFired).toBe(false);
 });
+
+test("a field's hint and its error are both linked to the control, error first", async ({ page }) => {
+  // #615 — the SMTP From address has a hint, and the save action names it
+  // when the address is refused.
+  await page.goto("/settings/reminders");
+  const from = page.locator("#smtpFrom");
+  const hint = page.locator("#smtpFrom-hint");
+  await expect(hint).toHaveText("Blank sends as the username, if it's an email address");
+  await expect(from).toHaveAttribute("aria-describedby", "smtpFrom-hint");
+  await expect(from).toHaveAccessibleDescription("Blank sends as the username, if it's an email address");
+  // A field without a hint references nothing.
+  await expect(page.locator("#smtpHost")).not.toHaveAttribute("aria-describedby", /./);
+
+  await from.fill("no-reply@localhost");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  const fromField = page.locator("[data-field]", { has: from });
+  const alert = fromField.getByRole("alert");
+  await expect(alert).toContainText("real domain");
+  await expect(alert).toHaveText(/^Error: /);
+  await expect(from).toHaveAttribute("aria-invalid", "true");
+  const errorId = await alert.getAttribute("id");
+  expect(errorId).toBeTruthy();
+  await expect(from).toHaveAttribute("aria-describedby", `${errorId} smtpFrom-hint`);
+  await expect(from).toHaveAccessibleDescription(/^Error: .*real domain.*Blank sends as the username/);
+
+  // Fixed and saved: the error's id and aria-invalid go, the hint's stays.
+  // (Clearing the field would match the last save, and Save changes would
+  // skip the form, so a valid address is saved, then cleared again.)
+  const save = page.getByRole("button", { name: "Save changes" });
+  const status = page.getByRole("region", { name: "Unsaved changes" });
+  await from.fill("Hearth <hearth@example.com>");
+  await save.click();
+  await expect(status).toContainText("No unsaved changes.");
+  await expect(page.getByRole("alert").filter({ hasText: "real domain" })).toHaveCount(0);
+  await expect(from).toHaveAttribute("aria-describedby", "smtpFrom-hint");
+  await expect(from).not.toHaveAttribute("aria-invalid", /./);
+  await from.fill("");
+  await save.click();
+  await expect(status).toContainText("No unsaved changes.");
+});
+
+test("a hint that comes and goes adds and removes its id on the control", async ({ page }) => {
+  // #615 — the contract form's billing-frequency hint shows only while a cost
+  // is set without a frequency.
+  await page.goto("/contracts/new");
+  const frequency = page.locator("#billingFrequency");
+  const hint = page.locator("#billingFrequency-hint");
+  await expect(hint).toHaveCount(0);
+  await expect(frequency).not.toHaveAttribute("aria-describedby", /./);
+
+  // A cost defaults the frequency to Monthly; choosing "Not set" shows the hint.
+  await page.locator("#cost").fill("50");
+  await frequency.selectOption("");
+  await expect(hint).toContainText("won't count toward the dashboard");
+  await expect(frequency).toHaveAttribute("aria-describedby", "billingFrequency-hint");
+
+  await frequency.selectOption("MONTHLY");
+  await expect(hint).toHaveCount(0);
+  await expect(frequency).not.toHaveAttribute("aria-describedby", /./);
+});

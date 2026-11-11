@@ -49,7 +49,7 @@ const KIND_LABELS: Record<string, string> = {
   RENTAL_STATEMENT: "a rental statement",
   HOME_ITEM: "a maintenance record",
   VEHICLE_ITEM: "a service record",
-  INVENTORY_ITEM: "an inventory item",
+  INVENTORY_ITEM: "an item",
   TRADE: "a wealth trade",
   INBOX: "another unfiled document",
 };
@@ -73,7 +73,7 @@ const KIND_LABEL_MAP = new Map<string, string>(Object.entries(KIND_LABELS));
 const GUESSED_TYPE_LABELS = new Map<string, string>([
   ["CONTRACT", "contract"],
   ["PRODUCT", "product"],
-  ["INVENTORY", "inventory item"],
+  ["INVENTORY", "item"],
 ]);
 
 function ReadOnlyInboxList({ docs }: { docs: InboxDocSummary[] }) {
@@ -621,7 +621,7 @@ export function InboxReviewClient({
                 >
                   <option value="CONTRACT">Contract</option>
                   <option value="PRODUCT">Warranty</option>
-                  {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                  {inventoryEnabled && <option value="INVENTORY">Item</option>}
                 </select>
                 <button
                   type="button"

@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BellRing,
+  Coins,
   DatabaseBackup,
+  Globe,
   History,
   Inbox,
   LayoutGrid,
@@ -40,11 +42,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { describeSchedule } from "@/lib/cronSchedule";
 import { TRASH_RETENTION_DAYS } from "@/lib/trash";
 import { SETTINGS_ROUTES, type SettingsRoute } from "@/lib/routeLabels";
-import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
-import { Card } from "@/components/ui/Card";
-import { Pill } from "@/components/ui/Pill";
-import { cardClass } from "@/lib/ui";
+import { SettingsDisclosure, SettingsLinkRow, SettingsRowList } from "@/components/SettingsRows";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
@@ -57,11 +56,8 @@ interface Section {
   adminOnly: boolean;
 }
 
-// min-h-11 (44px) keeps each row comfortably tappable on mobile.
-const rowClass = "flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm font-medium";
-
-// #363 — the Household tab: everything shared by the household, in one
-// list. It replaces the old "Household & System" hub and the long "System
+// #363 — Household settings: everything shared by the household, in one
+// list (its own screen and nav entry since the My account split). It replaces the old "Household & System" hub and the long "System
 // settings" page, which is split into the sections below. Members see the
 // whole list so they know what exists; the admin-only sections are greyed.
 export default async function HouseholdSettingsPage() {
@@ -160,7 +156,7 @@ export default async function HouseholdSettingsPage() {
     {
       route: SETTINGS_ROUTES.security,
       icon: History,
-      summary: "Sign-ins and account changes",
+      summary: "Sign-ins, account changes and auto-fill confirmations",
       adminOnly: true,
     },
     {
@@ -171,104 +167,97 @@ export default async function HouseholdSettingsPage() {
     },
   ];
 
+  const linkRows = sections.map(({ route, icon, summary, adminOnly }) => (
+    <SettingsLinkRow
+      key={route.href}
+      href={route.href}
+      icon={icon}
+      label={route.label}
+      summary={summary}
+      locked={adminOnly && !isAdmin}
+    />
+  ));
+
   return (
     <PageShell width="form">
-      <h1 className="text-2xl font-medium">Settings</h1>
-      <SettingsTabs active="household" />
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.household.label}</h1>
       <p className="text-sm text-muted">
-        Settings shared by the whole household.
+        Settings shared by the whole household. Your own sign-in, notifications and preferences are in{" "}
+        <Link href={SETTINGS_ROUTES.settings.href} className="underline">
+          {SETTINGS_ROUTES.settings.label}
+        </Link>
+        .
         {!isAdmin && " Only an admin can change the greyed-out sections."}
       </p>
 
-      <ul className="flex flex-col gap-2">
-        {sections.map(({ route, icon: Icon, summary, adminOnly }) => {
-          const label = (
-            <span className="flex items-center gap-3">
-              <Icon size={20} aria-hidden />
-              {route.label}
-            </span>
-          );
-          return (
-            <li key={route.href}>
-              {adminOnly && !isAdmin ? (
-                <div
-                  aria-disabled="true"
-                  className={cardClass({ padding: "none" }, `${rowClass} text-muted opacity-60`)}
-                >
-                  {label}
-                  <Pill>Admin only</Pill>
-                </div>
-              ) : (
-                <Link href={route.href} className={cardClass({ padding: "none", interactive: true }, rowClass)}>
-                  {label}
-                  <span className="min-w-0 truncate text-right text-xs font-normal text-muted">{summary}</span>
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
+      {/* One list: the rows that open their own page, then timezone and
+          currency, which drop down in place like the rows on My account. */}
       {isAdmin ? (
         <SaveChangesGroup>
-          <Card as="section" className="space-y-4">
-            <TimeZoneHeading />
-            <HouseholdTimeZoneForm
-              action={saveHouseholdTimeZone}
-              current={savedTimeZone}
-              serverDefault={getServerDefaultTimeZone()}
-              choices={householdTimeZoneChoices(savedTimeZone)}
-            />
-          </Card>
-          <Card as="section" className="space-y-4">
-            <CurrencyHeading />
-            <HouseholdCurrencyForm
-              action={saveHouseholdCurrency}
-              current={isCurrencyCode(savedCurrency) ? savedCurrency.toUpperCase() : ""}
-              fallback={currencyFallback}
-            />
-          </Card>
+          <SettingsRowList>
+            {linkRows}
+            <SettingsDisclosure id="timezone" icon={Globe} label="Household timezone" summary={householdTimeZone}>
+              <div className="space-y-4">
+                <TimeZoneHint />
+                <HouseholdTimeZoneForm
+                  action={saveHouseholdTimeZone}
+                  current={savedTimeZone}
+                  serverDefault={getServerDefaultTimeZone()}
+                  choices={householdTimeZoneChoices(savedTimeZone)}
+                />
+              </div>
+            </SettingsDisclosure>
+            <SettingsDisclosure id="currency" icon={Coins} label="Household currency" summary={householdCurrency}>
+              <div className="space-y-4">
+                <CurrencyHint />
+                <HouseholdCurrencyForm
+                  action={saveHouseholdCurrency}
+                  current={isCurrencyCode(savedCurrency) ? savedCurrency.toUpperCase() : ""}
+                  fallback={currencyFallback}
+                />
+              </div>
+            </SettingsDisclosure>
+          </SettingsRowList>
         </SaveChangesGroup>
       ) : (
-        <>
-          <Card as="section" className="space-y-4">
-            <TimeZoneHeading />
-            <p className="text-sm">
-              {householdTimeZone}. <span className="text-muted">Only an admin can change it.</span>
-            </p>
-          </Card>
-          <Card as="section" className="space-y-4">
-            <CurrencyHeading />
-            <p className="text-sm">
-              {currencyLabel(householdCurrency)}. <span className="text-muted">Only an admin can change it.</span>
-            </p>
-          </Card>
-        </>
+        <SettingsRowList>
+          {linkRows}
+          <SettingsDisclosure id="timezone" icon={Globe} label="Household timezone" summary={householdTimeZone}>
+            <div className="space-y-2">
+              <TimeZoneHint />
+              <p className="text-sm">
+                {householdTimeZone}. <span className="text-muted">Only an admin can change it.</span>
+              </p>
+            </div>
+          </SettingsDisclosure>
+          <SettingsDisclosure id="currency" icon={Coins} label="Household currency" summary={householdCurrency}>
+            <div className="space-y-2">
+              <CurrencyHint />
+              <p className="text-sm">
+                {currencyLabel(householdCurrency)}. <span className="text-muted">Only an admin can change it.</span>
+              </p>
+            </div>
+          </SettingsDisclosure>
+        </SettingsRowList>
       )}
     </PageShell>
   );
 }
 
-function TimeZoneHeading() {
+function TimeZoneHint() {
   return (
-    <div>
-      <h2 className="font-medium">Household timezone</h2>
-      <p className="text-xs text-muted mt-0.5">
-        Reminders and due dates will use this timezone, so every member counts days the same way.
-        Each member&apos;s own timezone only changes how times are shown to them.
-      </p>
-    </div>
+    <p className="text-xs text-muted">
+      Reminders and due dates will use this timezone, so every member counts days the same way.
+      Each member&apos;s own timezone only changes how times are shown to them.
+    </p>
   );
 }
 
-function CurrencyHeading() {
+function CurrencyHint() {
   return (
-    <div>
-      <h2 className="font-medium">Household currency</h2>
-      <p className="text-xs text-muted mt-0.5">
-        Spend totals for the whole household, such as the MCP spend summary, use this currency, and new members
-        start with it. Each member can still pick their own currency in My account.
-      </p>
-    </div>
+    <p className="text-xs text-muted">
+      Spend totals for the whole household, such as the MCP spend summary, use this currency, and new members
+      start with it. Each member can still pick their own currency in My account.
+    </p>
   );
 }

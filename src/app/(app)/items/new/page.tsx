@@ -8,6 +8,9 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 import { createCatalogItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Add Item" };
 
 export default async function NewItemPage() {
   if (process.env.ITEMS_PREVIEW !== "1" || !(await itemCutoverReadiness()).ready) redirect("/products");
