@@ -248,7 +248,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className={sectionHeadingClass()}>Inventory items</h2>
+              <h2 className={sectionHeadingClass()}>Items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -265,7 +265,7 @@ export function ProductListClient({
           </div>
           {inventoryItems.length === 0 ? (
             <p className={emptyStateClass()}>
-              No inventory items yet.
+              No items yet.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

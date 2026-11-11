@@ -23,7 +23,7 @@ import { buttonClass, menuItemClass, sectionHeadingClass, proseClass } from "@/l
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
-export const metadata: Metadata = { title: "Inventory Item" };
+export const metadata: Metadata = { title: "Item" };
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",

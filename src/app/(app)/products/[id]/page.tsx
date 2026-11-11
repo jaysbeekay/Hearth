@@ -233,7 +233,7 @@ export default async function ProductDetailPage({
                 <Package size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{invItem.label}</span>
-                  <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
+                  <span className="block text-xs text-muted">Item — warranty registered here</span>
                 </span>
               </Link>
             ))}

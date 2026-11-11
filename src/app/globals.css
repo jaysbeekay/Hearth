@@ -15,8 +15,9 @@
   /* Decorative lines: card edges, dividers. */
   --border: #cfccc6;
   /* The edge of a control (input, select, textarea, secondary button, chip):
-     >=3:1 on background and surface (WCAG 1.4.11, #558). */
-  --border-control: #8a8780;
+     >=3:1 on background and surface (WCAG 1.4.11, #558), and on the warning
+     and danger 10% tints behind controls in banners and tinted cards (#640). */
+  --border-control: #84827b;
   --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   /* Solid hover for controls on a filled surface that float over content or
      a tint, where the translucent --hover would let what's behind show through. */
@@ -60,7 +61,7 @@
     --muted: #a3a19c;
     --surface: #1d1d1c;
     --border: #45443f;
-    --border-control: #6e6c67;
+    --border-control: #777671;
     --accent: #7eaaf2;
     --accent-foreground: #141414;
     --success: #5fc48a;

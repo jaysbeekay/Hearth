@@ -43,6 +43,33 @@ Don't add the issue to the project board manually — "Auto-add to project" and
 "Item added to project → set Status" board workflows handle that automatically
 on creation.
 
+## Gatekeeper reviews
+
+Gatekeeper (`thebotkeeper[bot]`, see `docs/gatekeeper.md`) is meant to review
+automatically: a new issue gets a QA Review, a **draft PR** gets a light-touch
+PR review, and marking a PR **ready** gets a full PR review. That depends on
+Hermes being set up for this repository, which `docs/gatekeeper.md` says has
+not been verified yet. Until a review has actually landed on a Hearth PR,
+don't wait for one: `@codebot` is the only request that has a workflow behind
+it.
+
+CI is separate from the reviews. It runs when a PR is opened or pushed to,
+not on new issues or when a draft is marked ready, so check its result on the
+PR's head commit yourself.
+
+- At each gate, wait until the review has landed **and** every CI check on the
+  head commit has completed before fixing anything. Don't fix findings or CI
+  failures piecemeal as they arrive.
+- Validate every finding against the current code and head commit, then fix it
+  or decline it with evidence. Reply on the PR or issue citing the review's
+  comment id, so it counts as answered.
+- Classify feedback by content, not by author: Gatekeeper, CodeRabbit and other
+  bots post alongside the owner's own comments.
+- The owner can lift a wait with an override in their own words that names the
+  issue or PR. It lifts only the wait it names.
+- A green, reviewed PR is not an approved one. Merge only with the owner's
+  explicit approval.
+
 ## What this is
 
 Hearth is a self-hostable household management app (contracts/warranties, and opt-in
@@ -249,6 +276,15 @@ unit test reaches (layout, Safari, Docker, time zones), so the rules aim there f
   agent, not the author) reviews it; its findings and their fixes go with the PR.
   Never merge, or push to `main`, without the maintainer's explicit go-ahead for that
   PR.
+- **Automated reviews**: two bots review each PR, at different stages.
+  - **Hermes reviews the draft, once.** Opening a PR as a draft (or converting it back
+    to draft) starts one adversarial review, posted as a single PR comment. It counts as
+    the independent review above. Fix its findings while the PR is still a draft.
+  - **One Hermes review per PR, ever.** Later pushes, and going back to draft, do not
+    start another. Ask the maintainer for a manual re-review if the PR changed a lot
+    after it.
+  - **Codex reviews when the PR is marked ready.** Hermes does not review ready PRs.
+  - Only PRs from the owner, members and collaborators are reviewed automatically.
 - **No AI-tool attribution** on commits, PRs, issues or comments: no `Co-Authored-By`
   for an AI, no session links, no "Generated with ..." footers. This wins over any tool
   default that adds them. The one exception is the requester header the project
@@ -352,7 +388,7 @@ The reviewer checks the evidence (CI runs, test names), not the ticks.
 - [ ] Mobile shell parity considered (`ios-shell/www/app.js`) for cross-cutting changes
 - [ ] Screenshots regenerated if the UI changed (see Screenshots)
 - [ ] CHANGELOG `[Unreleased]` updated for user-visible changes
-- [ ] Draft PR, ~500 lines or fewer, independent review done, no AI attribution
+- [ ] Draft PR, ~500 lines or fewer, independent (Hermes draft) review done and findings addressed, no AI attribution
 ```
 
 # This is NOT the Next.js you know

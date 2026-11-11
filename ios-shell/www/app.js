@@ -1004,7 +1004,7 @@ function typeLabel(type) {
     home_item: "Maintenance record",
     rental_agreement: "Tenancy",
     rental_statement: "Rental statement",
-    inventory_item: "Inventory item",
+    inventory_item: "Item",
     trip: "Trip",
     trip_segment: "Trip segment",
     portfolio: "Portfolio",
@@ -3337,7 +3337,7 @@ function renderLinkedInventoryItems(productId) {
         <h2>Linked inventory</h2>
       </div>
       <div class="list">
-        ${items.length === 0 ? empty("No inventory items linked", "Pick this warranty from an inventory item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
+        ${items.length === 0 ? empty("No items linked", "Pick this warranty from an item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
       </div>
     </section>
   `;
