@@ -37,9 +37,10 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass, inlineLinkClass, sectionHeadingClass, proseClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
+import { recordMetadata, detailTitle } from "@/lib/recordTitles";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -49,6 +50,12 @@ const ITEM_ICONS: Record<string, LucideIcon> = {
   PURCHASE: Receipt,
   OTHER: Tag,
 };
+
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return recordMetadata("vehicle", id, detailTitle("vehicle"), "Vehicle");
+}
 
 export default async function VehicleDetailPage({
   params,
@@ -155,7 +162,7 @@ export default async function VehicleDetailPage({
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Household settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
                 >
@@ -264,7 +271,7 @@ export default async function VehicleDetailPage({
           </p>
         )}
         {vehicle.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
+          <p className={proseClass("mt-4 whitespace-pre-wrap")}>{vehicle.notes}</p>
         )}
       </Card>
 
@@ -292,7 +299,7 @@ export default async function VehicleDetailPage({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Contracts and warranties linked to this vehicle</h2>
+          <h2 className={sectionHeadingClass()}>Contracts and warranties linked to this vehicle</h2>
           {canWrite && (
             <div className="flex flex-wrap items-center gap-2">
               {/* #456 - shortcuts for the two things a contract can Cover; each
@@ -340,7 +347,7 @@ export default async function VehicleDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Service records</h2>
+          <h2 className={sectionHeadingClass()}>Service records</h2>
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
@@ -391,7 +398,7 @@ export default async function VehicleDetailPage({
                             <ConfirmForm
                               action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                               undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -412,7 +419,7 @@ export default async function VehicleDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
+                    <p className={proseClass("mt-4 whitespace-pre-wrap")}>
                       {item.notes}
                     </p>
                   )}
@@ -424,7 +431,7 @@ export default async function VehicleDetailPage({
                         {canWrite && <AddDocumentButton action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} recordName={item.title} />}
                       </div>
                       {item.documents.length > 0 && (
-                        <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+                        <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} ownerName={item.title} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                       )}
                     </div>
                   )}

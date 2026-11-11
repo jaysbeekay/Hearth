@@ -13,12 +13,17 @@ export function DocumentPreviewButton({
   href,
   filename,
   mimeType,
+  typeLabel,
+  ownerName,
 }: {
   /** For the modal's Share (#374). */
   documentId?: string;
   href: string;
   filename: string;
   mimeType: string;
+  /** For the preview image's alt text (#617). */
+  typeLabel?: string | null;
+  ownerName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   if (!isPreviewable(mimeType)) return null;
@@ -36,7 +41,7 @@ export function DocumentPreviewButton({
       </button>
       {open && (
         <DocumentPreviewModal
-          doc={{ id: documentId, filename, mimeType, downloadHref: href }}
+          doc={{ id: documentId, filename, mimeType, downloadHref: href, typeLabel, ownerName }}
           onClose={() => {
             setOpen(false);
           }}

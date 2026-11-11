@@ -141,10 +141,10 @@ test.describe.serial("Completeness filters", () => {
 
   test("Warranties list hides Inventory items while a filter is on", async ({ page }) => {
     await page.goto("/products");
-    await expect(page.getByRole("heading", { name: "Inventory items" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Items", exact: true })).toBeVisible();
     await page.goto("/products?missing=details");
     await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("heading", { name: "Inventory items" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Items", exact: true })).toHaveCount(0);
   });
 
   test("Vehicles: Missing key details means no VIN and no plate", async ({ page }) => {

@@ -62,7 +62,7 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
       {items.length === 0 ? (
         pendingOps.length === 0 && (
           <p className={emptyStateClass()}>
-            No items yet. Add your first inventory item to start cataloguing your household.
+            No items yet. Add your first item to start cataloguing your household.
           </p>
         )
       ) : (

@@ -8,6 +8,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { sectionHeadingClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.passkeys.label };
 
@@ -36,7 +37,7 @@ export default async function PasskeysPage() {
       </div>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Your passkeys</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Your passkeys</h2>
         {passkeys.length === 0 ? (
           <p className="text-sm text-muted">No passkeys registered yet.</p>
         ) : (
@@ -55,7 +56,7 @@ export default async function PasskeysPage() {
       </Card>
 
       <Card as="section">
-        <h2 className="mb-3 font-medium">Register a new passkey</h2>
+        <h2 className={sectionHeadingClass("mb-3")}>Register a new passkey</h2>
         <p className="mb-4 text-sm text-muted">
           Give it an optional nickname so you can identify it later (e.g. &quot;iPhone 16 Face ID&quot;).
         </p>

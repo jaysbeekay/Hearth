@@ -21,7 +21,7 @@ const DESTINATIONS: Record<"S3" | "SFTP" | "LOCAL", Destination> = {
 };
 
 // Exactly one destination is active at a time — the admin's explicit choice
-// from Settings → Household → Backups, not "every destination with credentials saved".
+// from Household settings → Backups, not "every destination with credentials saved".
 export async function runBackup(): Promise<{ attempted: number; succeeded: number; failed: number }> {
   if (!(await isBackupConfigured())) {
     return { attempted: 0, succeeded: 0, failed: 0 };

@@ -83,7 +83,7 @@ test("renewing from Needs attention keeps the old Term and restarts Reminders", 
   const newEnd = addDays(newStart, 105);
   await expect(page.locator("#startDate")).toHaveValue(newStart);
   await expect(page.locator("#endDate")).toHaveValue(newEnd);
-  await expect(page.locator("#cost")).toHaveValue("1000");
+  await expect(page.locator("#cost")).toHaveValue("1000.00");
   await page.locator("#cost").fill("1120");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(contractUrl);

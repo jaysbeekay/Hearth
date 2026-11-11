@@ -90,6 +90,10 @@ export const RATE_LIMITS = {
   // proxy a client can rotate X-Forwarded-For past mcpAuth, so this keeps a
   // wrong-token flood from writing unbounded rows and burying the log.
   mcpAuthLog: { limit: 30, windowMs: 15 * 60_000 },
+  // Security-log rows for password reset requests, across all addresses, for
+  // the same reason: anyone can ask for a reset without signing in, and
+  // unbounded rows would push real sign-in failures off the log.
+  passwordResetLog: { limit: 30, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

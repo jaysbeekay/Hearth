@@ -13,7 +13,7 @@ export function UnconfiguredNotice({
 }) {
   return (
     <Banner tone="warning" className="flex items-start gap-2">
-      <KeyRound size={16} className="mt-0.5 shrink-0" aria-hidden />
+      <KeyRound size={16} className="mt-1 shrink-0" aria-hidden />
       <p>
         Set <code className="font-mono">{envVar}</code> on the server to enable{" "}
         {feature}.
