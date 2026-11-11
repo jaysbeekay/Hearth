@@ -19,6 +19,30 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   still go; if the app's storage can't remember they're on, "Notify this
   phone" says so instead of scheduling ones nothing would keep current.
 
+- **Encrypted backup and restore for the standalone mobile app (#226).**
+  Settings → Back up this phone exports an encrypted `.hearthbackup` file,
+  protected by a password the user picks (at least 12 characters; PBKDF2-SHA256
+  then AES-256-GCM, done on the device), and opens the share sheet to save it
+  to Files, iCloud Drive, Google Drive or anywhere else (`@capacitor/share`).
+  Before the backup is made, the new password is shown once, with a Copy
+  button, so it can be saved in a password manager: a lost password cannot be
+  reset. If sharing is cancelled or fails, "Try again" makes the backup with
+  the same password; only a backup that was shared counts as the last backup.
+  Restore decrypts and checks the whole backup before changing
+  anything, then either replaces everything on the phone or merges (keeping
+  records edited more recently on the phone, and the phone's copy when both
+  are the same), in one database transaction,
+  and reschedules device reminders. Document files are swapped in under a
+  journal written before anything moves, so a failed or interrupted restore
+  (the app killed, the phone dying) is rolled back or finished at the next
+  launch and never leaves records and files out of step. Module and reminder
+  settings travel with the backup. A backup from a newer app version is
+  refused rather than half-restored. The dashboard asks for a backup until
+  there is one less than 30 days old. Older unencrypted JSON backups still
+  restore, and unencrypted backups an older version left on the phone are
+  listed with a Delete button (never deleted automatically). The format is
+  written a record at a time, so large document libraries no longer have to
+  fit in memory at once.
 - **Item filter rules (#380).** The record-filters module learns the merged
   Item record's rules ahead of the Items cutover: an Item is missing key
   details when it has neither serial nor barcode, or has a Warranty with no
@@ -195,6 +219,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   "Confirm all". On the dashboard, several such records share one Needs
   attention row that links there. Server-only; the iOS and Android shell is
   unchanged.
+
 - **Share a Document (#374).** Every Document row (on each record's page and
   in Documents) has Share beside Preview, and the preview gains Share and
   Download. Where the browser can share files (phones, some desktops) the
@@ -238,6 +263,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the Security tab, under the same `scout` check.
 
 ### Security
+
+- **Standalone mobile backups are no longer written in plain text to a
+  shared folder (#226).** The old export wrote every record and document,
+  unencrypted, to the Documents folder, which on Android is the public
+  Documents folder other apps can read. Backups are now encrypted and are
+  built in the app's private cache. The cache copy is deleted once the backup
+  is shared, cancelled or fails part-way; on Android, where the app it was
+  shared to may still be reading it, it is deleted at the next launch or
+  export an hour or more later. The backup password is masked when the app
+  goes to the background, and a copied password is cleared from the
+  clipboard after a minute, but only if the clipboard still holds it, so
+  something copied in another app since is left alone. On iOS the copied
+  password also never syncs to other devices through Universal Clipboard.
+  Backup files restored from outside the app are
+  validated, so a crafted file can't write outside the app's document folder.
 
 - **Docker Scout exception for musl CVE-2026-107891.** The fix (musl
   1.2.6-r6) is only in Alpine edge, so no rebuild on the v3.24 base can

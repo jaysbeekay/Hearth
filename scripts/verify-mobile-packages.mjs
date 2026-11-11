@@ -70,13 +70,14 @@ const requiredDependencies = [
   "@capacitor/local-notifications",
   "@capacitor/preferences",
   "@capacitor/network",
+  "@capacitor/share",
   "@revenuecat/purchases-capacitor",
 ];
 for (const dependency of requiredDependencies) {
   if (!packageJson.dependencies?.[dependency]) fail(`package.json missing ${dependency}`);
 }
 
-for (const file of ["app.js", "index.html", "style.css", "icon.svg"]) {
+for (const file of ["app.js", "backup-format.js", "index.html", "style.css", "icon.svg"]) {
   assertSameAsset(file);
 }
 
@@ -100,8 +101,9 @@ for (const marker of [
   "function renderDocumentVersionHistory",
   "function confirmDetails",
   "function recordReminderScheduleAttempt",
-  "function exportStandaloneBackup",
-  "function importStandaloneBackup",
+  "function writeEncryptedBackup",
+  "function restoreStandaloneBackup",
+  "const BackupFormat = window.HearthBackupFormat",
   "function renderMore()",
   "function renderHelp()",
   "function toggleStandaloneModule",
@@ -156,6 +158,7 @@ for (const plugin of [
   "Preferences",
   "Network",
   "Purchases",
+  "Share",
 ]) {
   assertIncludes(androidPlugins, plugin, "Android Capacitor plugins");
 }
@@ -236,7 +239,7 @@ const apkPath = join(root, "android/app/build/outputs/apk/debug/app-debug.apk");
 requireFile(apkPath);
 if (existsSync(apkPath)) {
   const apkEntries = commandOutput("unzip", ["-Z1", apkPath], "Inspect Android APK");
-  for (const asset of ["assets/public/app.js", "assets/public/index.html", "assets/public/style.css"]) {
+  for (const asset of ["assets/public/app.js", "assets/public/backup-format.js", "assets/public/index.html", "assets/public/style.css"]) {
     assertIncludes(apkEntries, asset, "Android APK");
   }
 }
@@ -254,7 +257,7 @@ const iosAppPath = iosAppCandidates.find((candidate) => existsSync(candidate));
 if (!iosAppPath) {
   fail("Missing built iOS simulator App.app bundle. Run the iOS debug build before this verifier.");
 } else {
-  for (const file of ["app.js", "index.html", "style.css"]) {
+  for (const file of ["app.js", "backup-format.js", "index.html", "style.css"]) {
     requireFile(join(iosAppPath, "public", file));
     assertEqual(sha(join(root, "ios-shell/www", file)), sha(join(iosAppPath, "public", file)), `iOS App.app public/${file}`);
   }
@@ -295,6 +298,6 @@ if (failures.length > 0) {
 }
 
 console.log("Mobile package verification passed.");
-console.log(`Verified assets: ${["app.js", "index.html", "style.css", "icon.svg"].map((file) => basename(file)).join(", ")}`);
+console.log(`Verified assets: ${["app.js", "backup-format.js", "index.html", "style.css", "icon.svg"].map((file) => basename(file)).join(", ")}`);
 console.log(`Verified Android APK: ${rel(apkPath)}`);
 console.log(`Verified iOS app: ${iosAppPath}`);
