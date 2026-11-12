@@ -121,7 +121,7 @@
     "prettier": "^3.9.10",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5",
+    "typescript": "^7",
     "vitest": "^5.0.3"
   }
 }
