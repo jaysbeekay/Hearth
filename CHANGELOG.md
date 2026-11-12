@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-12
+
 ### Added
 
 - **Reminders in the phone app (#375, part 3b).** The iOS/Android app
@@ -941,8 +943,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
   the latest release. `docker-publish.yml` runs the same checks before it
   pushes.
-
-### Fixed
 
 - **PDF export returned 500 in the Docker image (#523).** Every "Export
   PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
