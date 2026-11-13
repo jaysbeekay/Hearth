@@ -15,6 +15,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Docker migrate image. Dependabot no longer proposes TypeScript 7, which has
   no JavaScript API yet for Next, typescript-eslint or the unit tests to use.
 
+- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
+  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
+  didn't affect Hearth: it registers passkeys with `attestationType:
+  "none"`). Existing passkeys keep signing in with no migration; the stored
+  format is unchanged. New passkeys are offered the same algorithms as
+  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
+  advertises the same set. An npm `overrides` entry satisfies next-auth's
+  optional peer on 9.x, which only its unused WebAuthn provider needs.
+  Sign-in is also stricter: each challenge is used up by its first attempt,
+  whether that attempt succeeds or not, and the assertion's credential and
+  user handle must match the stored passkey. Registration accepts any of
+  the user's unexpired challenges, so adding a passkey in two tabs works,
+  and only known transports are stored.
+
+### Fixed
+
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+
 ## [0.21.0] - 2026-11-12
 
 ### Added

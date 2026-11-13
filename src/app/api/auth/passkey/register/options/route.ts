@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateRegistrationOptions } from "@simplewebauthn/server";
-import type { AuthenticatorTransportFuture } from "@simplewebauthn/types";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { clientAddress, consumeRateLimit } from "@/lib/rateLimit";
+import {
+  parseTransports,
+  SUPPORTED_ALGORITHM_IDS,
+  webAuthnUserId,
+} from "@/lib/passkeyCredential";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
@@ -38,17 +42,16 @@ export async function POST() {
   const options = await generateRegistrationOptions({
     rpName: "Hearth",
     rpID: rpId,
-    userID: user.id,
+    userID: webAuthnUserId(user.id),
     userName: user.email,
     userDisplayName: user.name,
     attestationType: "none",
     excludeCredentials: user.passkeys.map((pk) => ({
-      id: Buffer.from(pk.credentialId, "base64url"),
-      type: "public-key" as const,
-      transports: pk.transports
-        ? (JSON.parse(pk.transports) as AuthenticatorTransportFuture[])
-        : undefined,
+      id: pk.credentialId,
+      transports: parseTransports(pk.transports),
     })),
+    // Explicit, not 14.x's runtime default; see SUPPORTED_ALGORITHM_IDS.
+    supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
     authenticatorSelection: {
       residentKey: "preferred",
       userVerification: "preferred",
