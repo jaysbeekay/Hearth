@@ -7,6 +7,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Short release notes.** A GitHub Release now shows the short note from
+  `docs/releases/vX.Y.Z.md`, with a link to the full CHANGELOG section,
+  instead of the whole section and a list of every PR. Without a note,
+  `release.yml` warns and falls back to the old body (README → Releasing).
+
 ## [0.21.0] - 2026-11-12
 
 ### Added
