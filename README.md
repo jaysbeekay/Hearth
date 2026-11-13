@@ -1209,7 +1209,10 @@ To cut a release:
 1. Move the relevant entries from `## [Unreleased]` in `CHANGELOG.md` into a
    new `## [x.y.z] - YYYY-MM-DD` section (bump major for breaking changes,
    minor for features, patch for fixes), and bump `"version"` in
-   `package.json` to match. Merge this to `main`.
+   `package.json` to match. In the same PR, add a short release note at
+   `docs/releases/vx.y.z.md`: a few plain bullets for what's new, the main
+   fixes and anything a self-hoster must do when upgrading. Merge this to
+   `main`.
 2. Cut the tag, either:
    - locally: `git tag vx.y.z && git push origin vx.y.z`, or
    - from GitHub Actions: run `release.yml` manually (Actions → Create
@@ -1217,9 +1220,10 @@ To cut a release:
      `x.y.z`. This creates the tag for you, which is useful when a local
      push to the tag isn't possible (e.g. restricted environments).
 
-Cutting the tag creates `release.yml`'s GitHub Release, named `vx.y.z` with
-the body pulled from the matching `CHANGELOG.md` section so each release
-captures the functionality that shipped in it.
+Cutting the tag creates `release.yml`'s GitHub Release, named `vx.y.z`. Its
+body is the short note from `docs/releases/vx.y.z.md`, followed by a link to
+the full `CHANGELOG.md` section. If there is no note, the workflow warns and
+falls back to the whole CHANGELOG section plus GitHub's generated PR list.
 
 `docker-publish.yml` builds and pushes the image to Docker Hub as
 [`jaysbeekay/hearth`](https://hub.docker.com/r/jaysbeekay/hearth), tagged
