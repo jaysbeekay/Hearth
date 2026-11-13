@@ -1,4 +1,4 @@
-import webpush from "web-push";
+import * as webpush from "web-push";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encodeAppSetting } from "@/lib/appSettings";
