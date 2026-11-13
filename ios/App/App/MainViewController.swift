@@ -1,16 +1,17 @@
 import Capacitor
 import UIKit
 
-// ServerConfigPlugin is local to the app target (not an npm package), so it
-// isn't in capacitor.config.json's auto-registered packageClassList — it has
-// to be registered manually. capacitorDidLoad() is Capacitor's documented
-// hook for this: it runs after `bridge` exists but before the webview loads
-// its first URL.
+// ServerConfigPlugin and IntentsPlugin are local to the app target (not npm
+// packages), so they aren't in capacitor.config.json's auto-registered
+// packageClassList — they have to be registered manually. capacitorDidLoad()
+// is Capacitor's documented hook for this: it runs after `bridge` exists but
+// before the webview loads its first URL.
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SecureClipboardPlugin())
         bridge?.registerPluginInstance(ServerConfigPlugin())
         bridge?.registerPluginInstance(HearthScanPlugin())
+        bridge?.registerPluginInstance(IntentsPlugin())
     }
 
     // By default Capacitor opens any toplevel navigation to an external host

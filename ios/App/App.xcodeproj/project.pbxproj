@@ -21,6 +21,8 @@
 		91B01115B2F075138361265C /* ServerConfigPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */; };
 		F2E1D0C9B8A7F6E5D4C3B2A1 /* HearthScanPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* HearthScanPlugin.swift */; };
 		F1A7F22C6D96410880980A0C /* ClientCertManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C172A7CBF64699B175530DEF /* ClientCertManager.swift */; };
+		A5330E0128D14A1B9C2F0001 /* IntentsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5330E0228D14A1B9C2F0001 /* IntentsPlugin.swift */; };
+		A5330E0328D14A1B9C2F0001 /* HearthIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5330E0428D14A1B9C2F0001 /* HearthIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +41,8 @@
 		6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		C172A7CBF64699B175530DEF /* ClientCertManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientCertManager.swift; sourceTree = "<group>"; };
+		A5330E0228D14A1B9C2F0001 /* IntentsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentsPlugin.swift; sourceTree = "<group>"; };
+		A5330E0428D14A1B9C2F0001 /* HearthIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearthIntents.swift; sourceTree = "<group>"; };
 		F3B468D7E3D20CDD89FA65AE /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -81,6 +85,8 @@
 				5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* HearthScanPlugin.swift */,
 				C172A7CBF64699B175530DEF /* ClientCertManager.swift */,
+				A5330E0228D14A1B9C2F0001 /* IntentsPlugin.swift */,
+				A5330E0428D14A1B9C2F0001 /* HearthIntents.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -180,6 +186,8 @@
 				91B01115B2F075138361265C /* ServerConfigPlugin.swift in Sources */,
 				F2E1D0C9B8A7F6E5D4C3B2A1 /* HearthScanPlugin.swift in Sources */,
 				F1A7F22C6D96410880980A0C /* ClientCertManager.swift in Sources */,
+				A5330E0128D14A1B9C2F0001 /* IntentsPlugin.swift in Sources */,
+				A5330E0328D14A1B9C2F0001 /* HearthIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -259,7 +267,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -316,7 +324,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -337,7 +345,7 @@
 				DEVELOPMENT_TEAM = NANJZZ9DQR;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -363,7 +371,7 @@
 				DEVELOPMENT_TEAM = NANJZZ9DQR;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
