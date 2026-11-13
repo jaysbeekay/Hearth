@@ -42,6 +42,9 @@ test.beforeEach(async ({ page }) => {
     const fileTimes = new Map<string, number>();
     // Every Share.share call, with the text of each shared file at the time.
     const shares: { files: string[]; contents: (string | null)[] }[] = [];
+    const backupExclusions: string[][] = [];
+    // Folder removals, backup exclusions and staged-file writes, in order (#492).
+    const folderEvents: { op: string; path?: string; paths?: string[]; ifExists?: boolean }[] = [];
     let renames = 0;
     const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     // See Filesystem.stat in the mock.
@@ -335,6 +338,11 @@ test.beforeEach(async ({ page }) => {
     // "hearth-test-no-properties": the Home module is on but has no
     // Properties yet, so the warranty form shows its "add one" hint (#616).
     if (testFlag("hearth-test-no-properties")) rowsByTable.properties = [];
+    // "hearth-test-empty-db": a freshly unlocked phone with no records yet,
+    // only the profile row every install has (#491).
+    if (testFlag("hearth-test-empty-db")) {
+      for (const table of Object.keys(rowsByTable)) if (table !== "local_profile") rowsByTable[table] = [];
+    }
 
     // #455 — Broadband Plan's three-version Document (v1 <- v2 <- v3), and
     // variations on it. "1": all live. "middle": v2 in Trash. "expired":
@@ -423,6 +431,8 @@ test.beforeEach(async ({ page }) => {
       if (!match) return [];
       const table = match[1];
       const rows = rowsByTable[table] ?? [];
+      const metadataKey = table === "schema_metadata" ? /key = '([a-z_]+)'/.exec(statement)?.[1] : undefined;
+      if (metadataKey) return (rows as { key?: unknown }[]).filter((row) => row.key === metadataKey);
       if (table === "documents") {
         // Each clause narrows the rows, like the WHERE it mirrors.
         let documents = rows as { id?: string; deleted_at?: string | null; storage_key?: string; uploaded_at?: string }[];
@@ -484,9 +494,11 @@ test.beforeEach(async ({ page }) => {
         return;
       }
       const restoreRow = /^INSERT OR REPLACE INTO ([a-z_]+) \(([^)]+)\) VALUES/i.exec(sql);
-      // A restore's commit marker (#226).
-      if (restoreRow?.[1] === "schema_metadata" && /'last_restore_id'/.test(sql)) {
-        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== "last_restore_id"), { key: "last_restore_id", value: values[0] }];
+      // schema_metadata rows by key: a restore's commit marker (#226), the
+      // new-phone offer's "Start fresh" (#491).
+      const metadataKey = restoreRow?.[1] === "schema_metadata" ? /VALUES \('([a-z_]+)', \?\)/.exec(sql)?.[1] : undefined;
+      if (metadataKey) {
+        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== metadataKey), { key: metadataKey, value: values[0] }];
         return;
       }
       if (restoreRow && !["documents", "local_profile", "schema_metadata"].includes(restoreRow[1])) {
@@ -620,6 +632,8 @@ test.beforeEach(async ({ page }) => {
       files,
       fileTimes,
       shares,
+      backupExclusions,
+      folderEvents,
       preferences,
       get renames() {
         return renames;
@@ -678,13 +692,24 @@ test.beforeEach(async ({ page }) => {
         },
         Filesystem: {
           writeFile: async (args: { directory?: string; path?: string; data?: string }) => {
+            // "hearth-test-pause-at-staging": a restore's first staged file
+            // waits until the test calls __hearthResumeStaging(), so the test
+            // can act while the backup is being checked (#491).
+            if (testFlag("hearth-test-pause-at-staging") && String(args.path).startsWith("standalone-restore-staging/")) {
+              localStorage.removeItem("hearth-test-pause-at-staging");
+              await new Promise((resolve) => {
+                (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging = () => resolve(undefined);
+              });
+            }
             fileWrites.push(args);
+            if (String(args.path).startsWith("standalone-restore-staging/")) folderEvents.push({ op: "write", path: String(args.path) });
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             files.set(fileKey(args), args.data ?? "");
             fileTimes.set(fileKey(args), Date.now());
             return {};
           },
           appendFile: async (args: { directory?: string; path?: string; data?: string }) => {
+            if (String(args.path).startsWith("standalone-restore-staging/")) folderEvents.push({ op: "write", path: String(args.path) });
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             // "hearth-test-append-error": appends fail (a full disk mid-export).
             if (testFlag("hearth-test-append-error") && String(args.path).startsWith("hearth-backups/")) throw new Error("Disk full");
@@ -727,6 +752,7 @@ test.beforeEach(async ({ page }) => {
             return { files: [...entries.values()] };
           },
           rmdir: async (args: { directory?: string; path?: string }) => {
+            folderEvents.push({ op: "rmdir", path: String(args.path) });
             for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
           },
           rename: async (args: { directory?: string; from: string; to: string }) => {
@@ -795,6 +821,14 @@ test.beforeEach(async ({ page }) => {
                 },
               },
             }),
+        // iOS's backup exclusion (#492): records each call's folder names.
+        BackupExclusion: {
+          excludeFolders: async ({ paths, ifExists }: { paths: string[]; ifExists?: boolean }) => {
+            backupExclusions.push([...paths]);
+            folderEvents.push({ op: "exclude", paths: [...paths], ifExists: Boolean(ifExists) });
+            return {};
+          },
+        },
         // "hearth-test-share" = "cancel" (the user closes the share sheet) or
         // "error" (it fails); otherwise sharing succeeds.
         Share: {
@@ -1862,6 +1896,236 @@ test("standalone dashboard asks for a backup until one is made", async ({ page }
   await expect(page.locator("[data-backup-nudge]")).toHaveCount(0);
 });
 
+// #491: a new phone restores through the first screen's offer, not Settings.
+const newPhoneOffer = (page: ShellPage) => page.locator("[data-new-phone-restore]");
+
+async function restoreThroughOffer(page: ShellPage, text: string, password: string) {
+  const form = page.locator("form[data-new-phone-restore-form]");
+  await form.getByLabel("Backup file").setInputFiles({ name: "backup.hearthbackup", mimeType: "application/octet-stream", buffer: Buffer.from(text) });
+  await form.getByLabel("Backup password").fill(password);
+  await form.getByRole("button", { name: "Restore backup" }).click();
+}
+
+// Exports this phone's fixture data with Wealth hidden, then "moves" to a new
+// phone: a reload with an empty database and no files or preferences.
+async function exportThenOpenNewPhone(page: ShellPage) {
+  await openBackupSettings(page);
+  await page.locator(".module-setting-card").filter({ has: page.getByRole("heading", { name: "Wealth" }) }).getByRole("button", { name: "Hide module" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Wealth hidden");
+  const { text } = await exportBackup(page);
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  return text;
+}
+
+test("standalone does not offer Restore from a backup when the phone has records (#491)", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone new phone restores records, Documents and settings from the first screen (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await expect(newPhoneOffer(page)).toBeVisible();
+  expect((await backupHarness(page)).rowsByTable.contracts).toEqual([]);
+
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+
+  const restored = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      contracts: harness.rowsByTable.contracts.map((row) => row.title),
+      documents: harness.rowsByTable.documents.map((row) => row.id),
+      documentFiles: [...harness.files.keys()].filter((key) => key.includes(":standalone-documents/")),
+      modules: harness.preferences.get("hearth.mobile.enabledStandaloneModules") ?? null,
+    };
+  });
+  expect(restored.contracts).toContain("Broadband Plan");
+  expect(restored.documents.length).toBeGreaterThan(0);
+  expect(restored.documentFiles.length).toBeGreaterThan(0);
+  expect(restored.modules).not.toBeNull();
+  expect(restored.modules).not.toContain("portfolios");
+  // Hidden on the old phone, so hidden here too.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await expect(page.getByRole("button", { name: /Wealth/ })).toHaveCount(0);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await expect(page.getByText("Broadband Plan").first()).toBeVisible();
+});
+
+test("standalone new-phone restore that is cancelled or fails leaves the phone empty and the offer shown (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  const form = page.locator("form[data-new-phone-restore-form]");
+  const emptyAndOffered = async () => {
+    await expect(newPhoneOffer(page)).toBeVisible();
+    const { sqliteRuns, rowsByTable } = await backupHarness(page);
+    expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+    expect(rowsByTable.contracts).toEqual([]);
+    expect(rowsByTable.documents).toEqual([]);
+  };
+
+  // The file picker is closed without choosing a file.
+  const chooser = page.waitForEvent("filechooser");
+  await form.getByLabel("Backup file").click();
+  await (await chooser).setFiles([]);
+  await form.getByRole("button", { name: "Restore backup" }).click();
+  await emptyAndOffered();
+
+  await restoreThroughOffer(page, text, "not the password");
+  await expect(page.locator("#standalone-status")).toContainText("Wrong backup password");
+  await emptyAndOffered();
+
+  const truncated = text.trim().split("\n").slice(0, -1).join("\n");
+  await restoreThroughOffer(page, truncated, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("incomplete");
+  await emptyAndOffered();
+
+  // And it still works after all that.
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone new-phone restore refuses to replace records added since the offer was shown (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await expect(newPhoneOffer(page)).toBeVisible();
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-new-phone", title: "Added on the new phone" });
+  });
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  // Redrawn: the phone has a record, so the offer is gone.
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.contracts.map((row) => row.id)).toEqual(["contract-new-phone"]);
+});
+
+test("standalone new-phone restore checks again for records added while the backup was being checked (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await page.evaluate(() => localStorage.setItem("hearth-test-pause-at-staging", "1"));
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Checking backup");
+  await page.waitForFunction(() => typeof (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging === "function");
+  // A record lands while the backup is being decrypted and staged.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-during-check", title: "Added during the check" });
+    (window as unknown as { __hearthResumeStaging: () => void }).__hearthResumeStaging();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.contracts.map((row) => row.id)).toEqual(["contract-during-check"]);
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone new-phone restore refuses when a Document goes to Trash while the backup is being checked (#491)", async ({ page }) => {
+  const text = await exportThenOpenNewPhone(page);
+  await page.evaluate(() => localStorage.setItem("hearth-test-pause-at-staging", "1"));
+  await restoreThroughOffer(page, text, "correct horse battery");
+  await expect(page.locator("#standalone-status")).toContainText("Checking backup");
+  await page.waitForFunction(() => typeof (window as unknown as { __hearthResumeStaging?: () => void }).__hearthResumeStaging === "function");
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest;
+    harness.rowsByTable.documents.push({ id: "trashed-during-check", owner_type: "contract", owner_id: "gone", filename: "old.pdf", storage_key: "old.pdf", mime_type: "application/pdf", size: 10, is_head: 1, uploaded_at: "2099-01-01T00:00:00.000Z", deleted_at: "2099-01-02T00:00:00.000Z" });
+    (window as unknown as { __hearthResumeStaging: () => void }).__hearthResumeStaging();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("already has records");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true)).toBe(false);
+  expect(rowsByTable.documents.map((row) => row.id)).toEqual(["trashed-during-check"]);
+});
+
+test("standalone Start fresh keeps the offer hidden after a relaunch, in the database not Preferences (#491)", async ({ page }) => {
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  await newPhoneOffer(page).getByRole("button", { name: "Start fresh" }).click();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+  const saved = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]>; preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return { metadata: harness.rowsByTable.schema_metadata ?? [], preferences: [...harness.preferences.keys()] };
+  });
+  expect(saved.metadata).toContainEqual({ key: "new_phone_offer_dismissed", value: "true" });
+  expect(saved.preferences.some((key) => /newPhone/i.test(key))).toBe(false);
+
+  // Relaunch with that database: the offer stays hidden.
+  await page.evaluate((metadata) => {
+    window.name = `hearth-test-seed:${JSON.stringify({ rows: { schema_metadata: metadata } })}`;
+  }, saved.metadata);
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("standalone does not offer Restore from a backup when the only Document is in Trash (#491)", async ({ page }) => {
+  await page.evaluate(() => {
+    const trashed = { id: "trashed-only", owner_type: "contract", owner_id: "gone", filename: "old.pdf", storage_key: "old.pdf", mime_type: "application/pdf", size: 10, is_head: 1, uploaded_at: "2099-01-01T00:00:00.000Z", deleted_at: "2099-01-02T00:00:00.000Z" };
+    window.name = `hearth-test-seed:${JSON.stringify({ rows: { documents: [trashed] } })}`;
+  });
+  await reloadWithTestFlags(page, { "hearth-test-empty-db": "1" });
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+type FolderEvent = { op: string; path?: string; paths?: string[]; ifExists?: boolean };
+const folderEvents = (page: ShellPage) => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { folderEvents: FolderEvent[] } }).__hearthStandaloneTest.folderEvents);
+
+test("standalone excludes its document folders from iOS device backups at launch and after a restore (#492)", async ({ page }) => {
+  const folders = ["standalone-documents", "standalone-restore-staging", "standalone-restore-previous"];
+  const exclusions = () => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { backupExclusions: string[][] } }).__hearthStandaloneTest.backupExclusions);
+  expect(await exclusions()).toContainEqual(folders);
+  // Old plaintext backups' folder is excluded only if it is already there:
+  // the plugin must not create it (the legacy-backup card looks for it).
+  expect(await folderEvents(page)).toContainEqual({ op: "exclude", paths: ["hearth-backups"], ifExists: true });
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  const before = (await exclusions()).length;
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  // The staging and aside folders were removed and recreated: excluded again.
+  expect((await exclusions()).length).toBeGreaterThan(before);
+  expect((await exclusions()).at(-1)).toEqual(folders);
+});
+
+test("standalone excludes the restore staging folder again before staging into it after each removal (#492)", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await restoreFile(page, text, { password: "correct horse battery" });
+  // Each restore clears the staging folder before and after: wait for both
+  // restores' clears, since the status already says "Restored".
+  const stagingRemovals = (events: FolderEvent[]) => events.flatMap((event, index) => (event.op === "rmdir" && event.path === "standalone-restore-staging" ? [index] : []));
+  await expect.poll(async () => stagingRemovals(await folderEvents(page)).length).toBeGreaterThanOrEqual(4);
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const events = await folderEvents(page);
+  const removals = stagingRemovals(events);
+  let checkedWrites = 0;
+  for (const [n, removal] of removals.entries()) {
+    const nextRemoval = removals[n + 1] ?? events.length;
+    const nextWrite = events.findIndex((event, index) => index > removal && index < nextRemoval && event.op === "write");
+    if (nextWrite === -1) continue;
+    checkedWrites += 1;
+    const between = events.slice(removal + 1, nextWrite);
+    expect(between.some((event) => event.op === "exclude" && event.paths?.includes("standalone-restore-staging")), `exclude between event ${removal} and ${nextWrite}`).toBe(true);
+  }
+  // Both restores staged files after clearing the folder.
+  expect(checkedWrites).toBe(2);
+});
+
+test("standalone Help says the data lives only on this phone and links to the backup steps (#492)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="help"]').click();
+  const notice = page.locator("#mobile-view [data-device-only-notice]");
+  await expect(notice).toContainText("Standalone mode keeps everything on this phone only. Nothing is sent to Hearth or any cloud.");
+  await expect(page.locator("[data-new-phone-steps]")).toContainText("Restore from a backup");
+  await notice.getByRole("button", { name: "Back up this phone" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Settings");
+  await expect(page.getByRole("heading", { name: "Back up this phone" })).toBeVisible();
+});
+
 test("standalone backup that can't read a document file is not counted as complete", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("hearth-test-unreadable-file", "receipt.pdf"));
   await openBackupSettings(page);
@@ -2053,7 +2317,9 @@ async function crashRestoreAt(page: ShellPage, crash: { rename?: number; commit?
   let left: CrashSnapshot = await snapshot();
   await expect.poll(async () => {
     left = await snapshot();
-    return left.done || (crash.commit ? left.rows.schema_metadata.length > 0 : left.renames >= target);
+    // schema_metadata also holds other keys (the schema version, #491's
+    // Start fresh): only the restore's marker means it committed.
+    return left.done || (crash.commit ? left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id") : left.renames >= target);
   }).toBe(true);
   if (left.done) return { reached: false };
   const committed = left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id");

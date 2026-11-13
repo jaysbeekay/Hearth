@@ -11,6 +11,7 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(SecureClipboardPlugin())
         bridge?.registerPluginInstance(ServerConfigPlugin())
         bridge?.registerPluginInstance(HearthScanPlugin())
+        bridge?.registerPluginInstance(BackupExclusionPlugin())
     }
 
     // By default Capacitor opens any toplevel navigation to an external host

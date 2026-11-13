@@ -144,6 +144,11 @@ for (const marker of [
   assertIncludes(html, marker, "standalone HTML");
 }
 
+// #492: standalone document folders stay out of iOS device backups.
+assertIncludes(shell, "BackupExclusion.excludeFolders", "standalone shell");
+assertIncludes(text(join(root, "ios/App/App/MainViewController.swift")), "registerPluginInstance(BackupExclusionPlugin())", "iOS MainViewController");
+assertIncludes(text(join(root, "ios/App/App/BackupExclusionPlugin.swift")), "values.isExcludedFromBackup = true", "iOS BackupExclusion plugin");
+
 const androidPublic = join(root, "android/app/src/main/assets/public");
 const iosPublic = join(root, "ios/App/App/public");
 requireDir(androidPublic);

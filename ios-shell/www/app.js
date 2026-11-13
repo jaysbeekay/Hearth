@@ -15,6 +15,9 @@ const Purchases = Plugins.Purchases;
 const Share = Plugins.Share;
 // ios/App/App/SecureClipboardPlugin.swift and its Android counterpart.
 const SecureClipboard = Plugins.SecureClipboard;
+// iOS only (#492): marks the standalone file folders as excluded from iCloud
+// and Finder device backups. Android needs nothing: allowBackup is false.
+const BackupExclusion = Plugins.BackupExclusion;
 // ios-shell/www/backup-format.js, loaded before this file.
 const BackupFormat = window.HearthBackupFormat;
 // On-device document scanning and text recognition: a local native plugin
@@ -69,6 +72,16 @@ const BACKUP_ROOT = "hearth-backups";
 // public Documents folder). Hearth only lists and offers to delete them.
 const LEGACY_BACKUP_DIRECTORY = "DOCUMENTS";
 const LEGACY_BACKUP_NOTICE_KEY = "hearth.mobile.legacyBackupNoticeDismissed";
+// Set by "Start fresh" on the new-phone restore offer (#491), in the
+// encrypted database's schema_metadata rather than Preferences: iOS copies
+// UserDefaults to a new iPhone (iCloud backup, Quick Start), which would hide
+// the offer there. schema_metadata is not in BACKUP_TABLES, so a backup never
+// carries it and a Replace restore never clears it.
+const NEW_PHONE_OFFER_METADATA_KEY = "new_phone_offer_dismissed";
+const NEW_PHONE_NOT_EMPTY_MESSAGE = "This phone already has records. To restore over them, use Restore from a file in Settings.";
+// #492: the promise shown before purchase (set into index.html's paywall at
+// boot) and in Help. docs/mobile/store-listing.md quotes it too.
+const DEVICE_ONLY_NOTICE = "Standalone mode keeps everything on this phone only. Nothing is sent to Hearth or any cloud. Back up regularly to a file protected by your own password, and keep it somewhere safe. If you lose your phone and have no backup, your data cannot be recovered.";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
@@ -453,6 +466,9 @@ const paywallScreen = $("paywall-screen");
 const connectedStatus = $("connected-status");
 const standaloneStatus = $("standalone-status");
 const paywallStatus = $("paywall-status");
+// The paywall's copy of the promise comes from the one constant (#492).
+const paywallNotice = paywallScreen.querySelector("[data-device-only-notice]");
+if (paywallNotice) paywallNotice.textContent = DEVICE_ONLY_NOTICE;
 const mobileView = $("mobile-view");
 const viewTitle = $("view-title");
 const viewKicker = $("view-kicker");
@@ -472,6 +488,7 @@ const state = {
   lastBackupAt: null,
   legacyPlaintextBackups: [],
   legacyBackupNoticeDismissed: false,
+  newPhoneOfferDismissed: false,
   // The password just chosen for an export, shown once so it can be saved
   // in a password manager; cleared once the backup is shared, on Cancel, and
   // as soon as Settings is left. A failed or cancelled share keeps it, so
@@ -2117,11 +2134,34 @@ async function openStandalone() {
   await showPaywall();
 }
 
+// #492: on iOS, FILE_DIRECTORY (DATA) is the app's Documents folder, which
+// iCloud and Finder device backups include. The plugin creates each folder
+// and sets isExcludedFromBackup on it; Apple excludes a folder's contents
+// with it, so files written later are covered without marking each one. The
+// SQLite plugin already excludes its own database folder. A folder removed
+// with rmdir loses the flag, so every rmdir of one is followed by this call.
+// A failure is ignored: the app still works, and the next launch tries again.
+const BACKUP_EXCLUDED_FOLDERS = [FILE_ROOT, RESTORE_STAGING_ROOT, RESTORE_ASIDE_ROOT];
+async function excludeStandaloneFoldersFromBackup() {
+  if (!BackupExclusion || Capacitor?.getPlatform?.() !== "ios") return;
+  await BackupExclusion.excludeFolders({ paths: BACKUP_EXCLUDED_FOLDERS }).catch(() => undefined);
+}
+
+// Unencrypted backups from before #226 sit in DOCUMENTS/hearth-backups,
+// also the iOS Documents folder. Excluded too, but only if the folder is
+// already there: creating it would change what the legacy-backup card finds.
+async function excludeLegacyBackupFolderFromBackup() {
+  if (!BackupExclusion || Capacitor?.getPlatform?.() !== "ios") return;
+  await BackupExclusion.excludeFolders({ paths: [BACKUP_ROOT], ifExists: true }).catch(() => undefined);
+}
+
 async function enterStandaloneApp() {
   await checkScannerAvailability();
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  await excludeStandaloneFoldersFromBackup();
+  await excludeLegacyBackupFolderFromBackup();
   await recoverInterruptedRestore().catch(() => undefined);
   // A failure leaves the Trash as it was; the next launch tries again.
   await purgeExpiredTrashedDocuments().catch(() => undefined);
@@ -2235,6 +2275,7 @@ function renderDashboard() {
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
   const vehiclesMissingInfo = moduleEnabled("vehicles") ? activeRows(cache.vehicles).filter((row) => missingInfo("vehicles", row)).length : 0;
   return `
+    ${renderNewPhoneRestore()}
     <section class="hero-card">
       <p class="kicker">Today</p>
       <h2>What needs attention</h2>
@@ -3025,8 +3066,27 @@ function renderHelp() {
       <h2>Using Hearth on mobile</h2>
       <p>This phone-first shell mirrors the 0.16 household workflows where they make sense locally, and points you to connected mode for server-only features.</p>
     </section>
+    <section class="card form-card" data-device-only-notice>
+      <h2>Your data is only on this phone</h2>
+      <p class="card-meta">${escapeHtml(DEVICE_ONLY_NOTICE)}</p>
+      <p class="card-meta">Hearth also leaves its records and documents out of iCloud and Android device backups, so a new phone gets them only from your backup file.</p>
+      <div class="actions">
+        <button class="secondary" data-nav="settings">Back up this phone</button>
+      </div>
+    </section>
     <section class="list">
       ${helpItems.map(([title, copy]) => `<article class="record-card"><h3>${escapeHtml(title)}</h3><p class="card-meta">${escapeHtml(copy)}</p></article>`).join("")}
+    </section>
+    <section class="card form-card" data-new-phone-steps>
+      <h2>Moving to a new phone</h2>
+      <ol class="card-meta steps">
+        <li>On the old phone, open Settings, Back up this phone, and export a backup. Save its password in your password manager.</li>
+        <li>Save the backup file somewhere the new phone can reach: Files, iCloud Drive, Google Drive, or send it to yourself.</li>
+        <li>Install Hearth on the new phone and choose Use on this device.</li>
+        <li>Buy the standalone unlock, or tap Restore purchases if you bought it before on the same kind of phone with the same Apple or Google account. Moving between iPhone and Android means buying the unlock again.</li>
+        <li>On the first screen, choose Restore from a backup, pick the file and enter its password.</li>
+      </ol>
+      <p class="card-meta">The backup file itself works on both iPhone and Android. If you already started using the new phone, use Restore from a file in Settings instead.</p>
     </section>
     <section class="card form-card">
       <h2>Need the full web app?</h2>
@@ -3315,6 +3375,7 @@ function clearPendingBackupPassword() {
 }
 
 async function loadBackupState() {
+  state.newPhoneOfferDismissed = await newPhoneOfferDismissed().catch(() => false);
   await sweepBackupCache();
   state.unreadableRestoreJournal = await unreadableRestoreJournalPending().catch(() => false);
   state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
@@ -3363,16 +3424,26 @@ function fileBackupSource(file) {
   return { ...BackupFormat.blobSource(file), text: () => file.text() };
 }
 
-async function restoreFromFile(form) {
+async function restoreFromFile(form, options = restoreOptions) {
   const file = formFile(form);
   if (!file) throw new Error("Choose a backup file first.");
   const submit = form.querySelector('button[type="submit"]');
   if (submit) submit.disabled = true;
   try {
-    await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+    await restoreStandaloneBackup(fileBackupSource(file), await options(form));
   } finally {
     if (submit) submit.disabled = false;
   }
+}
+
+// #491: the first-screen offer always runs a Replace restore. It has no
+// confirm tick because there is nothing to replace; that is checked again
+// against the database here, so a record added since the offer was drawn is
+// never wiped without the Settings confirm.
+async function newPhoneRestoreOptions(form) {
+  await loadData();
+  if (!isNewPhone()) throw newPhoneNotEmptyError();
+  return { mode: "replace", password: String(new FormData(form).get("password") ?? ""), requireEmpty: true };
 }
 
 function restoreOptions(form) {
@@ -3402,7 +3473,7 @@ async function restoreStandaloneBackup(source, options) {
   }
 }
 
-async function readAndApplyBackup(source, { mode, password }) {
+async function readAndApplyBackup(source, { mode, password, requireEmpty = false }) {
   if (!BackupFormat) throw new Error("Backup support is missing from this build.");
   const lines = BackupFormat.readLines(source);
   const first = await lines.next();
@@ -3410,7 +3481,7 @@ async function readAndApplyBackup(source, { mode, password }) {
   const header = BackupFormat.parseHeader(first.value);
   if (!header) {
     if (!source.text) throw new Error("That is not a Hearth backup.");
-    return restoreLegacyBackup(await source.text(), mode);
+    return restoreLegacyBackup(await source.text(), mode, requireEmpty);
   }
   if (header.schemaVersion > STANDALONE_SCHEMA_VERSION) {
     throw new Error("This backup was made by a newer version of Hearth. Update the app to restore it.");
@@ -3435,13 +3506,13 @@ async function readAndApplyBackup(source, { mode, password }) {
       await stageRestoreFile(record.key, record.data, expected > 0);
       nextSeq.set(record.key, expected + 1);
     }
-    return await applyRestore({ tables: manifest.tables, preferences: manifest.preferences ?? {}, stagedKeys: [...nextSeq.keys()], mode });
+    return await applyRestore({ tables: manifest.tables, preferences: manifest.preferences ?? {}, stagedKeys: [...nextSeq.keys()], mode, requireEmpty });
   } finally {
     await clearRestoreStaging();
   }
 }
 
-async function restoreLegacyBackup(text, mode) {
+async function restoreLegacyBackup(text, mode, requireEmpty = false) {
   let backup;
   try {
     backup = JSON.parse(text);
@@ -3464,7 +3535,7 @@ async function restoreLegacyBackup(text, mode) {
         stagedKeys.push(row.storage_key);
       }
     }
-    return await applyRestore({ tables: backup.tables, preferences: {}, stagedKeys, mode, legacy: true });
+    return await applyRestore({ tables: backup.tables, preferences: {}, stagedKeys, mode, legacy: true, requireEmpty });
   } finally {
     await clearRestoreStaging();
   }
@@ -3479,6 +3550,9 @@ async function stageRestoreFile(key, base64, append) {
 
 async function clearRestoreStaging() {
   await Filesystem?.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_STAGING_ROOT, recursive: true }).catch(() => undefined);
+  // Recreated empty and excluded again, so decrypted files staged next are
+  // never in a device backup.
+  await excludeStandaloneFoldersFromBackup();
 }
 
 function restoreValue(value) {
@@ -3656,6 +3730,7 @@ async function finishAsideFiles(journal) {
 async function closeRestoreJournal(unresolved) {
   if (unresolved > 0) return false;
   await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+  await excludeStandaloneFoldersFromBackup();
   await prefRemove(RESTORE_JOURNAL_KEY);
   return true;
 }
@@ -3784,8 +3859,8 @@ async function clearUnreadableRestoreJournal() {
 // made meanwhile waits and lands after the restore instead of being
 // overwritten by it (#226 review). Nothing inside may call run()/runSet()
 // (they wait on the same gate): the commit is a direct executeSet.
-async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
-  const { restored, kept, missingFiles, undeletedFiles } = await withExclusiveDb(() => applyRestoreLocked({ tables, stagedKeys, mode }));
+async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false, requireEmpty = false }) {
+  const { restored, kept, missingFiles, undeletedFiles } = await withExclusiveDb(() => applyRestoreLocked({ tables, stagedKeys, mode, requireEmpty }));
   // From here on the records and files are already restored and committed.
   // Nothing below may throw as if the restore had failed, or the user would
   // be told the phone was left as it was and might restore again.
@@ -3825,7 +3900,10 @@ async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = fa
   return { restored, kept, missingFiles, failedSettings };
 }
 
-async function applyRestoreLocked({ tables, stagedKeys, mode }) {
+async function applyRestoreLocked({ tables, stagedKeys, mode, requireEmpty = false }) {
+  // The new-phone offer's Replace has no confirm tick, so it may only run on
+  // a phone that is still empty now that it holds the gate (#491).
+  if (requireEmpty && !(await databaseIsEmptyLocked())) throw newPhoneNotEmptyError();
   const { set, restored, kept, acceptedKeys } = await buildRestoreStatements(tables, mode);
   const keys = stagedKeys.filter((key) => acceptedKeys.has(key));
   for (const key of keys) {
@@ -3893,6 +3971,61 @@ function backupAge(iso) {
 
 function hasStandaloneData() {
   return BACKUP_TABLES.some((table) => table.key !== "profile" && table.key !== "reminderLogs" && (cache[table.key]?.length ?? 0) > 0);
+}
+
+// Nothing a Replace restore could lose: no records, and nothing in Trash.
+function isNewPhone() {
+  return !hasStandaloneData() && (cache.trashedDocLinks?.length ?? 0) === 0;
+}
+
+// #491: a freshly unlocked phone with no records offers to restore a backup
+// made on another phone. Only the standalone app shows it, and that only
+// opens once the unlock is confirmed, so it is never offered before paying.
+function renderNewPhoneRestore() {
+  if (state.newPhoneOfferDismissed || !isNewPhone()) return "";
+  return `
+    <section class="card form-card" data-new-phone-restore>
+      <h2>Restore from a backup</h2>
+      <p class="card-meta">Moving from another phone? Choose the .hearthbackup file you exported there and enter its password. Or start fresh with an empty phone.</p>
+      <form data-new-phone-restore-form class="field-grid">
+        <label>Backup file<input name="file" type="file" required /></label>
+        <label>Backup password<input name="password" type="password" autocomplete="current-password" /></label>
+        <div class="actions">
+          <button type="submit">Restore backup</button>
+          <button type="button" class="secondary" data-start-fresh>Start fresh</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+async function newPhoneOfferDismissed() {
+  const rows = await query(`SELECT key, value FROM schema_metadata WHERE key = '${NEW_PHONE_OFFER_METADATA_KEY}'`);
+  return rows.some((row) => row.key === NEW_PHONE_OFFER_METADATA_KEY && row.value === "true");
+}
+
+async function dismissNewPhoneOffer() {
+  state.newPhoneOfferDismissed = true;
+  await run(`INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('${NEW_PHONE_OFFER_METADATA_KEY}', ?)`, ["true"]);
+}
+
+function newPhoneNotEmptyError() {
+  const error = new Error(NEW_PHONE_NOT_EMPTY_MESSAGE);
+  error.newPhoneNotEmpty = true;
+  return error;
+}
+
+// The database itself, not the cache, has nothing a Replace restore could
+// lose: no live records in any backed-up table and nothing in Trash. Runs
+// inside the write gate just before a new-phone restore deletes anything, so
+// a record added while the backup was being checked is never wiped (#491).
+async function databaseIsEmptyLocked() {
+  for (const table of BACKUP_TABLES) {
+    if (table.key === "profile" || table.key === "reminderLogs") continue;
+    const live = table.columns.includes("deleted_at") ? " WHERE deleted_at IS NULL" : "";
+    if ((await query(`SELECT id FROM ${table.table}${live} LIMIT 1`)).length > 0) return false;
+  }
+  return (await query("SELECT id FROM documents WHERE deleted_at IS NOT NULL LIMIT 1")).length === 0;
 }
 
 function legacyBackupSummary() {
@@ -7067,6 +7200,11 @@ mobileView.addEventListener("click", async (event) => {
     await render();
     return;
   }
+  if (button.dataset.startFresh !== undefined) {
+    await dismissNewPhoneOffer().catch(() => undefined);
+    await render();
+    return;
+  }
   if (button.dataset.confirmDetails) {
     await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
     return;
@@ -7205,6 +7343,18 @@ mobileView.addEventListener("submit", async (event) => {
     }
     if (form.dataset.importStandaloneBackupForm !== undefined) {
       await restoreFromFile(form);
+      await render();
+      return;
+    }
+    if (form.dataset.newPhoneRestoreForm !== undefined) {
+      try {
+        await restoreFromFile(form, newPhoneRestoreOptions);
+      } catch (error) {
+        // The phone has records now: redraw so the offer goes away. Other
+        // failures keep the form as it was, to try again.
+        if (error?.newPhoneNotEmpty) await render().catch(() => undefined);
+        throw error;
+      }
       await render();
       return;
     }
