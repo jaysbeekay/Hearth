@@ -45,6 +45,7 @@ export function WebhookActions({
           </SubmitButton>
         </form>
         <ConfirmForm
+          removesRow
           action={deleteWebhookEndpoint.bind(null, endpointId)}
           confirmText={`Remove the "${name}" webhook?`}
           actionLabel="Remove webhook"

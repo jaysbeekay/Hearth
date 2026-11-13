@@ -12,7 +12,7 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
-import { PushDeviceToggle } from "@/components/PushDeviceToggle";
+import { NotifyThisDevice } from "@/components/DeviceReminderToggle";
 import { getVapidPublicKey, ownPushDevices } from "@/lib/notifications/push";
 import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
@@ -116,7 +116,7 @@ export default async function SettingsPage() {
               )}
             </p>
             <div className="space-y-3">
-              <PushDeviceToggle vapidPublicKey={vapidPublicKey} devices={pushDevices} />
+              <NotifyThisDevice userId={user.id} vapidPublicKey={vapidPublicKey} devices={pushDevices} />
               <NotificationPreferencesForm emailReminders={user.emailReminders} />
             </div>
           </SettingsDisclosure>

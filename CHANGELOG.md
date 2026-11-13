@@ -7,7 +7,42 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
+  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
+  didn't affect Hearth: it registers passkeys with `attestationType:
+  "none"`). Existing passkeys keep signing in with no migration; the stored
+  format is unchanged. New passkeys are offered the same algorithms as
+  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
+  advertises the same set. An npm `overrides` entry satisfies next-auth's
+  optional peer on 9.x, which only its unused WebAuthn provider needs.
+  Sign-in is also stricter: each challenge is used up by its first attempt,
+  whether that attempt succeeds or not, and the assertion's credential and
+  user handle must match the stored passkey. Registration accepts any of
+  the user's unexpired challenges, so adding a passkey in two tabs works,
+  and only known transports are stored.
+
+### Fixed
+
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+
+## [0.21.0] - 2026-11-12
+
 ### Added
+
+- **Reminders in the phone app (#375, part 3b).** The iOS/Android app
+  can't use Web Push, so "Notify this device" there becomes "Notify this
+  phone": it schedules the household's Reminders for the next four months as
+  notifications on the phone, worded like Web Push, and again each time the
+  app opens. Tapping one opens its record. The sign-in page cancels them, as
+  does the server saying the session has ended while the app stays open,
+  and another member signing in turns them off. They're found by a tag as
+  well as by the ids the app keeps, so ones the app's storage lost track of
+  still go; if the app's storage can't remember they're on, "Notify this
+  phone" says so instead of scheduling ones nothing would keep current.
 
 - iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
   Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
@@ -123,7 +158,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   tools a Document is retried once they're installed; one that keeps
   failing ends `FAILED` with the error in the job's `lastError`; one left
   `PENDING` with nothing queued is picked up again. Server-only; the
-  standalone shell has no text extraction. Rolling back: README → Searching
+  standalone shell reads text on the phone instead (see *Scan and read
+  documents on the phone*). Rolling back: README → Searching
   inside documents.
 - **Manage your push devices (#375, part 2).** Settings → My account lists
   your other devices with push on, each with when it last got a Reminder
@@ -159,6 +195,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   every member's devices, read-only members included, like ntfy. Rolling
   back below this release needs the `PUSH` rows deleted from
   `notification_logs` first (README → Notifications).
+- **Scan and read documents on the phone (standalone mode).** A *Scan with
+  camera* button now sits beside every document upload in the iOS and
+  Android apps. It opens the system document camera (VisionKit on iOS, the
+  ML Kit Document Scanner on Android), saves the pages as one PDF, and reads
+  the text on the device (Apple Vision, or ML Kit text recognition). On a new
+  Contract or Warranty, the server's regex field rules, ported into the shell,
+  fill in empty fields such as provider, policy number, dates and cost, and
+  tick *Needs review* so reminders wait until someone checks them. Uploaded
+  photos and PDFs also get their text read on import, and older documents get
+  a *Read text* button, so Search finds documents by their contents. Nothing
+  leaves the phone. The Android scanner needs Google Play services; without
+  it, the file picker still works. Amounts are read the same way as on the
+  server, including £, €, ¥, R and European-style numbers (#613). Shell
+  parity: new local native plugin `HearthScan` (`HearthScanPlugin.swift`,
+  `HearthScanPlugin.java`).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
@@ -260,20 +311,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the Security tab, under the same `scout` check.
 
 ### Security
-
-- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
-  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
-  didn't affect Hearth: it registers passkeys with `attestationType:
-  "none"`). Existing passkeys keep signing in with no migration; the stored
-  format is unchanged. New passkeys are offered the same algorithms as
-  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
-  advertises the same set. An npm `overrides` entry satisfies next-auth's
-  optional peer on 9.x, which only its unused WebAuthn provider needs.
-  Sign-in is also stricter: each challenge is used up by its first attempt,
-  whether that attempt succeeds or not, and the assertion's credential and
-  user handle must match the stored passkey. Registration accepts any of
-  the user's unexpired challenges, so adding a passkey in two tabs works,
-  and only known transports are stored.
 
 - **Standalone mobile backups are no longer written in plain text to a
   shared folder (#226).** The old export wrote every record and document,
@@ -669,9 +706,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
-- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
-  know (for example one removed in Settings) used to drop silently back to
-  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+- **Deleting a row with the keyboard no longer loses your place (#646).**
+  Deleting a row (a trip segment, trade, rental statement, tenancy,
+  valuation, Service or Maintenance record, Document, webhook, contract and
+  the like) took the focused button away with the row, so focus fell back to
+  the start of the page. Focus now moves to the next row's More actions
+  button, or the previous row's when it was the last, or the list's Add
+  button or heading once the list is empty, after the row has actually gone.
+  Restoring from Recently deleted moves focus to the next entry's name, and
+  restoring an Archived Vehicle or Property from its notice keeps focus on
+  the page. Cancelling, and confirms that don't remove the row, still return
+  focus to where it was; Alt+T then Undo still works, coming back to the new
+  spot; and once you click or type elsewhere, focus stays where you put it.
 
 - **A click that lands before a page has loaded is no longer lost (#609).**
   Clicking a form's button before the page finished loading sent the form
@@ -920,12 +966,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the latest release. `docker-publish.yml` runs the same checks before it
   pushes.
 
-### Fixed
-
 - **PDF export returned 500 in the Docker image (#523).** Every "Export
   PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
   `pdfkit` and left its font data behind. `pdfkit` is now a server external
   package, so its data files ship with it.
+- **Document auto-fill read ungrouped amounts short.** "$1234.50" was read as
+  123 and "$1000" as 100 because the amount pattern stopped after three
+  digits without a thousands separator. It now reads the whole amount, grouped
+  or not, and skips a malformed one instead of keeping part of it.
 
 ## [0.20.1] - 2026-10-31
 

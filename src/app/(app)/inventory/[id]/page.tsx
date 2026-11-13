@@ -145,8 +145,10 @@ export default async function InventoryItemPage({
         )}
       </Card>
 
-      <Card as="section">
-        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
+      <Card as="section" data-focus-list>
+        <h2 className={sectionHeadingClass("mb-3")} data-focus-list-fallback>
+          Documents
+        </h2>
         <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} ownerName={item.label} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">

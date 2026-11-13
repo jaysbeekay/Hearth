@@ -102,6 +102,36 @@ test.describe.serial("Archive a Vehicle", () => {
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page.getByTestId("archived-notice")).toHaveCount(0);
   });
+
+  // #646 regression guard: this already passed before #646 (the menu's focus
+  // trap hands focus back to its ⋮ button); it keeps ArchiveButton's own
+  // focus return from breaking that.
+  test("archiving with the keyboard keeps focus on the menu button (regression guard)", async ({ page }) => {
+    await page.goto(`/vehicles/${vehicleId}`);
+    const menu = page.getByRole("button", { name: "More actions", exact: true }).first();
+    await menu.focus();
+    await page.keyboard.press("Enter"); // opens the menu
+    await page.getByRole("dialog", { name: "More actions", exact: true }).getByRole("button", { name: "Archive", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("archived-notice")).toBeVisible();
+    await expect(page.getByText("Archived.", { exact: true })).toBeVisible();
+    await expect(menu).toBeFocused();
+    await expect(page.locator("body")).not.toBeFocused();
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByTestId("archived-notice")).toHaveCount(0);
+  });
+
+  // The Archived notice, Restore button and all, goes once it's restored.
+  test("restoring with the keyboard keeps focus on the page", async ({ page }) => {
+    await page.goto(`/vehicles/${vehicleId}`);
+    await openMenuAndArchive(page);
+    const restore = page.getByTestId("archived-notice").getByRole("button", { name: "Restore" });
+    await restore.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("archived-notice")).toHaveCount(0);
+    await expect(page.locator("main")).toBeFocused();
+  });
 });
 
 test("an Archived Vehicle's page lists the active Contracts still linked to it", async ({ page }) => {

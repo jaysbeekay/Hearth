@@ -10,6 +10,7 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SecureClipboardPlugin())
         bridge?.registerPluginInstance(ServerConfigPlugin())
+        bridge?.registerPluginInstance(HearthScanPlugin())
     }
 
     // By default Capacitor opens any toplevel navigation to an external host

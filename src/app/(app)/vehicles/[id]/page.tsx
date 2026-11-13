@@ -345,7 +345,7 @@ export default async function VehicleDetailPage({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-focus-list>
         <div className="flex items-center justify-between">
           <h2 className={sectionHeadingClass()}>Service records</h2>
           {canWrite && (
@@ -368,9 +368,7 @@ export default async function VehicleDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <Card
-                  key={item.id}
-                >
+                <Card key={item.id} data-focus-row>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
                       <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
@@ -396,6 +394,7 @@ export default async function VehicleDetailPage({
                           </Link>
                           <DetailOverflowMenu label={`More actions for ${item.title}`}>
                             <ConfirmForm
+                              removesRow
                               action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                               undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                               confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
