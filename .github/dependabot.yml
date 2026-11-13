@@ -1,5 +1,5 @@
 # Security updates stay on (repo setting); this file adds weekly version
-# updates and holds back the major bumps that need code changes first.
+# updates.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,16 +8,20 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # Server and browser halves of WebAuthn always move together, majors
+      # included: a /server-only bump is what broke main in #443. Listed
+      # first so these never land in minor-and-patch on their own.
+      # next-auth 5 beta still declares an optional peer on
+      # @simplewebauthn/server ^9 (for its WebAuthn provider, which Hearth
+      # doesn't use); the "$@simplewebauthn/*" overrides in package.json
+      # point it at Hearth's own version, so neither side's bump trips npm ci
+      # any more (#376). A major that changes the API fails typecheck and
+      # e2e in its PR instead.
+      simplewebauthn:
+        patterns: ["@simplewebauthn/*"]
+        update-types: ["major", "minor", "patch"]
       minor-and-patch:
         update-types: ["minor", "patch"]
-    ignore:
-      # next-auth 5 beta peers on @simplewebauthn/server ^9; bumping either
-      # alone breaks npm ci and the passkey routes (#443, reverted in #459).
-      # #376 upgrades them together.
-      - dependency-name: "@simplewebauthn/*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "next-auth"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
