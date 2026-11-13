@@ -7,6 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- **Dependency alerts cleared.** `glob` → 14.0.2+ and `minimatch` → 11.0.1+
+  through overrides (an AbortSignal cancellation bypass and a globparts
+  denial of service; both reach only build and lint tooling), mirrored in the
+  Docker migrate image. Dependabot no longer proposes TypeScript 7, which has
+  no JavaScript API yet for Next, typescript-eslint or the unit tests to use.
+
 ## [0.21.0] - 2026-11-12
 
 ### Added
