@@ -31,6 +31,8 @@
     "uuid": "^11.1.1",
     "body-parser": "^2.4.0",
     "zod": "$zod",
+    "@simplewebauthn/server": "$@simplewebauthn/server",
+    "@simplewebauthn/browser": "$@simplewebauthn/browser",
     "@eslint/config-array": {
       "minimatch": "^11.0.1"
     },
