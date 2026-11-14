@@ -37,6 +37,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **No Vehicle Reminders while the Vehicles module is off (#674).** Turning
+  Vehicles off hid them everywhere except the Reminder scheduler, Reminder
+  health and the test Reminder, which kept reminding about their rego,
+  insurance and service dates. These now load Due records through the same
+  module, which applies the module gates, Trash and Archived filters once.
+  Turning Vehicles back on brings the Reminders back.
+
 - **A refused passkey says so.** Signing in with a passkey Hearth doesn't
   know (for example one removed in Settings) used to drop silently back to
   the sign-in page; it now shows "Passkey sign-in failed" (#376).

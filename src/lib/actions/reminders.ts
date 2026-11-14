@@ -1,24 +1,20 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { sendTestPush } from "@/lib/notifications/push";
 import { prisma } from "@/lib/prisma";
-import { COVERING_CONTRACTS } from "@/lib/covers";
-import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
-import { getCurrentTenancy } from "@/lib/tenancies";
+import { loadDueRecord } from "@/lib/loadDueRecords";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, TestPreview, VehicleReminderField } from "@/lib/notifications/reminderContent";
 import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
 import {
   dayToDate,
   nextReminderPreview,
-  type NextReminderPreview,
   type ReminderChannel,
 } from "@/lib/notifications/reminderSchedule";
-import type { NotificationOwnerType } from "@/generated/prisma/enums";
 
 export type TestReminderTarget =
   | { kind: "contract" | "warranty" | "tenancy"; id: string }
@@ -35,85 +31,66 @@ async function reminderForTarget(
   channels: ReminderChannel[],
 ): Promise<Omit<ReminderInput, "dateFormat"> | null> {
   const appUrl = isAppUrlConfigured() ? env.appUrl : null;
-  const [{ defaultDays }, today] = await Promise.all([getReminderConfig(), getHouseholdToday()]);
-  const ctx = { today, defaultReminderDays: defaultDays };
-
-  async function preview(
-    ownerType: NotificationOwnerType,
-    id: string,
-    record: Parameters<typeof nextReminderPreview>[0],
-    field?: string,
-  ) {
-    const logs = (await getNotificationLogsByOwner(ownerType, [id])).get(id) ?? [];
-    return nextReminderPreview(record, ctx, logs.map(toSentLogRow), { field, channels });
-  }
-  function testFields(p: NextReminderPreview) {
-    const testPreview: TestPreview = p.when.kind === "on" ? { kind: "on", date: dayToDate(p.when.day) } : p.when;
-    return { daysRemaining: p.daysRemaining, appUrl, test: true, testPreview };
-  }
-
-  if (target.kind === "contract") {
-    const c = await prisma.contract.findFirst({ where: { id: target.id, deletedAt: null } });
-    if (!c?.endDate) return null;
-    const p = await preview("CONTRACT", c.id, { kind: "contract", ...c });
-    if (!p) return null;
-    return {
-      kind: "contract",
-      id: c.id,
-      title: c.title,
-      detail: c.provider,
-      endDate: c.endDate,
-      // #351 — a notice-deadline Reminder is about the last day to give notice.
-      notice:
-        p.entry.field === "noticeDeadline"
-          ? { cancelBy: dayToDate(p.entry.date), noticePeriodDays: c.noticePeriodDays! }
-          : undefined,
-      ...testFields(p),
-    };
-  }
-  if (target.kind === "warranty") {
-    const product = await prisma.product.findFirst({ where: { id: target.id, deletedAt: null } });
-    if (!product?.warrantyEndDate) return null;
-    const p = await preview("PRODUCT", product.id, { kind: "warranty", ...product });
-    if (!p) return null;
-    return {
-      kind: "warranty",
-      id: product.id,
-      title: product.description,
-      detail: product.manufacturer ?? product.vendor ?? "",
-      endDate: product.warrantyEndDate,
-      ...testFields(p),
-    };
-  }
-  if (target.kind === "tenancy") {
-    // #388 — only a rented Property's current Tenancy gets Reminders.
-    const t = await getCurrentTenancy(target.id);
-    if (!t) return null;
-    const p = await preview("TENANCY", t.tenancy.id, tenancyDueRecord(t.tenancy));
-    if (!p) return null;
-    return {
-      kind: "tenancy",
-      id: t.tenancy.id,
-      propertyId: t.propertyId,
-      title: t.propertyLabel,
-      detail: t.tenancy.tenantName ?? "",
-      endDate: dayToDate(p.entry.date),
-      ...testFields(p),
-    };
-  }
-  if (target.kind !== "vehicle") return null;
-  const v = await prisma.vehicle.findFirst({
-    where: { id: target.id, deletedAt: null },
-    include: { contracts: COVERING_CONTRACTS },
-  });
-  // The raw date is read before the preview only to skip a Vehicle with no date
-  // of its own. It is harmless for a Covered field: the Reminder plan drops that
-  // entry, so `preview` finds nothing and returns null, and the date is never sent.
-  const date = v?.[target.field];
-  if (!v || !date) return null;
-  const p = await preview("VEHICLE", v.id, vehicleDueRecord(v), target.field);
+  // #674 — the same loader the scheduler reads, so a test Reminder exists
+  // exactly when a real one could: not in Trash, module on, current Tenancy.
+  const { context: ctx, record: loaded } = await loadDueRecord(target);
+  if (!loaded) return null;
+  const logs = (await getNotificationLogsByOwner(loaded.ownerType, [loaded.id])).get(loaded.id) ?? [];
+  const field = target.kind === "vehicle" ? target.field : undefined;
+  const p = nextReminderPreview(loaded.record, ctx, logs.map(toSentLogRow), { field, channels });
   if (!p) return null;
-  return { kind: "vehicle", id: v.id, title: v.label, vehicleField: target.field, endDate: date, ...testFields(p) };
+  const testPreview: TestPreview = p.when.kind === "on" ? { kind: "on", date: dayToDate(p.when.day) } : p.when;
+  const test = { daysRemaining: p.daysRemaining, appUrl, test: true, testPreview };
+
+  switch (loaded.kind) {
+    case "contract": {
+      const c = loaded.row;
+      if (!c.endDate) return null;
+      return {
+        kind: "contract",
+        id: c.id,
+        title: c.title,
+        detail: c.provider,
+        endDate: c.endDate,
+        notice:
+          p.entry.field === "noticeDeadline"
+            ? { cancelBy: dayToDate(p.entry.date), noticePeriodDays: c.noticePeriodDays! }
+            : undefined,
+        ...test,
+      };
+    }
+    case "warranty": {
+      const product = loaded.row;
+      if (!product.warrantyEndDate) return null;
+      return {
+        kind: "warranty",
+        id: product.id,
+        title: product.description,
+        detail: product.manufacturer ?? product.vendor ?? "",
+        endDate: product.warrantyEndDate,
+        ...test,
+      };
+    }
+    case "tenancy": {
+      const { propertyId, propertyLabel, tenancy } = loaded.row;
+      return {
+        kind: "tenancy",
+        id: tenancy.id,
+        propertyId,
+        title: propertyLabel,
+        detail: tenancy.tenantName ?? "",
+        endDate: dayToDate(p.entry.date),
+        ...test,
+      };
+    }
+    case "vehicle": {
+      if (target.kind !== "vehicle") return null;
+      const v = loaded.row;
+      const date = v[target.field];
+      if (!date) return null;
+      return { kind: "vehicle", id: v.id, title: v.label, vehicleField: target.field, endDate: date, ...test };
+    }
+  }
 }
 
 export type ActionState = { error?: string; success?: string } | null;

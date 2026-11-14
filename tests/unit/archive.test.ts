@@ -25,7 +25,7 @@ import { propertySchema, rentalAgreementSchema } from "@/lib/validation/home";
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
 import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
-import { getCurrentTenancies, getCurrentTenancy } from "@/lib/tenancies";
+import { loadDueRecords, loadDueRecord, type DueTenancy } from "@/lib/loadDueRecords";
 import { queryProperties, queryVehicles, whatsDue } from "@/lib/domainQueries";
 import { getCalendarEvents } from "@/lib/calendarEvents";
 import { vehicleRules } from "@/lib/recordFilters";
@@ -55,6 +55,18 @@ vi.mock("@/lib/notifications/webhook", () => ({
 }));
 
 const db = setupTestDb();
+
+// The current Tenancies, as the scheduler and roll-up load them (#674).
+async function getCurrentTenancies(): Promise<DueTenancy[]> {
+  const { records } = await loadDueRecords({ kinds: ["tenancy"] });
+  return records.flatMap((r) => (r.kind === "tenancy" ? [r.row] : []));
+}
+
+// One Tenancy, if it's its Property's current one (#674).
+async function getCurrentTenancy(id: string): Promise<DueTenancy | null> {
+  const { record } = await loadDueRecord({ kind: "tenancy", id });
+  return record?.kind === "tenancy" ? record.row : null;
+}
 let actorId: string;
 
 beforeEach(async () => {

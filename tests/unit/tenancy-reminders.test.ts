@@ -19,7 +19,7 @@ import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
 import { addDays, householdDay } from "@/lib/duePolicy";
-import { getCurrentTenancy } from "@/lib/tenancies";
+import { loadDueRecord, type DueTenancy } from "@/lib/loadDueRecords";
 import { purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
 
 // #388 — Reminders for a Tenancy's lease end, against a real migrated
@@ -48,6 +48,12 @@ vi.mock("@/lib/notifications/webhook", () => ({
 }));
 
 const db = setupTestDb();
+
+// One Tenancy, if it's its Property's current one (#674).
+async function getCurrentTenancy(id: string): Promise<DueTenancy | null> {
+  const { record } = await loadDueRecord({ kind: "tenancy", id });
+  return record?.kind === "tenancy" ? record.row : null;
+}
 let actorId: string;
 
 beforeEach(async () => {
