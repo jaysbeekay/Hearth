@@ -11,10 +11,8 @@ import {
   type PlannedRecord,
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
-import { COVERING_CONTRACTS } from "@/lib/covers";
-import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
+import { loadDueRecords, type LoadedDueRecord } from "@/lib/loadDueRecords";
 import { prisma } from "@/lib/prisma";
-import { getCurrentTenancies } from "@/lib/tenancies";
 import { pushDeviceFailing } from "@/lib/notifications/pushStatus";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 import type { NotificationLog } from "@/generated/prisma/client";
@@ -178,6 +176,20 @@ export interface HouseholdReminderHealth {
 
 const UNCOVERED_HORIZON_DAYS = 90;
 
+/** How the roll-up names a record, and where it links. */
+function titleAndHref(loaded: LoadedDueRecord): [title: string, href: string] {
+  switch (loaded.kind) {
+    case "contract":
+      return [loaded.row.title, `/contracts/${loaded.id}`];
+    case "warranty":
+      return [loaded.row.description, `/products/${loaded.id}`];
+    case "vehicle":
+      return [loaded.row.label, `/vehicles/${loaded.id}`];
+    case "tenancy":
+      return [`${loaded.row.propertyLabel} — Lease`, `/home/${loaded.row.propertyId}`];
+  }
+}
+
 const VEHICLE_FIELD_TITLES: Record<VehicleDueField, string> = {
   regoExpiry: "Registration",
   insuranceExpiry: "Insurance",
@@ -208,25 +220,21 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
 
   const uncovered: UncoveredRecord[] = [];
   if (deliveryReady) {
-    const [contracts, products, vehicles, tenancies] = await Promise.all([
-      prisma.contract.findMany({ where: { status: "ACTIVE", deletedAt: null, endDate: { not: null } } }),
-      prisma.product.findMany({ where: { deletedAt: null, warrantyEndDate: { not: null } } }),
-      prisma.vehicle.findMany({
-        where: {
-          deletedAt: null,
-          archivedAt: null,
-          OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
-        },
-        include: { contracts: COVERING_CONTRACTS },
-      }),
-      getCurrentTenancies(),
-    ]);
-    const [contractLogs, productLogs, vehicleLogs, tenancyLogs] = await Promise.all([
-      getNotificationLogsByOwner("CONTRACT", contracts.map((c) => c.id)),
-      getNotificationLogsByOwner("PRODUCT", products.map((p) => p.id)),
-      getNotificationLogsByOwner("VEHICLE", vehicles.map((v) => v.id)),
-      getNotificationLogsByOwner("TENANCY", tenancies.map((t) => t.tenancy.id)),
-    ]);
+    const { records } = await loadDueRecords({ context: ctx });
+    const logsByType = new Map(
+      await Promise.all(
+        (["CONTRACT", "PRODUCT", "VEHICLE", "TENANCY"] as const).map(
+          async (ownerType) =>
+            [
+              ownerType,
+              await getNotificationLogsByOwner(
+                ownerType,
+                records.filter((r) => r.ownerType === ownerType).map((r) => r.id),
+              ),
+            ] as const,
+        ),
+      ),
+    );
 
     function check(
       ownerType: NotificationOwnerType,
@@ -248,23 +256,9 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
       }
     }
 
-    for (const c of contracts) {
-      check("CONTRACT", { kind: "contract", ...c }, contractLogs.get(c.id) ?? [], c.title, `/contracts/${c.id}`);
-    }
-    for (const p of products) {
-      check("PRODUCT", { kind: "warranty", ...p }, productLogs.get(p.id) ?? [], p.description, `/products/${p.id}`);
-    }
-    for (const v of vehicles) {
-      check("VEHICLE", vehicleDueRecord(v), vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
-    }
-    for (const { propertyId, propertyLabel, tenancy } of tenancies) {
-      check(
-        "TENANCY",
-        tenancyDueRecord(tenancy),
-        tenancyLogs.get(tenancy.id) ?? [],
-        `${propertyLabel} — Lease`,
-        `/home/${propertyId}`,
-      );
+    for (const loaded of records) {
+      const logs = logsByType.get(loaded.ownerType)?.get(loaded.id) ?? [];
+      check(loaded.ownerType, loaded.record, logs, ...titleAndHref(loaded));
     }
   }
 
