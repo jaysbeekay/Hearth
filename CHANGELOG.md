@@ -33,6 +33,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Run every scheduled job from an external scheduler (#481).** One
+  `POST /api/cron` call now queues and runs every job that's due, not only
+  the reminder check: backups and email ingestion when they're set up, and
+  price refreshes when Wealth is on. It uses the same decision as the
+  built-in scheduler, so the two can't disagree and overlapping calls run each
+  job once. The reminder check still runs on every call. The response gains an
+  `enqueued` list. Set `DISABLE_INTERNAL_SCHEDULER=true` to turn the built-in
+  scheduler off when you call `/api/cron` yourself; see the README. Docker
+  installs with no `CRON_SECRET` behave as before, with one change: a price
+  refresh that was missed is now caught up, and it only runs while Wealth is
+  on. `/api/cron` and `/api/backup` also compare the secret in constant time.
+
 - **Reminders in the phone app (#375, part 3b).** The iOS/Android app
   can't use Web Push, so "Notify this device" there becomes "Notify this
   phone": it schedules the household's Reminders for the next four months as

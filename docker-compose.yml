@@ -33,6 +33,7 @@ services:
       # ("mailto:..." or "https://..."). See .env.example.
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
+      DISABLE_INTERNAL_SCHEDULER: ${DISABLE_INTERNAL_SCHEDULER:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
       MCP_IMPORT_LABELS: ${MCP_IMPORT_LABELS:-}

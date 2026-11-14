@@ -167,8 +167,9 @@ and when comes from the pure Reminder schedule (`reminderSchedule.ts`), which wo
 policy's entries; the health card uses the same schedule. Crossing several thresholds at once
 (e.g. adding an already-overdue contract) sends one catch-up notification per channel, not one
 per threshold. The sent log is keyed by the Due entry's date, so moving a date re-arms its
-Reminders without any writer clearing the log (ADR 0003). `/api/cron` lets an external scheduler trigger the same check
-(`x-cron-secret` header, gated on `CRON_SECRET` being set).
+Reminders without any writer clearing the log (ADR 0003). `/api/cron` lets an external scheduler run every scheduled job that's due, through the same
+`queueOwedScheduledJobs` decision as the ticker (`x-cron-secret` header, gated on `CRON_SECRET`
+being set; `DISABLE_INTERNAL_SCHEDULER=true` turns the ticker off).
 
 **Backups** (`src/lib/backup/`): `snapshot.ts` takes a live `VACUUM INTO` SQLite snapshot,
 encrypts it (AES-256-GCM, `ENCRYPTION_KEY`), then `s3.ts`/`sftp.ts` upload to whichever
