@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **Dependency alerts cleared.** `glob` → 14.0.2+ and `minimatch` → 11.0.1+
+  through overrides (an AbortSignal cancellation bypass and a globparts
+  denial of service; both reach only build and lint tooling), mirrored in the
+  Docker migrate image. Dependabot no longer proposes TypeScript 7, which has
+  no JavaScript API yet for Next, typescript-eslint or the unit tests to use.
+
 - **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
   14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
   didn't affect Hearth: it registers passkeys with `attestationType:
