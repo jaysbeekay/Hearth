@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **`hono` → 4.13.16+** through its override (five advisories: CSRF,
+  form validation, `mount()` and RegExpRouter middleware bypasses, and
+  `css` helper escaping), mirrored in the Docker migrate image. Hono reaches
+  Hearth only through the MCP SDK and Prisma's tooling; none of the affected
+  helpers are used directly.
+
 - **Dependency alerts cleared.** `glob` → 14.0.2+ and `minimatch` → 11.0.1+
   through overrides (an AbortSignal cancellation bypass and a globparts
   denial of service; both reach only build and lint tooling), mirrored in the
