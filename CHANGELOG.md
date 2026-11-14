@@ -42,7 +42,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   health and the test Reminder, which kept reminding about their rego,
   insurance and service dates. These now load Due records through the same
   module, which applies the module gates, Trash and Archived filters once.
-  Turning Vehicles back on brings the Reminders back.
+  The standalone phone app had the same gap in its device Reminders and now
+  drops them when Vehicles is hidden. Turning Vehicles back on brings the
+  Reminders back.
 
 - **A refused passkey says so.** Signing in with a passkey Hearth doesn't
   know (for example one removed in Settings) used to drop silently back to
