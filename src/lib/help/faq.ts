@@ -75,7 +75,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "Can I trigger the reminder check from an external scheduler instead?",
-        a: "Yes — POST to /api/cron with the x-cron-secret header, if CRON_SECRET is configured.",
+        a: "Yes — POST to /api/cron with the x-cron-secret header, if CRON_SECRET is configured. One call also runs the backup, email ingestion and price refresh when they are due.",
       },
     ],
   },
