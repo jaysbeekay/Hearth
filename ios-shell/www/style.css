@@ -135,6 +135,24 @@ h3 {
   font-size: 14px;
 }
 
+/* #491: Help's numbered new-phone steps. */
+.steps {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.steps li {
+  margin-bottom: 4px;
+}
+
+/* #492: the "only on this phone" notice before purchase reads at full
+   strength, not as a muted hint. */
+.notice {
+  margin: 8px 0 16px;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
 .choice-grid,
 #connect-form {
   display: grid;

@@ -220,3 +220,59 @@ test("the mode, paywall and connect screens have at most one filled primary butt
   await expect(page.locator("#connected-screen")).toBeVisible();
   expect(await filledPrimaryButtons(page), "connect").toEqual(["Connect"]);
 });
+
+// #492: before paying, the person is told the data lives only on this phone.
+test("onboarding and the paywall say standalone data lives only on this phone (#492)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await expect(page.locator("#choose-standalone")).toContainText("Kept only on this phone, with no copy at Hearth. You make the backups.");
+
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#paywall-screen")).toBeVisible();
+  await expect(page.locator("[data-device-only-notice]")).toHaveText(
+    "Standalone mode keeps everything on this phone only. Nothing is sent to Hearth or any cloud. Back up regularly to a file protected by your own password, and keep it somewhere safe. If you lose your phone and have no backup, your data cannot be recovered.",
+  );
+});
+
+// #491: the new-phone restore is only offered once the unlock is confirmed.
+const newPhoneOffer = (page: Page) => page.locator("[data-new-phone-restore]");
+
+test("Restore from a backup is not offered before the unlock is confirmed (#491)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#paywall-screen")).toBeVisible();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+  await expect(page.getByText("Restore from a backup")).toHaveCount(0);
+
+  // A cancelled purchase doesn't unlock anything either.
+  await page.evaluate(() => (window as Window & { __paywallTest?: { setPurchaseOutcome: (v: string) => void } }).__paywallTest?.setPurchaseOutcome("cancel"));
+  await page.getByRole("button", { name: "Buy standalone unlock" }).click();
+  await expect(page.locator("#paywall-status")).toContainText("Purchase cancelled");
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
+
+test("buying the unlock on an empty phone offers Restore from a backup (#491)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await page.getByRole("button", { name: "Buy standalone unlock" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect(newPhoneOffer(page)).toBeVisible();
+  await expect(newPhoneOffer(page).getByRole("heading", { name: "Restore from a backup" })).toBeVisible();
+  expect((await filledPrimaryButtons(page)).length).toBeLessThanOrEqual(1);
+  expect(await tooSmallHitAreas(page)).toEqual([]);
+});
+
+test("Restore purchases on an empty phone offers Restore from a backup, and Start fresh hides it (#491)", async ({ page }) => {
+  await mockCapacitor(page, { entitled: false });
+  await page.goto(shellUrl);
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await page.evaluate(() => (window as Window & { __paywallTest?: { setUnlocked: (v: boolean) => void } }).__paywallTest?.setUnlocked(true));
+  await page.getByRole("button", { name: "Restore purchases" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect(newPhoneOffer(page)).toBeVisible();
+
+  await newPhoneOffer(page).getByRole("button", { name: "Start fresh" }).click();
+  await expect(newPhoneOffer(page)).toHaveCount(0);
+});
