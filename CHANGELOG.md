@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **`effect` → 3.22.0+** through an `@prisma/config` override
+  (CVE-2026-121707, an inefficient regular expression), mirrored in the
+  Docker migrate image. Prisma pins `effect` 3.20.0 for its config loader;
+  it isn't used anywhere else.
+
 - **`hono` → 4.13.16+** through its override (five advisories: CSRF,
   form validation, `mount()` and RegExpRouter middleware bypasses, and
   `css` helper escaping), mirrored in the Docker migrate image. Hono reaches
