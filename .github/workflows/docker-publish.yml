@@ -58,7 +58,7 @@ jobs:
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -156,7 +156,7 @@ jobs:
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # `latest` must follow the highest stable release, not whichever tag was
       # built last: re-running an old tag must not move it backwards.
