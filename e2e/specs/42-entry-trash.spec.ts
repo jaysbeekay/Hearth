@@ -178,38 +178,61 @@ test.describe.serial("The Undo toast waits while it's in use", () => {
   });
 });
 
+// The accessible name of the row menu after `title`'s in the trip's
+// itinerary, or null when it is the last row.
+async function rowMenuAfter(page: Page, title: string): Promise<string | null> {
+  const itinerary = page
+    .locator("[data-focus-list]")
+    .filter({ has: page.getByRole("heading", { name: "Itinerary", exact: true }) });
+  const names = await itinerary
+    .getByRole("button", { name: /^More actions for / })
+    .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
+  const index = names.indexOf(`More actions for ${title}`);
+  return index === -1 ? null : (names[index + 1] ?? null);
+}
+
+async function deleteSegmentByKeyboard(page: Page, title: string) {
+  await page.getByRole("button", { name: `More actions for ${title}`, exact: true }).focus();
+  await page.keyboard.press("Enter"); // opens the row menu, focus on Delete
+  await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
+  await page.keyboard.press("Tab"); // to the dialog's Delete
+  await page.keyboard.press("Enter");
+}
+
 // #631 (WCAG 2.2.1) — Alt+T (Option+T on a Mac) moves focus into the newest
 // toast, so a keyboard user can reach Undo before it times out without
 // tabbing through the page. Focus goes back where it was afterwards.
 test.describe.serial("Alt+T reaches the newest toast", () => {
-  async function deleteSegmentByKeyboard(page: Page, title: string) {
-    await page.getByRole("button", { name: `More actions for ${title}` }).focus();
-    await page.keyboard.press("Enter"); // opens the row menu, focus on Delete
-    await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
-    await page.keyboard.press("Tab"); // to the dialog's Delete
-    await page.keyboard.press("Enter");
-  }
-
   test("a keyboard-only delete can be undone with Alt+T, Enter", async ({ page }) => {
     const segment = `Toast shortcut ${Date.now()}`;
+    const neighbour = `${segment} neighbour`;
     await addSegment(page, segment);
+    await addSegment(page, neighbour);
+    const menu = page.getByRole("button", { name: `More actions for ${segment}`, exact: true });
+    // #646 — focus goes to the row after the deleted one, whichever that is.
+    const next = await rowMenuAfter(page, segment);
+    expect(next).not.toBeNull();
     await deleteSegmentByKeyboard(page, segment);
 
     const toast = page.getByRole("status");
     await expect(toast).toContainText("Moved to Recently deleted.");
-    await expect(page.locator("main")).not.toContainText(segment);
-    // The deleted row held focus, so it has dropped to <body>.
-    await expect(page.locator("body")).toBeFocused();
+    await expect(menu).toHaveCount(0);
+    // The deleted row held focus; it moves to the next row's menu instead of
+    // dropping to <body>.
+    const nextMenu = page.getByRole("button", { name: next!, exact: true });
+    await expect(nextMenu).toBeFocused();
 
     await page.keyboard.press("Alt+KeyT");
     const undo = toast.getByRole("button", { name: "Undo" });
     await expect(undo).toBeFocused();
     await page.keyboard.press("Enter");
 
-    await expect(page.locator("main")).toContainText(segment);
-    // Nothing held focus before Alt+T, so it goes to <main> (#618's
-    // fallback) rather than being lost.
-    await expect(page.locator("main")).toBeFocused();
+    await expect(menu).toHaveCount(1);
+    // Focus goes back to where it was before Alt+T.
+    await expect(nextMenu).toBeFocused();
+
+    await deleteSegment(page, neighbour);
+    await expect(page.getByRole("button", { name: `More actions for ${neighbour}`, exact: true })).toHaveCount(0);
   });
 
   test("focus returns to where it was, and the toast waits while it holds focus", async ({ page }) => {
@@ -259,5 +282,98 @@ test.describe.serial("Alt+T reaches the newest toast", () => {
 
     await page.keyboard.type("tent");
     await expect(title).toHaveValue("tent");
+  });
+});
+
+// #646 — deleting a row with the keyboard hands focus to a neighbouring row,
+// or to the list's Add button once it's empty, never to <body>. Cancelling
+// still hands it back to where the delete started (#57).
+test.describe.serial("Focus after a keyboard delete", () => {
+  let ownTripUrl: string;
+
+  async function addDatedSegment(page: Page, title: string, startDate: string) {
+    await page.goto(`${ownTripUrl}/segments/new`);
+    await page.locator('select[name="type"]').selectOption("ACTIVITY");
+    await page.locator('input[name="title"]').fill(title);
+    await page.locator('input[name="startDate"]').fill(startDate);
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(`**${ownTripUrl}`);
+    await expect(page.getByRole("button", { name: `More actions for ${title}`, exact: true })).toBeVisible();
+  }
+
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage({ storageState: ADMIN_AUTH_FILE });
+    await page.goto("/travel/new");
+    await page.locator("#title").fill(`Focus trip ${Date.now()}`);
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(/\/travel\/(?!new$)[^/]+$/);
+    ownTripUrl = new URL(page.url()).pathname;
+    await page.close();
+  });
+
+  test("deleting the last row focuses the previous row's menu", async ({ page }) => {
+    await addDatedSegment(page, "Focus first", "2026-03-01");
+    await addDatedSegment(page, "Focus last", "2026-03-02");
+    expect(await rowMenuAfter(page, "Focus first")).toBe("More actions for Focus last");
+
+    await deleteSegmentByKeyboard(page, "Focus last");
+    await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
+    await expect(page.getByRole("button", { name: "More actions for Focus last", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More actions for Focus first", exact: true })).toBeFocused();
+  });
+
+  test("deleting the only row focuses the list's Add button", async ({ page }) => {
+    await page.goto(ownTripUrl);
+    await deleteSegmentByKeyboard(page, "Focus first");
+    await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
+    await expect(page.locator("main")).toContainText("No segments yet.");
+    await expect(page.getByRole("link", { name: "Add segment" })).toBeFocused();
+    await expect(page.locator("body")).not.toBeFocused();
+  });
+
+  // Review of #650 — once focus has been handed on, it's the user's again: a
+  // click somewhere else isn't undone by the next change to the page.
+  test("a click after a mouse delete keeps focus where the user put it", async ({ page }) => {
+    await addDatedSegment(page, "Focus click gone", "2026-03-04");
+    await addDatedSegment(page, "Focus click next", "2026-03-05");
+    await deleteSegment(page, "Focus click gone");
+    await expect(page.getByRole("button", { name: "More actions for Focus click gone", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More actions for Focus click next", exact: true })).toBeFocused();
+
+    await page.getByRole("heading", { name: "Itinerary", exact: true }).click();
+    await expect(page.locator("body")).toBeFocused();
+    await page.evaluate(() => document.body.appendChild(document.createElement("div")));
+    await page.waitForTimeout(200);
+    await expect(page.locator("body")).toBeFocused();
+  });
+
+  test("cancelling the confirm dialog hands focus back to the row", async ({ page }) => {
+    await addDatedSegment(page, "Focus kept", "2026-03-03");
+    const menu = page.getByRole("button", { name: "More actions for Focus kept", exact: true });
+
+    const rowMenu = page.getByRole("dialog", { name: "More actions for Focus kept" });
+    const openConfirm = async () => {
+      await menu.focus();
+      await page.keyboard.press("Enter"); // opens the row menu, focus on Delete
+      await page.keyboard.press("Enter"); // opens the confirm dialog, focus on Cancel
+      await expect(page.getByRole("alertdialog")).toBeVisible();
+    };
+
+    // The Cancel button leaves the row menu open, so focus goes back to its
+    // Delete item, as before.
+    await openConfirm();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(rowMenu.getByRole("button", { name: "Delete", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeFocused();
+
+    // Escape closes the row menu too, taking the Delete item with it, so the
+    // row's ⋮ button stands in for it.
+    await openConfirm();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(rowMenu).toHaveCount(0);
+    await expect(menu).toBeFocused();
   });
 });

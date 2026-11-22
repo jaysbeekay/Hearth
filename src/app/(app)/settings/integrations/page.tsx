@@ -87,14 +87,14 @@ export default async function IntegrationsSettingsPage() {
           </p>
         </div>
 
-        <Card as="section">
+        <Card as="section" data-focus-list>
           <h3 className="mb-3 font-medium">Endpoints</h3>
           {endpoints.length === 0 ? (
             <p className="text-sm text-muted">No webhook endpoints configured yet.</p>
           ) : (
             <ul className="divide-y divide-border">
               {endpoints.map((endpoint) => (
-                <li key={endpoint.id} className="flex items-start justify-between gap-3 py-3">
+                <li key={endpoint.id} data-focus-row className="flex items-start justify-between gap-3 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {endpoint.name}{" "}

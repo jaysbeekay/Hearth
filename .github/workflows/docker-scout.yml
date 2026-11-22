@@ -113,7 +113,7 @@ jobs:
         # always() so findings still reach the Security tab on the runs where
         # the gate above failed — which is exactly when they're most wanted.
         if: ${{ always() && env.HAS_DOCKERHUB == 'true' && hashFiles(env.SARIF_FILE) != '' }}
-        uses: github/codeql-action/upload-sarif@a2983b8bed1923f44751c5c43237f479442827b3 # v3
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v3
         with:
           sarif_file: ${{ env.SARIF_FILE }}
           # A distinct category per architecture, so one upload doesn't

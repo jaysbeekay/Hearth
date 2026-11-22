@@ -152,179 +152,182 @@ export default async function RentalOverviewPage({
         )}
       </div>
 
-      {!property.isRented && agreements.length === 0 && (
-        <div className={emptyStateClass()}>
-          <p className="text-sm text-muted">
-            This property has no tenancy yet.
-          </p>
-          {canWrite && (
-            <Link
-              href={`/home/${property.id}/rental/agreements/new`}
-              className={buttonClass("secondary", {}, "mt-4")}
-            >
-              <Plus size={16} />
-              Add tenancy
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Rental agreements */}
-      {(property.isRented || agreements.length > 0) && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className={sectionHeadingClass()}>Tenancies</h2>
+      {/* #646 — one focus list for both, so deleting the last tenancy of a
+          property that isn't rented hands focus to "Add tenancy". */}
+      <div data-focus-list>
+        {!property.isRented && agreements.length === 0 && (
+          <div className={emptyStateClass()}>
+            <p className="text-sm text-muted">
+              This property has no tenancy yet.
+            </p>
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
-                className={buttonClass("secondary")}
+                className={buttonClass("secondary", {}, "mt-4")}
               >
                 <Plus size={16} />
                 Add tenancy
               </Link>
             )}
           </div>
+        )}
 
-          {agreements.length === 0 ? (
-            <p className="text-sm text-muted">No tenancies recorded yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {agreements.map((ag, i) => (
-                <Card
-                  key={ag.id}
+        {/* Rental agreements */}
+        {(property.isRented || agreements.length > 0) && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className={sectionHeadingClass()}>Tenancies</h2>
+              {canWrite && (
+                <Link
+                  href={`/home/${property.id}/rental/agreements/new`}
+                  className={buttonClass("secondary")}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium">
-                        {formatCurrency(ag.weeklyRent, ag.currency, undefined, region)}/wk
-                        {ag.managementFeePercent != null && (
-                          <span className="ml-2 text-sm font-normal text-muted">
-                            · {ag.managementFeePercent}% management fee
-                          </span>
-                        )}
-                        {i === 0 && (
-                          <Pill className="ml-2">
-                            Current
-                          </Pill>
-                        )}
-                      </p>
-                      {ag.tenantName && (
-                        <p className="text-sm text-muted">{ag.tenantName}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {canWrite && (
-                        <>
-                          <Link
-                            href={`/home/${property.id}/rental/agreements/${ag.id}/edit`}
-                            className={buttonClass("secondary")}
-                          >
-                            <Pencil size={16} />
-                            Edit
-                          </Link>
-                          <DetailOverflowMenu label={`More actions for tenancy ${ag.tenantName ?? property.label}`}>
-                            <ConfirmForm
-                              action={deleteRentalAgreement.bind(null, property.id, ag.id)}
-                              undo={{ action: restoreRentalAgreement.bind(null, ag.id) }}
-                              offline={{
-                                entity: "rentalAgreement",
-                                entityId: ag.id,
-                                parentId: property.id,
-                                label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
-                              }}
-                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Household settings → Recently deleted."
-                              className={menuItemClass({ destructive: true })}
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </ConfirmForm>
-                          </DetailOverflowMenu>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <Plus size={16} />
+                  Add tenancy
+                </Link>
+              )}
+            </div>
 
-                  <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-                    <Detail
-                      label="Lease period"
-                      value={
-                        ag.leaseStart || ag.leaseEnd
-                          ? `${formatDate(ag.leaseStart, dateFormat)} – ${formatDate(ag.leaseEnd, dateFormat)}`
-                          : "—"
-                      }
-                    />
-                    <Detail label="Added" value={formatTimestamp(ag.createdAt, dateFormat, displayTimeZone)} />
-                  </dl>
-                  {ag.notes && (
-                    <p className={proseClass("mt-3 whitespace-pre-wrap")}>{ag.notes}</p>
-                  )}
-
-                  <div className="mt-4 border-t border-border pt-4">
-                    <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                      <Link2 size={16} className="text-muted" />
-                      Linked contract
-                    </div>
-                    {ag.contract ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <Link
-                            href={`/contracts/${ag.contract.id}`}
-                            className="text-sm font-medium text-accent hover:underline"
-                          >
-                            {ag.contract.title}
-                          </Link>
-                          <p className="text-xs text-muted">
-                            {ag.contract.provider}
-                            {ag.contract.cost != null &&
-                              ` · ${formatCurrency(ag.contract.cost, ag.contract.currency, undefined, region)}`}
-                          </p>
-                        </div>
-                        {canWrite && (
-                          <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
-                            <input type="hidden" name="contractId" value="" />
-                            <SubmitButton variant="secondary" pendingText="Unlinking…">
-                              Unlink
-                            </SubmitButton>
-                          </form>
+            {agreements.length === 0 ? (
+              <p className="text-sm text-muted">No tenancies recorded yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {agreements.map((ag, i) => (
+                  <Card key={ag.id} data-focus-row>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium">
+                          {formatCurrency(ag.weeklyRent, ag.currency, undefined, region)}/wk
+                          {ag.managementFeePercent != null && (
+                            <span className="ml-2 text-sm font-normal text-muted">
+                              · {ag.managementFeePercent}% management fee
+                            </span>
+                          )}
+                          {i === 0 && (
+                            <Pill className="ml-2">
+                              Current
+                            </Pill>
+                          )}
+                        </p>
+                        {ag.tenantName && (
+                          <p className="text-sm text-muted">{ag.tenantName}</p>
                         )}
                       </div>
-                    ) : !canWrite ? (
-                      <p className="text-sm text-muted">Not linked.</p>
-                    ) : rentalContracts.length === 0 ? (
-                      <p className="text-sm text-muted">
-                        No Rental-category contracts to link yet.
-                      </p>
-                    ) : (
-                      <form
-                        action={linkRentalAgreementContract.bind(null, property.id, ag.id)}
-                        className="flex items-center gap-2"
-                      >
-                        <SelectWrapper>
-                          <select name="contractId" defaultValue="" className={selectClass}>
-                            <option value="">Not linked</option>
-                            {rentalContracts.map((c) => (
-                              <option key={c.id} value={c.id} disabled={c.rentalAgreement !== null}>
-                                {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a deleted tenancy)" : ""}`}
-                              </option>
-                            ))}
-                          </select>
-                        </SelectWrapper>
-                        <SubmitButton variant="secondary" pendingText="Linking…">
-                          Link
-                        </SubmitButton>
-                      </form>
+                      <div className="flex items-center gap-2">
+                        {canWrite && (
+                          <>
+                            <Link
+                              href={`/home/${property.id}/rental/agreements/${ag.id}/edit`}
+                              className={buttonClass("secondary")}
+                            >
+                              <Pencil size={16} />
+                              Edit
+                            </Link>
+                            <DetailOverflowMenu label={`More actions for tenancy ${ag.tenantName ?? property.label}`}>
+                              <ConfirmForm
+                                removesRow
+                                action={deleteRentalAgreement.bind(null, property.id, ag.id)}
+                                undo={{ action: restoreRentalAgreement.bind(null, ag.id) }}
+                                offline={{
+                                  entity: "rentalAgreement",
+                                  entityId: ag.id,
+                                  parentId: property.id,
+                                  label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
+                                }}
+                                confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Household settings → Recently deleted."
+                                className={menuItemClass({ destructive: true })}
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </ConfirmForm>
+                            </DetailOverflowMenu>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+                      <Detail
+                        label="Lease period"
+                        value={
+                          ag.leaseStart || ag.leaseEnd
+                            ? `${formatDate(ag.leaseStart, dateFormat)} – ${formatDate(ag.leaseEnd, dateFormat)}`
+                            : "—"
+                        }
+                      />
+                      <Detail label="Added" value={formatTimestamp(ag.createdAt, dateFormat, displayTimeZone)} />
+                    </dl>
+                    {ag.notes && (
+                      <p className={proseClass("mt-3 whitespace-pre-wrap")}>{ag.notes}</p>
                     )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <Link2 size={16} className="text-muted" />
+                        Linked contract
+                      </div>
+                      {ag.contract ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <Link
+                              href={`/contracts/${ag.contract.id}`}
+                              className="text-sm font-medium text-accent hover:underline"
+                            >
+                              {ag.contract.title}
+                            </Link>
+                            <p className="text-xs text-muted">
+                              {ag.contract.provider}
+                              {ag.contract.cost != null &&
+                                ` · ${formatCurrency(ag.contract.cost, ag.contract.currency, undefined, region)}`}
+                            </p>
+                          </div>
+                          {canWrite && (
+                            <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
+                              <input type="hidden" name="contractId" value="" />
+                              <SubmitButton variant="secondary" pendingText="Unlinking…">
+                                Unlink
+                              </SubmitButton>
+                            </form>
+                          )}
+                        </div>
+                      ) : !canWrite ? (
+                        <p className="text-sm text-muted">Not linked.</p>
+                      ) : rentalContracts.length === 0 ? (
+                        <p className="text-sm text-muted">
+                          No Rental-category contracts to link yet.
+                        </p>
+                      ) : (
+                        <form
+                          action={linkRentalAgreementContract.bind(null, property.id, ag.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <SelectWrapper>
+                            <select name="contractId" defaultValue="" className={selectClass}>
+                              <option value="">Not linked</option>
+                              {rentalContracts.map((c) => (
+                                <option key={c.id} value={c.id} disabled={c.rentalAgreement !== null}>
+                                  {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a deleted tenancy)" : ""}`}
+                                </option>
+                              ))}
+                            </select>
+                          </SelectWrapper>
+                          <SubmitButton variant="secondary" pendingText="Linking…">
+                            Link
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Rental statements */}
       {(property.isRented || agreements.length > 0) && (
-        <div className="space-y-3">
+        <div className="space-y-3" data-focus-list>
           <div className="flex items-center justify-between">
             <h2 className={sectionHeadingClass()}>Rental statements</h2>
             {canWrite && (
@@ -361,9 +364,7 @@ export default async function RentalOverviewPage({
                 const currency = stmt.currency;
 
                 return (
-                  <Card
-                    key={stmt.id}
-                  >
+                  <Card key={stmt.id} data-focus-row>
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="font-medium">
@@ -389,6 +390,7 @@ export default async function RentalOverviewPage({
                             </Link>
                             <DetailOverflowMenu label={`More actions for statement ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`}>
                               <ConfirmForm
+                                removesRow
                                 action={deleteRentalStatement.bind(null, property.id, stmt.id)}
                                 undo={{ action: restoreRentalStatement.bind(null, stmt.id) }}
                                 offline={{

@@ -36,7 +36,7 @@ export default async function PasskeysPage() {
         </p>
       </div>
 
-      <Card as="section">
+      <Card as="section" data-focus-list>
         <h2 className={sectionHeadingClass("mb-3")}>Your passkeys</h2>
         {passkeys.length === 0 ? (
           <p className="text-sm text-muted">No passkeys registered yet.</p>

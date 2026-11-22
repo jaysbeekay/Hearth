@@ -12,7 +12,7 @@ import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListFilterSheet } from "@/components/ListFilterSheet";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
-import { deleteContract, restoreContract } from "@/lib/actions/contracts";
+import { deleteContractFromList, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS, cn } from "@/lib/utils";
 import type { DueContext } from "@/lib/duePolicy";
@@ -188,7 +188,7 @@ export function ContractListClient({
   const nothingYet = !filtered && contracts.length === 0 && pendingOps.length === 0;
 
   return (
-    <PageShell width="list">
+    <PageShell width="list" data-focus-list>
       <ListPageHeader
         title="Contracts"
         description="Insurance policies, plans, leases, loans and subscriptions"
@@ -335,7 +335,8 @@ export function ContractListClient({
                 key={contract.id}
                 revealAction={
                   <ConfirmForm
-                    action={deleteContract.bind(null, contract.id)}
+                    removesRow
+                    action={deleteContractFromList.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Household settings → Recently deleted.`}
                     ariaLabel={`Delete ${contract.title}`}
