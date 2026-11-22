@@ -50,24 +50,42 @@ jobs:
           echo "name=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Extract changelog section
-        id: changelog
+      # The Release body is the short note in docs/releases/vX.Y.Z.md when
+      # one exists, with a link to the full CHANGELOG section. Without one it
+      # falls back to the CHANGELOG section plus GitHub's generated PR list.
+      - name: Build release notes
+        id: notes
         env:
           VERSION: ${{ steps.tag.outputs.version }}
           NAME: ${{ steps.tag.outputs.name }}
+          REPO: ${{ github.repository }}
         run: |
-          NOTES=$(awk -v ver="[$VERSION]" '
-            $0 ~ /^## \[/ { if (found) exit; if (index($0, ver)) { found=1; next } else next }
-            found { print }
-          ' CHANGELOG.md)
-          if [ -z "$NOTES" ]; then
-            NOTES="_No changelog entry found for $NAME — see commits below._"
+          SHORT="docs/releases/$NAME.md"
+          BODY="$RUNNER_TEMP/release-notes.md"
+          if [ -f "$SHORT" ] && grep -q '[^[:space:]]' "$SHORT"; then
+            ANCHOR=$(awk -v ver="[$VERSION]" '/^## \[/ && index($0, ver) { print; exit }' CHANGELOG.md \
+              | tr '[:upper:]' '[:lower:]' | sed -e 's/^## //' -e 's/[^a-z0-9 -]//g' -e 's/ /-/g')
+            if [ -z "$ANCHOR" ]; then
+              echo "::warning::No CHANGELOG section for [$VERSION]; the release links to the top of CHANGELOG.md."
+            fi
+            {
+              cat "$SHORT"
+              printf '\n\nFull details: [CHANGELOG](https://github.com/%s/blob/%s/CHANGELOG.md%s)\n' \
+                "$REPO" "$NAME" "${ANCHOR:+#$ANCHOR}"
+            } > "$BODY"
+            echo "generated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No short release note at $SHORT; using the CHANGELOG section."
+            awk -v ver="[$VERSION]" '
+              $0 ~ /^## \[/ { if (found) exit; if (index($0, ver)) { found=1; next } else next }
+              found { print }
+            ' CHANGELOG.md > "$BODY"
+            if ! grep -q '[^[:space:]]' "$BODY"; then
+              echo "_No changelog entry found for $NAME — see commits below._" > "$BODY"
+            fi
+            echo "generated=true" >> "$GITHUB_OUTPUT"
           fi
-          {
-            echo "notes<<RELEASE_NOTES_EOF"
-            echo "$NOTES"
-            echo "RELEASE_NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "path=$BODY" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
@@ -75,8 +93,8 @@ jobs:
           tag_name: ${{ steps.tag.outputs.name }}
           target_commitish: ${{ github.sha }}
           name: ${{ steps.tag.outputs.name }}
-          body: ${{ steps.changelog.outputs.notes }}
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.generated == 'true' }}
 
   # Builds the release's artifacts and waits for them, so a green release run
   # means the Docker image and the signed Android APK/AAB were actually
