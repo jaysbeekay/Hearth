@@ -100,6 +100,26 @@ describe("job runner", () => {
     expect((await job("EMAIL_INGEST")).status).toBe("DONE");
   });
 
+  it("stops claiming new jobs once a time budget is spent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T12:00:00Z"));
+    // The reminder check takes a minute; the budget is 30 seconds.
+    runExpirationCheck.mockImplementation(async () => {
+      vi.setSystemTime(new Date("2026-11-10T12:01:00Z"));
+    });
+    runEmailIngestion.mockResolvedValue(undefined);
+    await enqueueJobUnlessPending("REMINDER_CHECK");
+    await enqueueJobUnlessPending("EMAIL_INGEST");
+
+    await runPendingJobs(50, { budgetMs: 30_000 });
+    vi.useRealTimers();
+
+    expect((await job("REMINDER_CHECK")).status).toBe("DONE");
+    // Left queued for the next call or the in-process runner, not dropped.
+    expect((await job("EMAIL_INGEST")).status).toBe("PENDING");
+    expect(runEmailIngestion).not.toHaveBeenCalled();
+  });
+
   it("does not make a direct run wait for a hung one", async () => {
     runExpirationCheck.mockImplementation(hang);
     runEmailIngestion.mockResolvedValue(undefined);
