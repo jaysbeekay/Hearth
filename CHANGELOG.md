@@ -7,6 +7,42 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- **`hono` → 4.13.16+** through its override (five advisories: CSRF,
+  form validation, `mount()` and RegExpRouter middleware bypasses, and
+  `css` helper escaping), mirrored in the Docker migrate image. Hono reaches
+  Hearth only through the MCP SDK and Prisma's tooling; none of the affected
+  helpers are used directly.
+
+- **Dependency alerts cleared.** `glob` → 14.0.2+ and `minimatch` → 11.0.1+
+  through overrides (an AbortSignal cancellation bypass and a globparts
+  denial of service; both reach only build and lint tooling), mirrored in the
+  Docker migrate image. Dependabot no longer proposes TypeScript 7, which has
+  no JavaScript API yet for Next, typescript-eslint or the unit tests to use.
+
+- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
+  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
+  didn't affect Hearth: it registers passkeys with `attestationType:
+  "none"`). Existing passkeys keep signing in with no migration; the stored
+  format is unchanged. New passkeys are offered the same algorithms as
+  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
+  advertises the same set. An npm `overrides` entry satisfies next-auth's
+  optional peer on 9.x, which only its unused WebAuthn provider needs.
+  Sign-in is also stricter: each challenge is used up by its first attempt,
+  whether that attempt succeeds or not, and the assertion's credential and
+  user handle must match the stored passkey. Registration accepts any of
+  the user's unexpired challenges, so adding a passkey in two tabs works,
+  and only known transports are stored.
+
+### Fixed
+
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+
+## [0.21.0] - 2026-11-12
+
 ### Added
 
 - **Run every scheduled job from an external scheduler (#481).** One
@@ -694,6 +730,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Deleting a row with the keyboard no longer loses your place (#646).**
+  Deleting a row (a trip segment, trade, rental statement, tenancy,
+  valuation, Service or Maintenance record, Document, webhook, contract and
+  the like) took the focused button away with the row, so focus fell back to
+  the start of the page. Focus now moves to the next row's More actions
+  button, or the previous row's when it was the last, or the list's Add
+  button or heading once the list is empty, after the row has actually gone.
+  Restoring from Recently deleted moves focus to the next entry's name, and
+  restoring an Archived Vehicle or Property from its notice keeps focus on
+  the page. Cancelling, and confirms that don't remove the row, still return
+  focus to where it was; Alt+T then Undo still works, coming back to the new
+  spot; and once you click or type elsewhere, focus stays where you put it.
+
 - **A click that lands before a page has loaded is no longer lost (#609).**
   Clicking a form's button before the page finished loading sent the form
   without the app's script, which the server refused, so the click did
@@ -940,8 +989,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
   the latest release. `docker-publish.yml` runs the same checks before it
   pushes.
-
-### Fixed
 
 - **PDF export returned 500 in the Docker image (#523).** Every "Export
   PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled

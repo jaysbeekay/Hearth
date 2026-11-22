@@ -14,6 +14,14 @@ export function useCloseOverflowMenu() {
   return useContext(CloseMenuContext);
 }
 
+// #646 — the menu's own ⋮ button, for an item whose action removes or changes
+// the record: focus goes back to it, or to its row's neighbours (see
+// lib/focusReturn.ts), since the item itself closes with the menu.
+const MenuButtonContext = createContext<React.RefObject<HTMLButtonElement | null> | null>(null);
+export function useOverflowMenuButton() {
+  return useContext(MenuButtonContext);
+}
+
 // Also the list pages' ⋮ menu below `md` (#369), where `label` names it
 // "More list actions" so it reads differently from a record's own menu.
 export function DetailOverflowMenu({
@@ -26,6 +34,7 @@ export function DetailOverflowMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   // Desktop dropdown isn't a modal overlay (no backdrop, closes on any
   // outside click) so it doesn't go through the shared Dialog primitive —
   // but it still needs the same "Tab can't escape into the page" guarantee
@@ -56,7 +65,9 @@ export function DetailOverflowMenu({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={buttonRef}
         type="button"
+        data-overflow-menu-button
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
         aria-haspopup="dialog"
@@ -78,7 +89,9 @@ export function DetailOverflowMenu({
             aria-label={label}
             className={overlayClass("absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden md:block")}
           >
-            <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
+            <CloseMenuContext.Provider value={closeMenu}>
+              <MenuButtonContext.Provider value={buttonRef}>{children}</MenuButtonContext.Provider>
+            </CloseMenuContext.Provider>
           </div>
 
           {/* Mobile: bottom sheet, matching BottomNav's "More" pattern —
@@ -101,7 +114,9 @@ export function DetailOverflowMenu({
                   <X size={20} />
                 </button>
               </div>
-              <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
+              <CloseMenuContext.Provider value={closeMenu}>
+                <MenuButtonContext.Provider value={buttonRef}>{children}</MenuButtonContext.Provider>
+              </CloseMenuContext.Provider>
             </>
           </Dialog>
         </>

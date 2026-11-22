@@ -248,8 +248,10 @@ export default async function ProductDetailPage({
         </Card>
       )}
 
-      <Card id="documents" className="scroll-mt-20">
-        <h2 className={sectionHeadingClass("mb-3")}>Documents</h2>
+      <Card id="documents" className="scroll-mt-20" data-focus-list>
+        <h2 className={sectionHeadingClass("mb-3")} data-focus-list-fallback>
+          Documents
+        </h2>
         <DocumentList kind="PRODUCT" ownerId={product.id} ownerName={product.description} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">

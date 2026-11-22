@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { showToast } from "@/components/Toast";
-import { useCloseOverflowMenu } from "@/components/DetailOverflowMenu";
+import { useCloseOverflowMenu, useOverflowMenuButton } from "@/components/DetailOverflowMenu";
+import { captureFocusOrigin, returnFocus, type FocusOrigin } from "@/lib/focusReturn";
 import type { ActionState } from "@/lib/actions/auth";
 
 type Result = ActionState;
@@ -30,14 +31,20 @@ export function ArchiveButton({
 }) {
   const router = useRouter();
   const closeMenu = useCloseOverflowMenu();
+  const menuButtonRef = useOverflowMenuButton();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [pending, setPending] = useState(false);
 
-  async function run() {
+  // #646 — the button closes with the menu, and Archive or Restore can take
+  // the record out of the list it was in, so focus is handed on rather than
+  // left on <body>.
+  async function run(origin: FocusOrigin) {
     setPending(true);
     try {
       const result = await action();
       if (result?.error) {
         showToast(result.error, "error");
+        returnFocus(origin);
         return;
       }
       if (mode === "archive" && undo) {
@@ -63,7 +70,9 @@ export function ArchiveButton({
         showToast(mode === "archive" ? "Archived." : "Restored.");
       }
       router.refresh();
+      returnFocus(origin, { removed: true });
     } catch {
+      returnFocus(origin);
       showToast(
         `Couldn't ${mode === "archive" ? "archive" : "restore"} the ${noun}. Check your connection and try again.`,
         "error",
@@ -74,13 +83,14 @@ export function ArchiveButton({
   }
 
   function handleClick() {
+    const origin = captureFocusOrigin(buttonRef.current, menuButtonRef?.current ?? null);
     closeMenu();
-    run().catch(() => undefined);
+    run(origin).catch(() => undefined);
   }
 
   const Icon = mode === "archive" ? Archive : ArchiveRestore;
   return (
-    <button type="button" disabled={pending} onClick={handleClick} className={className}>
+    <button ref={buttonRef} type="button" disabled={pending} onClick={handleClick} className={className}>
       <Icon size={16} />
       {mode === "archive" ? "Archive" : "Restore"}
     </button>

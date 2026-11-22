@@ -1,6 +1,6 @@
 import { createECDH, randomBytes } from "node:crypto";
 import net from "node:net";
-import webpush from "web-push";
+import * as webpush from "web-push";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth } from "@/lib/auth";
@@ -18,6 +18,13 @@ import { buildPushReminder } from "@/lib/notifications/reminderContent";
 import { channelList } from "@/lib/notifications/channels";
 import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
+
+// web-push 4 is ESM, whose namespace can't be spied on, so wrap the one
+// function a test inspects while keeping its real behaviour.
+vi.mock("web-push", async (importOriginal) => {
+  const real = await importOriginal<typeof import("web-push")>();
+  return { ...real, generateRequestDetails: vi.fn(real.generateRequestDetails) };
+});
 import { refreshPushSubscription, removePushSubscription, savePushSubscription, sendPushTest } from "@/lib/actions/push";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { contractSchema } from "@/lib/validation/contract";
@@ -166,7 +173,8 @@ describe("sending", () => {
     await subscribe(a.id, "https://push.example/a");
     await subscribe(b.id, "https://push.example/b");
     send.mockImplementation(async () => status(201));
-    const details = vi.spyOn(webpush, "generateRequestDetails");
+    const details = vi.mocked(webpush.generateRequestDetails);
+    details.mockClear();
 
     expect(await sendPushReminder(reminder)).toBe(2);
     const sent = Object.fromEntries(

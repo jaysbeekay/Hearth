@@ -52,12 +52,13 @@ vi.mock("@/lib/documents/queueExtraction", async (importOriginal) => {
 
 const db = setupTestDb();
 const { addDocumentCommand, purgeDocument } = await import("@/lib/commands/documents");
-const { runPendingJobs, runOneJob, enqueueJobUnlessPending } = await import("@/lib/jobs/runner");
+const { runOneJob, enqueueJobUnlessPending } = await import("@/lib/jobs/runner");
 const { GET } = await import("@/app/api/search/route");
 const { POST: cronPOST } = await import("@/app/api/cron/route");
 const { extractTextDetailed, getExtractionCapabilities } = await import("@/lib/documents/textExtraction");
 const { queueDocumentExtraction } = await import("@/lib/documents/queueExtraction");
 const { runDocumentTextBackfill } = await import("@/lib/documents/documentText");
+const { documentStoreFor } = await import("@/lib/storage");
 
 const OPT_IN_MODULES: ModuleKey[] = ["TRAVEL", "HOME", "VEHICLES", "INVENTORY", "WEALTH"];
 
@@ -91,16 +92,33 @@ function docx(name: string, text = "") {
   });
 }
 
+// Runs jobs until none is runnable now. Stopping at the first empty claim is
+// safe because no job is ever queued to become due within milliseconds: a
+// retry waits 30s, the backfill's next batch a minute, and these tests' own
+// delayed jobs an hour. The cap (the old 20 × runPendingJobs(4)) only stops a
+// runaway loop.
 async function drainJobs() {
-  for (let i = 0; i < 20; i += 1) await runPendingJobs();
+  for (let i = 0; i < 80; i += 1) {
+    if (!(await runOneJob())) return;
+  }
+}
+
+function jobsLeft() {
+  return db.prisma.backgroundJob.count({ where: { status: { in: ["PENDING", "RUNNING"] } } });
 }
 
 // A failed job waits 30s before its retry, and the backfill a minute
 // between batches; only the clock is faked, and moved past those waits.
+// With nothing left queued, the remaining rounds would only move the
+// clock, so it's moved for them at once and the test ends where it would.
 async function drainJobsOverTime(rounds = 5) {
   vi.useFakeTimers({ toFake: ["Date"] });
   for (let i = 0; i < rounds; i += 1) {
     await drainJobs();
+    if ((await jobsLeft()) === 0) {
+      vi.setSystemTime(Date.now() + 61_000 * (rounds - i));
+      return;
+    }
     vi.setSystemTime(Date.now() + 61_000);
   }
   await drainJobs();
@@ -426,15 +444,48 @@ describe("Extraction on upload", () => {
 });
 
 // A Document filed before #398: its row has no extraction status and
-// nothing is queued for it. Filed through the command (so the file is
-// really on disk), then put back the way the migration leaves old rows.
+// nothing is queued for it, the way the migration leaves old rows. The file
+// is saved by its owner's real store, so it's really on disk where the
+// extraction job reads it. Each Document gets its own Service record, so a
+// job sent to the wrong owner's files fails; the records and rows are each
+// written in one go, which keeps tests that need a batch's worth cheap (#647).
 async function filedBeforeThisChange(file: File) {
-  const owner = await serviceRecord();
-  const doc = await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file });
-  await db.prisma.vehicleItemDocument.update({ where: { id: doc.id }, data: { extractionStatus: null } });
-  await db.prisma.backgroundJob.deleteMany({});
-  vi.mocked(extractTextDetailed).mockClear();
+  const [doc] = await allFiledBeforeThisChange([file]);
   return doc;
+}
+
+async function allFiledBeforeThisChange(files: File[]) {
+  const vehicle = await db.prisma.vehicle.create({ data: { label: "Corolla", createdById: actorId } });
+  const owners = await db.prisma.vehicleItem.createManyAndReturn({
+    data: files.map(() => ({ vehicleId: vehicle.id, type: "SERVICE", title: "Logbook service" })),
+  });
+  const data = await oldDocumentFiles(
+    "VEHICLE_ITEM",
+    files.map((file, i) => ({ file, ownerId: owners[i].id })),
+  );
+  const rows = await db.prisma.vehicleItemDocument.createManyAndReturn({
+    data: data.map(({ ownerId, ...d }) => ({ ...d, vehicleItemId: ownerId })),
+  });
+  return rows.map((row) => ({ ...row, ownerId: row.vehicleItemId }));
+}
+
+// Each call's Documents are filed after the last call's, a millisecond apart,
+// so no two share an uploadedAt and the backfill's oldest-first order is the
+// order they were filed in.
+let lastFiledAt = 0;
+
+// Saves each file where its kind's Documents are read from, and returns the
+// row fields for it, with no extraction status.
+async function oldDocumentFiles(kind: "VEHICLE_ITEM" | "HOME_ITEM", files: { file: File; ownerId: string }[]) {
+  const store = documentStoreFor(kind);
+  const filedAt = Math.max(Date.now() - files.length, lastFiledAt + 1);
+  lastFiledAt = filedAt + files.length - 1;
+  return Promise.all(
+    files.map(async ({ file, ownerId }, i) => {
+      const { storedName, mimeType, size, sha256 } = await store.save(ownerId, file);
+      return { ownerId, filename: file.name, storedName, mimeType, size, sha256, uploadedAt: new Date(filedAt + i) };
+    }),
+  );
 }
 
 async function runBackfill() {
@@ -443,6 +494,10 @@ async function runBackfill() {
 }
 
 describe("Backfill of Documents filed before text search", () => {
+  beforeEach(() => {
+    lastFiledAt = 0;
+  });
+
   it("makes their contents searchable", async () => {
     await filedBeforeThisChange(pdf("replaced the timing belt"));
     expect(await documentHits("timing belt")).toEqual([]);
@@ -454,7 +509,7 @@ describe("Backfill of Documents filed before text search", () => {
 
   it("works through them in batches of 25, queueing the next batch itself until none are left", async () => {
     const words = Array.from({ length: 30 }, (_, i) => `wombat${String(i).padStart(2, "0")}x`);
-    for (const word of words) await filedBeforeThisChange(pdf(word));
+    await allFiledBeforeThisChange(words.map((word) => pdf(word)));
 
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
     await runOneJob();
@@ -470,7 +525,7 @@ describe("Backfill of Documents filed before text search", () => {
   });
 
   it("waits a minute between batches, and for the last batch's extractions to finish", async () => {
-    for (let i = 0; i < 26; i += 1) await filedBeforeThisChange(pdf(`numbat${i}x`));
+    await allFiledBeforeThisChange(Array.from({ length: 26 }, (_, i) => pdf(`numbat${i}x`)));
     vi.useFakeTimers({ toFake: ["Date"] });
 
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
@@ -490,7 +545,7 @@ describe("Backfill of Documents filed before text search", () => {
   });
 
   it("runs below every other job, so a check queued after a batch isn't held up", async () => {
-    for (let i = 0; i < 3; i += 1) await filedBeforeThisChange(pdf(`bilby${i}x`));
+    await allFiledBeforeThisChange(Array.from({ length: 3 }, (_, i) => pdf(`bilby${i}x`)));
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
     await runOneJob();
     // Any job queued at normal priority after the batch; this one has no handler.
@@ -526,14 +581,16 @@ describe("Backfill of Documents filed before text search", () => {
   });
 
   it("picks up Documents of several kinds in one batch of 25", async () => {
-    for (let i = 0; i < 20; i += 1) await filedBeforeThisChange(pdf(`quoll${i}x`));
+    await allFiledBeforeThisChange(Array.from({ length: 20 }, (_, i) => pdf(`quoll${i}x`)));
     const prop = await db.prisma.property.create({ data: { label: "House", createdById: actorId } });
-    const item = await db.prisma.homeItem.create({ data: { propertyId: prop.id, type: "MAINTENANCE", title: "Gutters" } });
-    for (let i = 0; i < 10; i += 1) {
-      const doc = await addDocumentCommand("HOME_ITEM", item.id, { file: pdf(`dunnart${i}x`) });
-      await db.prisma.homeItemDocument.update({ where: { id: doc.id }, data: { extractionStatus: null } });
-    }
-    await db.prisma.backgroundJob.deleteMany({});
+    const items = await db.prisma.homeItem.createManyAndReturn({
+      data: Array.from({ length: 10 }, () => ({ propertyId: prop.id, type: "MAINTENANCE", title: "Gutters" })),
+    });
+    const homeRows = await oldDocumentFiles(
+      "HOME_ITEM",
+      items.map((item, i) => ({ file: pdf(`dunnart${i}x`), ownerId: item.id })),
+    );
+    await db.prisma.homeItemDocument.createMany({ data: homeRows.map(({ ownerId, ...d }) => ({ ...d, homeItemId: ownerId })) });
 
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
     await runOneJob();
@@ -578,8 +635,7 @@ describe("Backfill of Documents filed before text search", () => {
   });
 
   it("leaves an old PENDING Document alone while its job is still queued, waiting for a retry, or running", async () => {
-    const docs = [];
-    for (let i = 0; i < 3; i += 1) docs.push(await filedBeforeThisChange(pdf("replaced the timing belt")));
+    const docs = await allFiledBeforeThisChange(Array.from({ length: 3 }, () => pdf("replaced the timing belt")));
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000);
     const live = [
       { status: "PENDING" },
@@ -621,7 +677,7 @@ describe("Backfill of Documents filed before text search", () => {
   });
 
   it("is left to the server's own runner by POST /api/cron", async () => {
-    for (let i = 0; i < 3; i += 1) await filedBeforeThisChange(pdf(`potoroo${i}x`));
+    await allFiledBeforeThisChange(Array.from({ length: 3 }, (_, i) => pdf(`potoroo${i}x`)));
     await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
     await runOneJob();
     vi.stubEnv("CRON_SECRET", "s3cret");
