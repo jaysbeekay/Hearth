@@ -2624,7 +2624,8 @@ function reminderTargets() {
   return [
     ...cache.contracts.flatMap((row) => recordReminderTargets("contracts", row, "Contract", ctx)),
     ...cache.products.flatMap((row) => recordReminderTargets("products", row, "Warranty", ctx)),
-    ...activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row, ctx)),
+    // #674 — none while the Vehicles module is off, as on the web.
+    ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row, ctx)) : []),
     ...leaseReminderTargets(ctx),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";

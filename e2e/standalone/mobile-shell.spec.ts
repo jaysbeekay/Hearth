@@ -2985,6 +2985,27 @@ test("standalone notice deadlines feed Upcoming and Reminders; an auto-renew end
   expect(scheduled.filter((n) => n.extra?.recordId === "contract-renews")).toEqual([]);
 });
 
+test("standalone schedules no Vehicle Reminders while the Vehicles module is hidden (#674)", async ({ page }) => {
+  const vehicleReminders = () =>
+    page.evaluate(() => {
+      const scheduled = (window as Window & {
+        __hearthStandaloneTest?: { scheduledNotifications: { extra?: { ownerType?: string } }[] };
+      }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+      return scheduled.filter((n) => n.extra?.ownerType === "VEHICLE").length;
+    });
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await page.getByRole("button", { name: "Enable reminders" }).click();
+  await expect.poll(vehicleReminders).toBeGreaterThan(0);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="settings"]').click();
+  await page.locator(".module-setting-card").filter({ has: page.getByRole("heading", { name: "Vehicles" }) }).getByRole("button", { name: "Hide module" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Vehicles hidden");
+  await expect.poll(vehicleReminders).toBe(0);
+});
+
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="reminders"]').click();

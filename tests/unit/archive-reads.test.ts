@@ -19,7 +19,7 @@ import {
 import { archiveVehicle, unarchiveVehicle } from "@/lib/actions/vehicles";
 import { archiveProperty } from "@/lib/actions/home";
 import { propertySchema, rentalAgreementSchema } from "@/lib/validation/home";
-import { getCurrentTenancies } from "@/lib/tenancies";
+import { loadDueRecords, type DueTenancy } from "@/lib/loadDueRecords";
 import { getNetWorth } from "@/lib/wealth";
 import { GET as icalFeed } from "@/app/api/ical/route";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -38,6 +38,12 @@ vi.mock("@/lib/fx", async (importOriginal) => {
 });
 
 const db = setupTestDb();
+
+// The current Tenancies, as the scheduler and roll-up load them (#674).
+async function getCurrentTenancies(): Promise<DueTenancy[]> {
+  const { records } = await loadDueRecords({ kinds: ["tenancy"] });
+  return records.flatMap((r) => (r.kind === "tenancy" ? [r.row] : []));
+}
 let actorId: string;
 
 beforeEach(async () => {

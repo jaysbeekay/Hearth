@@ -1,10 +1,7 @@
-import { prisma } from "@/lib/prisma";
 import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
 import { dayToDate, reminderPlan, type ReminderPlan } from "@/lib/notifications/reminderSchedule";
 import type { ReminderInput } from "@/lib/notifications/reminderContent";
-import { getCurrentTenancies } from "@/lib/tenancies";
-import { COVERING_CONTRACTS } from "@/lib/covers";
-import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
+import { loadDueRecords, type LoadedDueRecord } from "@/lib/loadDueRecords";
 import type { DueContext, DueEntry, VehicleDueField } from "@/lib/duePolicy";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 
@@ -25,26 +22,42 @@ export interface PlannedReminderRecord {
  * days ahead from it, so the two can't disagree about which records remind.
  */
 export async function plannedReminderRecords(ctx: DueContext): Promise<PlannedReminderRecord[]> {
-  const records: PlannedReminderRecord[] = [];
-
-  // The queries only narrow candidates. The Due policy and the schedule
-  // decide: past dates, auto-renewing end dates and records that Need
-  // review get nothing.
-  const contracts = await prisma.contract.findMany({
-    where: { status: "ACTIVE", endDate: { not: null }, deletedAt: null },
-  });
-  const contractLogs = await getNotificationLogsByOwner(
-    "CONTRACT",
-    contracts.map((c) => c.id),
+  // The loader only narrows candidates (#674). The Due policy and the
+  // schedule decide: past dates, auto-renewing end dates and records that
+  // Need review get nothing.
+  const { records: loaded } = await loadDueRecords({ context: ctx });
+  const logs = new Map(
+    await Promise.all(
+      (["CONTRACT", "PRODUCT", "VEHICLE", "TENANCY"] as const).map(
+        async (ownerType) =>
+          [
+            ownerType,
+            await getNotificationLogsByOwner(
+              ownerType,
+              loaded.filter((r) => r.ownerType === ownerType).map((r) => r.id),
+            ),
+          ] as const,
+      ),
+    ),
   );
-  for (const contract of contracts) {
-    const sentLog = (contractLogs.get(contract.id) ?? []).map(toSentLogRow);
-    const plan = reminderPlan({ kind: "contract", ...contract }, ctx, sentLog);
-    records.push({
-      ownerType: "CONTRACT",
-      ownerId: contract.id,
-      plan,
-      content: (entry) => ({
+
+  return loaded.map((loadedRecord) => {
+    const sentLog = (logs.get(loadedRecord.ownerType)?.get(loadedRecord.id) ?? []).map(toSentLogRow);
+    return {
+      ownerType: loadedRecord.ownerType,
+      ownerId: loadedRecord.id,
+      plan: reminderPlan(loadedRecord.record, ctx, sentLog),
+      content: reminderContent(loadedRecord),
+    };
+  });
+}
+
+/** What each of a record's Reminders says. */
+function reminderContent(loaded: LoadedDueRecord): (entry: DueEntry) => ReminderContent {
+  switch (loaded.kind) {
+    case "contract": {
+      const contract = loaded.row;
+      return (entry) => ({
         kind: "contract",
         id: contract.id,
         title: contract.title,
@@ -59,57 +72,22 @@ export async function plannedReminderRecords(ctx: DueContext): Promise<PlannedRe
                 noticePeriodDays: contract.noticePeriodDays!,
               }
             : undefined,
-      }),
-    });
-  }
-
-  const products = await prisma.product.findMany({
-    where: { warrantyEndDate: { not: null }, deletedAt: null },
-  });
-  const productLogs = await getNotificationLogsByOwner(
-    "PRODUCT",
-    products.map((p) => p.id),
-  );
-  for (const product of products) {
-    const sentLog = (productLogs.get(product.id) ?? []).map(toSentLogRow);
-    const plan = reminderPlan({ kind: "warranty", ...product }, ctx, sentLog);
-    records.push({
-      ownerType: "PRODUCT",
-      ownerId: product.id,
-      plan,
-      content: (entry) => ({
+      });
+    }
+    case "warranty": {
+      const product = loaded.row;
+      return (entry) => ({
         kind: "warranty",
         id: product.id,
         title: product.description,
         detail: product.manufacturer ?? product.vendor ?? "",
         daysRemaining: entry.daysLeft,
         endDate: product.warrantyEndDate!,
-      }),
-    });
-  }
-
-  const vehicles = await prisma.vehicle.findMany({
-    where: {
-      OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
-      deletedAt: null,
-      // #355 — an Archived Vehicle gets no Reminders.
-      archivedAt: null,
-    },
-    include: { contracts: COVERING_CONTRACTS },
-  });
-  const vehicleLogs = await getNotificationLogsByOwner(
-    "VEHICLE",
-    vehicles.map((v) => v.id),
-  );
-  for (const vehicle of vehicles) {
-    const sentLog = (vehicleLogs.get(vehicle.id) ?? []).map(toSentLogRow);
-    // Rego, insurance and service are separate entries with their own Reminders.
-    const plan = reminderPlan(vehicleDueRecord(vehicle), ctx, sentLog);
-    records.push({
-      ownerType: "VEHICLE",
-      ownerId: vehicle.id,
-      plan,
-      content: (entry) => {
+      });
+    }
+    case "vehicle": {
+      const vehicle = loaded.row;
+      return (entry) => {
         const field = entry.field as VehicleDueField;
         // #352 — vehicles have their own wording and /vehicles link.
         return {
@@ -120,25 +98,12 @@ export async function plannedReminderRecords(ctx: DueContext): Promise<PlannedRe
           daysRemaining: entry.daysLeft,
           endDate: vehicle[field]!,
         };
-      },
-    });
-  }
-
-  // #388 — a rented Property's current Tenancy, for its lease end. Its
-  // Reminder links to the Property, since a Tenancy has no page of its own.
-  const tenancies = await getCurrentTenancies();
-  const tenancyLogs = await getNotificationLogsByOwner(
-    "TENANCY",
-    tenancies.map((t) => t.tenancy.id),
-  );
-  for (const { propertyId, propertyLabel, tenancy } of tenancies) {
-    const sentLog = (tenancyLogs.get(tenancy.id) ?? []).map(toSentLogRow);
-    const plan = reminderPlan(tenancyDueRecord(tenancy), ctx, sentLog);
-    records.push({
-      ownerType: "TENANCY",
-      ownerId: tenancy.id,
-      plan,
-      content: (entry) => ({
+      };
+    }
+    case "tenancy": {
+      // #388 — a Tenancy's Reminder links to its Property, since a Tenancy has no page of its own.
+      const { propertyId, propertyLabel, tenancy } = loaded.row;
+      return (entry) => ({
         kind: "tenancy",
         id: tenancy.id,
         propertyId,
@@ -146,9 +111,7 @@ export async function plannedReminderRecords(ctx: DueContext): Promise<PlannedRe
         detail: tenancy.tenantName ?? "",
         daysRemaining: entry.daysLeft,
         endDate: dayToDate(entry.date),
-      }),
-    });
+      });
+    }
   }
-
-  return records;
 }
